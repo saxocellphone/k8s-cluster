@@ -78,8 +78,33 @@ app-of-apps (argocd/app-of-apps.yaml)
 
 1. Edit manifests or Helm values in this repo
 2. Commit and push to `main`
-3. Argo CD detects the change and syncs automatically (within ~3 minutes)
+3. Argo CD syncs automatically within seconds (see below)
 4. Verify in Argo CD UI at http://argocd.k8s.home
+
+### Fast Refresh via Git Hook
+
+A local `post-commit` Git hook notifies Argo CD to refresh immediately after every commit, bypassing the default 3-minute polling interval. This uses a long-lived API token stored in `.argocd-token` (gitignored).
+
+**How it works:** On each `git commit`, the hook sends a hard-refresh request to `http://argocd.k8s.home/api/v1/applications/app-of-apps`, which triggers Argo CD to re-fetch the repo and re-render all child Applications.
+
+> **Note:** Argo CD syncs from the **remote** repo, so always `git push` before or right after committing for the refresh to pick up your changes.
+
+**Setup on a new machine:**
+
+```bash
+# 1. Generate an API token (requires argocd CLI or curl)
+ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d)
+SESSION=$(curl -s http://argocd.k8s.home/api/v1/session \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"admin\",\"password\":\"$ARGOCD_PASSWORD\"}" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+curl -s http://argocd.k8s.home/api/v1/account/admin/token \
+  -H "Authorization: Bearer $SESSION" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"git-hook"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" > .argocd-token
+
+# 2. The hook is already in .git/hooks/post-commit (created during bootstrap)
+```
 
 ## Secret Management
 
