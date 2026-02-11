@@ -1,0 +1,14 @@
+global:
+  domain: argocd.k8s.home
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hostname: argocd.k8s.home
+
+configs:
+  cm:
+    kustomize.buildOptions: "--enable-helm"
+  params:
+    server.insecure: true

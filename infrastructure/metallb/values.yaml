@@ -1,0 +1,2 @@
+# MetalLB installed with default values
+# IPAddressPool and L2Advertisement are in resources/config.yaml

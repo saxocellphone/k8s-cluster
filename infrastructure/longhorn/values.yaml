@@ -1,0 +1,23 @@
+defaultSettings:
+  defaultDataPath: /var/mnt/longhorn
+  defaultReplicaCount: 2
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+  systemManagedComponentsNodeSelector: extensions.talos.dev/iscsi-tools:v0.2.0
+ingress:
+  enabled: true
+  host: longhorn.k8s.home
+  ingressClassName: nginx
+  tls: false
+longhornDriver:
+  nodeSelector:
+    extensions.talos.dev/iscsi-tools: v0.2.0
+longhornManager:
+  nodeSelector:
+    extensions.talos.dev/iscsi-tools: v0.2.0
+longhornUI:
+  replicas: 1
+persistence:
+  defaultClass: false
+  defaultClassReplicaCount: 2
+  defaultFsType: ext4
+  reclaimPolicy: Retain

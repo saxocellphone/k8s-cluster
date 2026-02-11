@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: qbittorrent
+  namespace: torrenting
+spec:
+  serviceName: qbittorrent-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qbittorrent
+  template:
+    metadata:
+      labels:
+        app: qbittorrent
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - talos-gcx-zwd
+      containers:
+      - name: gluetun
+        image: qmcgaw/gluetun
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+        env:
+        - name: VPN_SERVICE_PROVIDER
+          value: protonvpn
+        - name: VPN_TYPE
+          value: wireguard
+        - name: WIREGUARD_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              key: WIREGUARD_PRIVATE_KEY
+              name: protonvpn-wireguard
+        - name: WIREGUARD_ADDRESSES
+          valueFrom:
+            secretKeyRef:
+              key: WIREGUARD_ADDRESSES
+              name: protonvpn-wireguard
+        - name: SERVER_COUNTRIES
+          value: "United States"
+        - name: TZ
+          value: America/Los_Angeles
+        - name: FIREWALL_VPN_INPUT_PORTS
+          value: "8080,30611,8081,30612,8082,30613"
+        - name: HEALTH_VPN_DURATION_INITIAL
+          value: "0s"
+        - name: DOT
+          value: "off"
+        - name: DNS_ADDRESS
+          value: "1.1.1.1"
+        - name: FIREWALL_OUTBOUND_SUBNETS
+          value: "10.0.0.0/8"
+        ports:
+        - containerPort: 8080
+          name: http-0
+        - containerPort: 8081
+          name: http-1
+        - containerPort: 8082
+          name: http-2
+        - containerPort: 8000
+          name: control
+        resources:
+          limits:
+            cpu: "1"
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      - name: qbittorrent
+        image: linuxserver/qbittorrent:latest
+        env:
+        - name: PUID
+          value: "1001"
+        - name: PGID
+          value: "100"
+        - name: TZ
+          value: America/Los_Angeles
+        - name: WEBUI_PORT
+          value: "8080"
+        - name: UMASK
+          value: "002"
+        volumeMounts:
+        - mountPath: /config
+          name: qbit-config
+        - mountPath: /data
+          name: torrents
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 180
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 150
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 5
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: torrents
+        persistentVolumeClaim:
+          claimName: torrents-unified-pvc
+      - name: qbit-config
+        persistentVolumeClaim:
+          claimName: qbit-config-pvc

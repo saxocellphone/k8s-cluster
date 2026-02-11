@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chromium-browser
+  namespace: openclaw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chromium-browser
+  template:
+    metadata:
+      labels:
+        app: chromium-browser
+    spec:
+      containers:
+      - name: headless-shell
+        image: chromedp/headless-shell:stable
+        args:
+        - --remote-allow-origins=*
+        ports:
+        - containerPort: 9222
+          name: cdp
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        volumeMounts:
+        - name: dshm
+          mountPath: /dev/shm
+        livenessProbe:
+          tcpSocket:
+            port: 9222
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 9222
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chromium-browser
+  namespace: openclaw
+spec:
+  selector:
+    app: chromium-browser
+  ports:
+  - name: cdp
+    port: 9222
+    targetPort: 9222

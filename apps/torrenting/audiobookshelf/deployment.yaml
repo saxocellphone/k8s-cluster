@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audiobookshelf
+  namespace: torrenting
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: audiobookshelf
+  template:
+    metadata:
+      labels:
+        app: audiobookshelf
+    spec:
+      containers:
+      - name: audiobookshelf
+        image: ghcr.io/advplyr/audiobookshelf:latest
+        env:
+        - name: AUDIOBOOKSHELF_UID
+          value: "1001"
+        - name: AUDIOBOOKSHELF_GID
+          value: "100"
+        - name: TZ
+          value: America/Los_Angeles
+        - name: PORT
+          value: "13378"
+        ports:
+        - containerPort: 13378
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 13378
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 13378
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /config
+          name: audiobookshelf-config
+        - mountPath: /metadata
+          name: audiobookshelf-metadata
+        - mountPath: /audiobooks
+          name: torrents
+          subPath: books/audiobooks
+        - mountPath: /books
+          name: torrents
+          subPath: books/ebooks
+      volumes:
+      - name: audiobookshelf-config
+        persistentVolumeClaim:
+          claimName: audiobookshelf-config-pvc
+      - name: audiobookshelf-metadata
+        persistentVolumeClaim:
+          claimName: audiobookshelf-metadata-pvc
+      - name: torrents
+        persistentVolumeClaim:
+          claimName: torrents-unified-pvc

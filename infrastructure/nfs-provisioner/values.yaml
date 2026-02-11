@@ -1,0 +1,5 @@
+nfs:
+  path: /share/Public/k8s-volumes
+  server: 192.168.8.246
+storageClass:
+  defaultClass: true

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent-headless
+  namespace: torrenting
+spec:
+  clusterIP: None
+  selector:
+    app: qbittorrent
+  ports:
+  - name: http-0
+    port: 8080
+    targetPort: 8080
+  - name: http-1
+    port: 8081
+    targetPort: 8081
+  - name: http-2
+    port: 8082
+    targetPort: 8082

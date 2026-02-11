@@ -1,0 +1,11 @@
+# Secrets - never commit unencrypted
+key.txt
+*.dec.yaml
+
+# Kubeconfig and Talos config
+kubeconfig
+talosconfig
+_out/talosconfig
+
+# OS files
+.DS_Store

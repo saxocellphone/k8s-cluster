@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr
+  namespace: torrenting
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: radarr
+  template:
+    metadata:
+      labels:
+        app: radarr
+    spec:
+      containers:
+      - name: radarr
+        image: linuxserver/radarr:latest
+        env:
+        - name: PUID
+          value: "1001"
+        - name: PGID
+          value: "100"
+        - name: TZ
+          value: America/Los_Angeles
+        - name: UMASK
+          value: "002"
+        ports:
+        - containerPort: 7878
+          name: http
+        volumeMounts:
+        - mountPath: /config
+          name: radarr-config
+        - mountPath: /data
+          name: torrents
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 7878
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 7878
+          initialDelaySeconds: 120
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+      volumes:
+      - name: radarr-config
+        persistentVolumeClaim:
+          claimName: radarr-config-pvc
+      - name: torrents
+        persistentVolumeClaim:
+          claimName: torrents-unified-pvc

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gluetun-config
+  namespace: torrenting
+data:
+  DNS_SERVER: "off"
+  FIREWALL_VPN_INPUT_PORTS: "8080,9696,7878,8989,8191,8787,13378"
+  TZ: America/Los_Angeles
+  VPN_SERVICE_PROVIDER: custom
+  VPN_TYPE: wireguard
+  WIREGUARD_ENDPOINT_IP: "79.127.185.162"
+  WIREGUARD_ENDPOINT_PORT: "51820"

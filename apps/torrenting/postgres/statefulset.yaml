@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+  namespace: torrenting
+data:
+  init-databases.sh: |
+    #!/bin/bash
+    set -e
+    ARR_USER_PASSWORD="${ARR_USER_PASSWORD:-Wr5tY8uI2oP9aS4dF7gH1jK3lZ6xC0vB}"
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+      DO \$\$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'arr_user') THEN
+          CREATE USER arr_user WITH PASSWORD '$ARR_USER_PASSWORD';
+        END IF;
+      END
+      \$\$;
+      SELECT 'CREATE DATABASE prowlarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'prowlarr_main')\gexec
+      SELECT 'CREATE DATABASE prowlarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'prowlarr_log')\gexec
+      SELECT 'CREATE DATABASE radarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'radarr_main')\gexec
+      SELECT 'CREATE DATABASE radarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'radarr_log')\gexec
+      SELECT 'CREATE DATABASE sonarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sonarr_main')\gexec
+      SELECT 'CREATE DATABASE sonarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sonarr_log')\gexec
+      SELECT 'CREATE DATABASE readarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'readarr_main')\gexec
+      SELECT 'CREATE DATABASE readarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'readarr_log')\gexec
+      SELECT 'CREATE DATABASE readarr_cache OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'readarr_cache')\gexec
+      GRANT ALL PRIVILEGES ON DATABASE prowlarr_main TO arr_user;
+      GRANT ALL PRIVILEGES ON DATABASE prowlarr_log TO arr_user;
+      GRANT ALL PRIVILEGES ON DATABASE radarr_main TO arr_user;
+      GRANT ALL PRIVILEGES ON DATABASE radarr_log TO arr_user;
+      GRANT ALL PRIVILEGES ON DATABASE sonarr_main TO arr_user;
+      GRANT ALL PRIVILEGES ON DATABASE sonarr_log TO arr_user;
+      GRANT ALL PRIVILEGES ON DATABASE readarr_main TO arr_user;
+      GRANT ALL PRIVILEGES ON DATABASE readarr_log TO arr_user;
+      GRANT ALL PRIVILEGES ON DATABASE readarr_cache TO arr_user;
+    EOSQL
+    echo "Database initialization complete!"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: torrenting
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  serviceName: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/hostname: carbon-node
+      containers:
+      - name: postgres
+        image: postgres:16
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgres-password
+              name: postgres-arr-credentials
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        ports:
+        - containerPort: 5432
+          name: postgres
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: postgres-data
+        - mountPath: /docker-entrypoint-initdb.d
+          name: init-script
+      volumes:
+      - name: postgres-data
+        hostPath:
+          path: /data/postgres
+          type: DirectoryOrCreate
+      - name: init-script
+        configMap:
+          name: postgres-init-script
