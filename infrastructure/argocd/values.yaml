@@ -29,13 +29,23 @@ repoServer:
 
   initContainers:
     - name: install-ksops
-      image: viaductoss/ksops:v4.4.0
+      image: alpine:3.21
       command: ["/bin/sh", "-c"]
       args:
-        - echo "Installing KSOPS...";
-          mv /usr/local/bin/ksops /custom-tools/ksops;
-          mv /usr/local/bin/kustomize /custom-tools/kustomize;
-          echo "Done.";
+        - wget -qO /tmp/ksops.tar.gz https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.4.0/ksops_4.4.0_Linux_x86_64.tar.gz &&
+          tar -xzf /tmp/ksops.tar.gz -C /custom-tools &&
+          chmod +x /custom-tools/ksops &&
+          wget -qO /tmp/kustomize.tar.gz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.6.0/kustomize_v5.6.0_linux_amd64.tar.gz &&
+          tar -xzf /tmp/kustomize.tar.gz -C /custom-tools &&
+          chmod +x /custom-tools/kustomize
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
