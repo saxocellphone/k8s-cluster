@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/vnazzaro/k8s-cluster.git
+    repoURL: https://github.com/saxocellphone/k8s-cluster.git
     targetRevision: main
     path: apps/openclaw
     directory:
