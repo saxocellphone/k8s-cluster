@@ -1,6 +1,7 @@
 # Secrets - never commit unencrypted
 key.txt
 *.dec.yaml
+*.conf
 
 # Kubeconfig and Talos config
 kubeconfig
