@@ -10,6 +10,7 @@ spec:
     chart: kube-prometheus-stack
     targetRevision: 80.13.0
     helm:
+      releaseName: kube-prometheus-stack
       valueFiles:
         - $values/infrastructure/monitoring/values.yaml
   - repoURL: https://github.com/saxocellphone/k8s-cluster.git
