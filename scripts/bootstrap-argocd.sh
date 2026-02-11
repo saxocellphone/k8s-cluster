@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-KUBECONFIG_FILE="${REPO_DIR}/../first/kubeconfig"
+KUBECONFIG_FILE="${REPO_DIR}/kubeconfig"
 
 echo "=== Argo CD Bootstrap ==="
 echo ""
