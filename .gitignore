@@ -7,5 +7,8 @@ kubeconfig
 talosconfig
 _out/talosconfig
 
+# Argo CD API token
+.argocd-token
+
 # OS files
 .DS_Store
