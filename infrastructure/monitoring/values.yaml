@@ -1,5 +1,8 @@
 grafana:
   adminPassword: UvhEdKDdtkH29s7sfWLbx3ACH4DlmqMLpI9ksNfT
+  sidecar:
+    datasources:
+      initDatasources: true
 
 prometheus:
   prometheusSpec:
