@@ -1,10 +1,12 @@
 prometheus:
   prometheusSpec:
     retention: 15d
+    nodeSelector:
+      extensions.talos.dev/iscsi-tools: v0.2.0
     storageSpec:
       volumeClaimTemplate:
         spec:
           resources:
             requests:
               storage: 50Gi
-          storageClassName: nfs-client
+          storageClassName: longhorn
