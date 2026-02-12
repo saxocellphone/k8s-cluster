@@ -3,6 +3,7 @@ grafana:
   sidecar:
     datasources:
       initDatasources: true
+      watchMethod: LIST
 
 prometheus:
   prometheusSpec:
