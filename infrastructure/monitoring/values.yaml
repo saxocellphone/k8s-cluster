@@ -1,3 +1,6 @@
+grafana:
+  adminPassword: UvhEdKDdtkH29s7sfWLbx3ACH4DlmqMLpI9ksNfT
+
 prometheus:
   prometheusSpec:
     retention: 15d
