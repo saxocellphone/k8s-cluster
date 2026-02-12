@@ -1,5 +1,8 @@
 grafana:
   adminPassword: REDACTED
+  sidecar:
+    datasources:
+      initDatasources: true
 
 prometheus:
   prometheusSpec:
