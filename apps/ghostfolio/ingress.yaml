@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: rotki-ingress
-  namespace: rotki
+  name: ghostfolio-ingress
+  namespace: ghostfolio
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
@@ -10,13 +10,13 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: rotki.k8s.home
+  - host: ghostfolio.k8s.home
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: rotki
+            name: ghostfolio
             port:
-              number: 80
+              number: 3333
