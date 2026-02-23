@@ -13,6 +13,8 @@ spec:
       labels:
         app: radarr
     spec:
+      nodeSelector:
+        extensions.talos.dev/iscsi-tools: v0.2.0
       containers:
       - name: radarr
         image: linuxserver/radarr:latest
