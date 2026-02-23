@@ -1,209 +1,6 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: qbit-config-pv
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  mountOptions:
-  - nfsvers=4.1
-  nfs:
-    path: /Public/qbittorrent-config
-    server: 192.168.8.246
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: qbit-config-pvc
-  namespace: torrenting
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  volumeName: qbit-config-pv
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: prowlarr-config-pv
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  mountOptions:
-  - nfsvers=4.1
-  nfs:
-    path: /Public/prowlarr-config
-    server: 192.168.8.246
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: prowlarr-config-pvc
-  namespace: torrenting
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  volumeName: prowlarr-config-pv
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: radarr-config-pv
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  mountOptions:
-  - nfsvers=4.1
-  nfs:
-    path: /Public/radarr-config
-    server: 192.168.8.246
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: radarr-config-pvc
-  namespace: torrenting
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  volumeName: radarr-config-pv
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: sonarr-config-pv
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  mountOptions:
-  - nfsvers=4.1
-  nfs:
-    path: /Public/sonarr-config
-    server: 192.168.8.246
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: sonarr-config-pvc
-  namespace: torrenting
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  volumeName: sonarr-config-pv
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: readarr-config-pv
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  mountOptions:
-  - nfsvers=4.1
-  nfs:
-    path: /Public/readarr-config
-    server: 192.168.8.246
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: readarr-config-pvc
-  namespace: torrenting
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  volumeName: readarr-config-pv
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: audiobookshelf-config-pv
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  mountOptions:
-  - nfsvers=4.1
-  nfs:
-    path: /Public/audiobookshelf-config
-    server: 192.168.8.246
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: audiobookshelf-config-pvc
-  namespace: torrenting
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-  volumeName: audiobookshelf-config-pv
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: audiobookshelf-metadata-pv
-spec:
-  capacity:
-    storage: 5Gi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  mountOptions:
-  - nfsvers=4.1
-  nfs:
-    path: /Public/audiobookshelf-metadata
-    server: 192.168.8.246
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: audiobookshelf-metadata-pvc
-  namespace: torrenting
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
-  volumeName: audiobookshelf-metadata-pv
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
   name: torrents-unified-pv
 spec:
   capacity:
@@ -229,3 +26,81 @@ spec:
     requests:
       storage: 10Ti
   volumeName: torrents-unified-pv
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbit-config-pvc
+  namespace: torrenting
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prowlarr-config-pvc
+  namespace: torrenting
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: radarr-config-pvc
+  namespace: torrenting
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarr-config-pvc
+  namespace: torrenting
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: audiobookshelf-config-pvc
+  namespace: torrenting
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: audiobookshelf-metadata-pvc
+  namespace: torrenting
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi

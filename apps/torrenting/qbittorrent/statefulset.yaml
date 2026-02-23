@@ -14,6 +14,8 @@ spec:
       labels:
         app: qbittorrent
     spec:
+      nodeSelector:
+        extensions.talos.dev/iscsi-tools: v0.2.0
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
