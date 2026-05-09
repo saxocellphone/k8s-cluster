@@ -13,7 +13,11 @@ resources:
   - sonarr/deployment.yaml
   - flaresolverr/deployment.yaml
   - audiobookshelf/deployment.yaml
+  - bootstrap/configmap.yaml
+  - buildarr/cronjob.yaml
 
 generators:
   - qbittorrent/secret-generator.yaml
   - postgres/secret-generator.yaml
+  - bootstrap/secret-generator.yaml
+  - buildarr/secret-generator.yaml

@@ -25,6 +25,26 @@ spec:
                 operator: In
                 values:
                 - talos-gcx-zwd
+      initContainers:
+      - name: seed-config
+        image: python:3.13-alpine
+        command: ["/usr/local/bin/python3", "/scripts/seed-qbit-conf.py"]
+        env:
+        - name: QBIT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: arr-bootstrap
+              key: QBIT_USERNAME
+        - name: QBIT_PASSWORD_PBKDF2
+          valueFrom:
+            secretKeyRef:
+              name: arr-bootstrap
+              key: QBIT_PASSWORD_PBKDF2
+        volumeMounts:
+        - name: qbit-config
+          mountPath: /config
+        - name: bootstrap-scripts
+          mountPath: /scripts
       containers:
       - name: gluetun
         image: qmcgaw/gluetun
@@ -125,3 +145,7 @@ spec:
       - name: qbit-config
         persistentVolumeClaim:
           claimName: qbit-config-pvc
+      - name: bootstrap-scripts
+        configMap:
+          name: arr-bootstrap-scripts
+          defaultMode: 0755
