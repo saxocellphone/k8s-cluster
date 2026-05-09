@@ -134,6 +134,8 @@ data:
         print('1337x not in schema list', file=sys.stderr); sys.exit(1)
     match['tags'] = [$tag_id]
     match['enable'] = True
+    match['appProfileId'] = 1
+    match['priority'] = 25
     print(json.dumps(match))
     " > /tmp/idx.json
       code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
