@@ -66,22 +66,19 @@ data:
     }
 
     ensure_prowlarr_tag() {
+      # Logs go to stderr; only tag id printed to stdout for capture.
       local label="$1"
       existing_id=$(curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/tag" \
-        | python3 -c "import json,sys,os; tags=json.load(sys.stdin); print(next((t['id'] for t in tags if t['label']==os.environ['LABEL']),''))" \
-        2>/dev/null) || existing_id=""
-      LABEL="$label"
-      existing_id=$(LABEL="$label" curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/tag" \
-        | python3 -c "import json,sys,os; tags=json.load(sys.stdin); print(next((t['id'] for t in tags if t['label']==os.environ['LABEL']),''))")
+        | python3 -c "import json,sys; tags=json.load(sys.stdin); print(next((t['id'] for t in tags if t['label']=='$label'),''))")
       if [ -n "$existing_id" ]; then
-        echo "tag '$label' already exists (id=$existing_id)"
+        echo "tag '$label' already exists (id=$existing_id)" >&2
         echo "$existing_id"
         return 0
       fi
       response=$(curl -sS -X POST -H "X-Api-Key: $PROWLARR_KEY" -H "Content-Type: application/json" \
         -d "{\"label\":\"$label\"}" "$PROWLARR_BASE/api/v1/tag")
       new_id=$(echo "$response" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
-      echo "created tag '$label' (id=$new_id)"
+      echo "created tag '$label' (id=$new_id)" >&2
       echo "$new_id"
     }
 
@@ -158,7 +155,8 @@ data:
     wire_arr_dlclient sonarr "http://sonarr.torrenting.svc.cluster.local:8989" "$SONARR_API_KEY" "sonarr"
 
     # FlareSolverr proxy + 1337x indexer in Prowlarr
-    TAG_ID=$(ensure_prowlarr_tag flaresolverr | tail -1)
+    TAG_ID=$(ensure_prowlarr_tag flaresolverr)
+    echo "tag id = $TAG_ID"
     ensure_flaresolverr_proxy "$TAG_ID"
     ensure_indexer_1337x "$TAG_ID"
 
