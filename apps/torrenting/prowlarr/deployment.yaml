@@ -15,6 +15,27 @@ spec:
     spec:
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
+      initContainers:
+      - name: seed-config
+        image: busybox:1.36
+        command: ["/bin/sh", "/scripts/seed-arr-config.sh"]
+        env:
+        - name: PORT
+          value: "9696"
+        - name: SSL_PORT
+          value: "6969"
+        - name: INSTANCE_NAME
+          value: "Prowlarr"
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: arr-bootstrap
+              key: PROWLARR_API_KEY
+        volumeMounts:
+        - name: prowlarr-config
+          mountPath: /config
+        - name: bootstrap-scripts
+          mountPath: /scripts
       containers:
       - name: prowlarr
         image: linuxserver/prowlarr:latest
@@ -60,3 +81,7 @@ spec:
       - name: prowlarr-config
         persistentVolumeClaim:
           claimName: prowlarr-config-pvc
+      - name: bootstrap-scripts
+        configMap:
+          name: arr-bootstrap-scripts
+          defaultMode: 0755

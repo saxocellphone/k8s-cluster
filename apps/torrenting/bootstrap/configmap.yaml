@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: arr-bootstrap-scripts
+  namespace: torrenting
+data:
+  seed-arr-config.sh: |
+    #!/bin/sh
+    set -eu
+    mkdir -p /config
+    cat > /config/config.xml <<EOF
+    <Config>
+      <BindAddress>*</BindAddress>
+      <Port>${PORT}</Port>
+      <SslPort>${SSL_PORT}</SslPort>
+      <EnableSsl>False</EnableSsl>
+      <ApiKey>${API_KEY}</ApiKey>
+      <AuthenticationMethod>External</AuthenticationMethod>
+      <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>
+      <Branch>master</Branch>
+      <LogLevel>info</LogLevel>
+      <SslCertPath></SslCertPath>
+      <SslCertPassword></SslCertPassword>
+      <UrlBase></UrlBase>
+      <InstanceName>${INSTANCE_NAME}</InstanceName>
+    </Config>
+    EOF
+    chown 1001:100 /config/config.xml
+    chmod 600 /config/config.xml
+  seed-qbit-conf.py: |
+    #!/usr/bin/env python3
+    import os, re, pathlib
+    conf = pathlib.Path('/config/qBittorrent/qBittorrent.conf')
+    conf.parent.mkdir(parents=True, exist_ok=True)
+    text = conf.read_text() if conf.exists() else ''
+    if '[Preferences]' not in text:
+        text = '[Preferences]\n' + text if text else '[Preferences]\n'
+    # Strip any existing WebUI\Username and WebUI\Password_PBKDF2 lines
+    text = '\n'.join(
+        l for l in text.splitlines()
+        if not re.match(r'^WebUI\\(Username|Password_PBKDF2)=', l)
+    ) + '\n'
+    user = os.environ['QBIT_USERNAME']
+    pbkdf2 = os.environ['QBIT_PASSWORD_PBKDF2']
+    text = text.replace(
+        '[Preferences]\n',
+        f'[Preferences]\nWebUI\\Username={user}\nWebUI\\Password_PBKDF2="{pbkdf2}"\n',
+        1,
+    )
+    conf.write_text(text)
+    os.chown(str(conf), 1001, 100)
+    os.chmod(str(conf), 0o600)

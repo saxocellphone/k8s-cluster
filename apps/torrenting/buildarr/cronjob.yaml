@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: buildarr-reconcile
+  namespace: torrenting
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: buildarr
+            image: callum027/buildarr:latest
+            args: ["run"]
+            env:
+            - name: PUID
+              value: "1001"
+            - name: PGID
+              value: "100"
+            - name: TZ
+              value: America/Los_Angeles
+            volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            resources:
+              limits:
+                cpu: 500m
+                memory: 256Mi
+              requests:
+                cpu: 50m
+                memory: 64Mi
+          volumes:
+          - name: config
+            secret:
+              secretName: buildarr-config-secret
+              defaultMode: 0400
+              items:
+              - key: buildarr.yml
+                path: buildarr.yml
