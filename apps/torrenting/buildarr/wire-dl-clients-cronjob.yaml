@@ -58,6 +58,8 @@ data:
         --data @/tmp/payload.json "$base/api/v3/downloadclient")
       if [ "$code" = "201" ]; then
         echo "created qBittorrent in $name (HTTP $code)"
+      elif [ "$code" = "400" ] && grep -q "Should be unique" /tmp/resp.json; then
+        echo "qBittorrent already exists in $name (race-safe skip)"
       else
         echo "FAILED to create in $name (HTTP $code):"; cat /tmp/resp.json; return 1
       fi
@@ -108,6 +110,8 @@ data:
         --data @/tmp/proxy.json "$PROWLARR_BASE/api/v1/indexerproxy")
       if [ "$code" = "201" ]; then
         echo "created FlareSolverr proxy (HTTP $code)"
+      elif [ "$code" = "400" ] && grep -q -i "unique\|already" /tmp/resp.json; then
+        echo "FlareSolverr proxy already exists (race-safe skip)"
       else
         echo "FAILED FlareSolverr proxy (HTTP $code):"; cat /tmp/resp.json; return 1
       fi
@@ -142,6 +146,8 @@ data:
         --data @/tmp/idx.json "$PROWLARR_BASE/api/v1/indexer")
       if [ "$code" = "201" ]; then
         echo "created 1337x indexer (HTTP $code)"
+      elif [ "$code" = "400" ] && grep -q -i "unique\|already" /tmp/resp.json; then
+        echo "1337x indexer already exists (race-safe skip)"
       else
         echo "FAILED 1337x indexer (HTTP $code):"; cat /tmp/resp.json; return 1
       fi
