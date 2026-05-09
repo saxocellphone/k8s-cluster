@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wire-dl-clients-script
+  namespace: torrenting
+data:
+  wire.sh: |
+    #!/bin/sh
+    set -eu
+    # Idempotently create qBittorrent download client in radarr and sonarr.
+    # Checks if a client named "qBittorrent" exists; if not, POSTs it.
+    QBIT_HOST="qbittorrent.torrenting.svc.cluster.local"
+    QBIT_PORT="8080"
+    QBIT_USER="admin"
+    QBIT_PASS="${QBIT_PASSWORD}"
+
+    wire_arr() {
+      local name="$1" base="$2" key="$3" category="$4"
+      echo "=== $name ==="
+      existing=$(curl -sS -H "X-Api-Key: $key" "$base/api/v3/downloadclient" | grep -c '"name":"qBittorrent"' || true)
+      if [ "$existing" -gt 0 ]; then
+        echo "qBittorrent already configured in $name"
+        return 0
+      fi
+      cat > /tmp/payload.json <<EOF
+    {
+      "enable": true,
+      "protocol": "torrent",
+      "priority": 1,
+      "removeCompletedDownloads": true,
+      "removeFailedDownloads": true,
+      "name": "qBittorrent",
+      "fields": [
+        {"name": "host", "value": "$QBIT_HOST"},
+        {"name": "port", "value": $QBIT_PORT},
+        {"name": "useSsl", "value": false},
+        {"name": "urlBase", "value": ""},
+        {"name": "username", "value": "$QBIT_USER"},
+        {"name": "password", "value": "$QBIT_PASS"},
+        {"name": "movieCategory", "value": "$category"},
+        {"name": "tvCategory", "value": "$category"},
+        {"name": "musicCategory", "value": "$category"},
+        {"name": "recentMoviePriority", "value": 0},
+        {"name": "olderMoviePriority", "value": 0},
+        {"name": "recentTvPriority", "value": 0},
+        {"name": "olderTvPriority", "value": 0},
+        {"name": "initialState", "value": 0}
+      ],
+      "implementationName": "qBittorrent",
+      "implementation": "QBittorrent",
+      "configContract": "QBittorrentSettings",
+      "tags": []
+    }
+    EOF
+      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+        -X POST -H "X-Api-Key: $key" -H "Content-Type: application/json" \
+        --data @/tmp/payload.json "$base/api/v3/downloadclient")
+      if [ "$code" = "201" ]; then
+        echo "created qBittorrent in $name (HTTP $code)"
+      else
+        echo "FAILED to create in $name (HTTP $code):"
+        cat /tmp/resp.json
+        return 1
+      fi
+    }
+
+    wire_arr radarr "http://radarr.torrenting.svc.cluster.local:7878" "$RADARR_API_KEY" "radarr"
+    wire_arr sonarr "http://sonarr.torrenting.svc.cluster.local:8989" "$SONARR_API_KEY" "sonarr"
+    echo "ALL DONE"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wire-dl-clients
+  namespace: torrenting
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wire
+            image: curlimages/curl:8.10.1
+            command: ["/bin/sh", "/scripts/wire.sh"]
+            env:
+            - name: RADARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-bootstrap
+                  key: RADARR_API_KEY
+            - name: SONARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-bootstrap
+                  key: SONARR_API_KEY
+            - name: QBIT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: arr-bootstrap
+                  key: QBIT_PASSWORD
+            volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+            resources:
+              limits:
+                cpu: 100m
+                memory: 64Mi
+              requests:
+                cpu: 10m
+                memory: 16Mi
+          volumes:
+          - name: scripts
+            configMap:
+              name: wire-dl-clients-script
+              defaultMode: 0755
