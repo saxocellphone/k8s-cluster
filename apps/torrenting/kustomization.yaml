@@ -14,11 +14,9 @@ resources:
   - flaresolverr/deployment.yaml
   - audiobookshelf/deployment.yaml
   - bootstrap/configmap.yaml
-  - buildarr/cronjob.yaml
   - buildarr/wire-dl-clients-cronjob.yaml
 
 generators:
   - qbittorrent/secret-generator.yaml
   - postgres/secret-generator.yaml
   - bootstrap/secret-generator.yaml
-  - buildarr/secret-generator.yaml
