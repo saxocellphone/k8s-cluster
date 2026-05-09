@@ -38,7 +38,7 @@ spec:
           - name: config
             secret:
               secretName: buildarr-config-secret
-              defaultMode: 0400
+              defaultMode: 0444
               items:
               - key: buildarr.yml
                 path: buildarr.yml
