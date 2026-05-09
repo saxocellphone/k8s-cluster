@@ -138,7 +138,8 @@ data:
     match['priority'] = 25
     print(json.dumps(match))
     " > /tmp/idx.json
-      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+      echo "POST 1337x (CF challenge can take ~60s)..."
+      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time 180 \
         -X POST -H "X-Api-Key: $PROWLARR_KEY" -H "Content-Type: application/json" \
         --data @/tmp/idx.json "$PROWLARR_BASE/api/v1/indexer?forceSave=true")
       if [ "$code" = "201" ]; then
@@ -201,8 +202,8 @@ spec:
             - name: scripts
               mountPath: /scripts
             resources:
-              limits: { cpu: 200m, memory: 128Mi }
-              requests: { cpu: 10m, memory: 32Mi }
+              limits: { cpu: 500m, memory: 512Mi }
+              requests: { cpu: 50m, memory: 128Mi }
           volumes:
           - name: scripts
             configMap:
