@@ -23,7 +23,7 @@ data:
     wire_arr_dlclient() {
       local name="$1" base="$2" key="$3" category="$4"
       echo "=== ${name}: download client ==="
-      existing=$(curl -sS -H "X-Api-Key: $key" "$base/api/v3/downloadclient" | grep -c '"name":"qBittorrent"' || true)
+      existing=$(curl -sS -H "X-Api-Key: $key" "$base/api/v3/downloadclient" | python3 -c "import json,sys; clients=json.load(sys.stdin); print(sum(1 for c in clients if c.get('name')=='qBittorrent'))")
       if [ "$existing" -gt 0 ]; then
         echo "qBittorrent already configured in $name"
         return 0
@@ -86,7 +86,7 @@ data:
     ensure_flaresolverr_proxy() {
       local tag_id="$1"
       echo "=== prowlarr: FlareSolverr proxy ==="
-      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/indexerproxy" | grep -c '"name":"FlareSolverr"' || true)
+      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/indexerproxy" | python3 -c "import json,sys; xs=json.load(sys.stdin); print(sum(1 for x in xs if x.get('name')=='FlareSolverr'))")
       if [ "$existing" -gt 0 ]; then
         echo "FlareSolverr proxy already configured"
         return 0
@@ -116,7 +116,7 @@ data:
     ensure_indexer_1337x() {
       local tag_id="$1"
       echo "=== prowlarr: 1337x indexer ==="
-      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/indexer" | grep -c '"name":"1337x"' || true)
+      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/indexer" | python3 -c "import json,sys; xs=json.load(sys.stdin); print(sum(1 for x in xs if x.get('name')=='1337x'))")
       if [ "$existing" -gt 0 ]; then
         echo "1337x indexer already configured"
         return 0
