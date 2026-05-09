@@ -7,16 +7,22 @@ data:
   wire.sh: |
     #!/bin/sh
     set -eu
-    # Idempotently create qBittorrent download client in radarr and sonarr.
-    # Checks if a client named "qBittorrent" exists; if not, POSTs it.
+    # Idempotent post-deploy wiring done outside Buildarr because Buildarr 0.7.1
+    # has bugs in: (a) sonarr/radarr download client create (SecretStr), and
+    # (b) prowlarr indexer create order (tries indexer before proxy).
+    # We POST these via REST API and check existence first to be re-runnable.
+
     QBIT_HOST="qbittorrent.torrenting.svc.cluster.local"
     QBIT_PORT="8080"
     QBIT_USER="admin"
     QBIT_PASS="${QBIT_PASSWORD}"
 
-    wire_arr() {
+    PROWLARR_BASE="http://prowlarr.torrenting.svc.cluster.local:9696"
+    PROWLARR_KEY="${PROWLARR_API_KEY}"
+
+    wire_arr_dlclient() {
       local name="$1" base="$2" key="$3" category="$4"
-      echo "=== $name ==="
+      echo "=== ${name}: download client ==="
       existing=$(curl -sS -H "X-Api-Key: $key" "$base/api/v3/downloadclient" | grep -c '"name":"qBittorrent"' || true)
       if [ "$existing" -gt 0 ]; then
         echo "qBittorrent already configured in $name"
@@ -24,11 +30,8 @@ data:
       fi
       cat > /tmp/payload.json <<EOF
     {
-      "enable": true,
-      "protocol": "torrent",
-      "priority": 1,
-      "removeCompletedDownloads": true,
-      "removeFailedDownloads": true,
+      "enable": true, "protocol": "torrent", "priority": 1,
+      "removeCompletedDownloads": true, "removeFailedDownloads": true,
       "name": "qBittorrent",
       "fields": [
         {"name": "host", "value": "$QBIT_HOST"},
@@ -46,10 +49,8 @@ data:
         {"name": "olderTvPriority", "value": 0},
         {"name": "initialState", "value": 0}
       ],
-      "implementationName": "qBittorrent",
-      "implementation": "QBittorrent",
-      "configContract": "QBittorrentSettings",
-      "tags": []
+      "implementationName": "qBittorrent", "implementation": "QBittorrent",
+      "configContract": "QBittorrentSettings", "tags": []
     }
     EOF
       code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
@@ -58,14 +59,103 @@ data:
       if [ "$code" = "201" ]; then
         echo "created qBittorrent in $name (HTTP $code)"
       else
-        echo "FAILED to create in $name (HTTP $code):"
-        cat /tmp/resp.json
-        return 1
+        echo "FAILED to create in $name (HTTP $code):"; cat /tmp/resp.json; return 1
       fi
     }
 
-    wire_arr radarr "http://radarr.torrenting.svc.cluster.local:7878" "$RADARR_API_KEY" "radarr"
-    wire_arr sonarr "http://sonarr.torrenting.svc.cluster.local:8989" "$SONARR_API_KEY" "sonarr"
+    ensure_prowlarr_tag() {
+      local label="$1"
+      existing_id=$(curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/tag" \
+        | python3 -c "import json,sys,os; tags=json.load(sys.stdin); print(next((t['id'] for t in tags if t['label']==os.environ['LABEL']),''))" \
+        2>/dev/null) || existing_id=""
+      LABEL="$label"
+      existing_id=$(LABEL="$label" curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/tag" \
+        | python3 -c "import json,sys,os; tags=json.load(sys.stdin); print(next((t['id'] for t in tags if t['label']==os.environ['LABEL']),''))")
+      if [ -n "$existing_id" ]; then
+        echo "tag '$label' already exists (id=$existing_id)"
+        echo "$existing_id"
+        return 0
+      fi
+      response=$(curl -sS -X POST -H "X-Api-Key: $PROWLARR_KEY" -H "Content-Type: application/json" \
+        -d "{\"label\":\"$label\"}" "$PROWLARR_BASE/api/v1/tag")
+      new_id=$(echo "$response" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+      echo "created tag '$label' (id=$new_id)"
+      echo "$new_id"
+    }
+
+    ensure_flaresolverr_proxy() {
+      local tag_id="$1"
+      echo "=== prowlarr: FlareSolverr proxy ==="
+      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/indexerproxy" | grep -c '"name":"FlareSolverr"' || true)
+      if [ "$existing" -gt 0 ]; then
+        echo "FlareSolverr proxy already configured"
+        return 0
+      fi
+      cat > /tmp/proxy.json <<EOF
+    {
+      "name": "FlareSolverr",
+      "fields": [
+        {"name": "host", "value": "http://flaresolverr.torrenting.svc.cluster.local:8191/"},
+        {"name": "requestTimeout", "value": 60}
+      ],
+      "implementationName": "FlareSolverr", "implementation": "FlareSolverr",
+      "configContract": "FlareSolverrSettings",
+      "tags": [$tag_id]
+    }
+    EOF
+      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+        -X POST -H "X-Api-Key: $PROWLARR_KEY" -H "Content-Type: application/json" \
+        --data @/tmp/proxy.json "$PROWLARR_BASE/api/v1/indexerproxy")
+      if [ "$code" = "201" ]; then
+        echo "created FlareSolverr proxy (HTTP $code)"
+      else
+        echo "FAILED FlareSolverr proxy (HTTP $code):"; cat /tmp/resp.json; return 1
+      fi
+    }
+
+    ensure_indexer_1337x() {
+      local tag_id="$1"
+      echo "=== prowlarr: 1337x indexer ==="
+      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/indexer" | grep -c '"name":"1337x"' || true)
+      if [ "$existing" -gt 0 ]; then
+        echo "1337x indexer already configured"
+        return 0
+      fi
+      cat > /tmp/idx.json <<EOF
+    {
+      "name": "1337x", "enable": true, "redirect": false, "supportsRss": true,
+      "supportsSearch": true, "supportsRedirect": false, "supportsPagination": true,
+      "appProfileId": 1, "protocol": "torrent", "privacy": "public", "priority": 25,
+      "downloadClientId": 0,
+      "fields": [
+        {"name": "definitionFile", "value": "1337x"},
+        {"name": "baseUrl", "value": "https://1337x.to/"},
+        {"name": "torrentBaseSettings.seedRatio"}
+      ],
+      "implementationName": "Cardigann", "implementation": "Cardigann",
+      "configContract": "CardigannSettings",
+      "tags": [$tag_id]
+    }
+    EOF
+      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+        -X POST -H "X-Api-Key: $PROWLARR_KEY" -H "Content-Type: application/json" \
+        --data @/tmp/idx.json "$PROWLARR_BASE/api/v1/indexer")
+      if [ "$code" = "201" ]; then
+        echo "created 1337x indexer (HTTP $code)"
+      else
+        echo "FAILED 1337x indexer (HTTP $code):"; cat /tmp/resp.json; return 1
+      fi
+    }
+
+    # Download clients in radarr + sonarr
+    wire_arr_dlclient radarr "http://radarr.torrenting.svc.cluster.local:7878" "$RADARR_API_KEY" "radarr"
+    wire_arr_dlclient sonarr "http://sonarr.torrenting.svc.cluster.local:8989" "$SONARR_API_KEY" "sonarr"
+
+    # FlareSolverr proxy + 1337x indexer in Prowlarr
+    TAG_ID=$(ensure_prowlarr_tag flaresolverr | tail -1)
+    ensure_flaresolverr_proxy "$TAG_ID"
+    ensure_indexer_1337x "$TAG_ID"
+
     echo "ALL DONE"
 ---
 apiVersion: batch/v1
@@ -88,34 +178,27 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: wire
-            image: curlimages/curl:8.10.1
+            image: nicolaka/netshoot:latest
             command: ["/bin/sh", "/scripts/wire.sh"]
             env:
             - name: RADARR_API_KEY
               valueFrom:
-                secretKeyRef:
-                  name: arr-bootstrap
-                  key: RADARR_API_KEY
+                secretKeyRef: { name: arr-bootstrap, key: RADARR_API_KEY }
             - name: SONARR_API_KEY
               valueFrom:
-                secretKeyRef:
-                  name: arr-bootstrap
-                  key: SONARR_API_KEY
+                secretKeyRef: { name: arr-bootstrap, key: SONARR_API_KEY }
+            - name: PROWLARR_API_KEY
+              valueFrom:
+                secretKeyRef: { name: arr-bootstrap, key: PROWLARR_API_KEY }
             - name: QBIT_PASSWORD
               valueFrom:
-                secretKeyRef:
-                  name: arr-bootstrap
-                  key: QBIT_PASSWORD
+                secretKeyRef: { name: arr-bootstrap, key: QBIT_PASSWORD }
             volumeMounts:
             - name: scripts
               mountPath: /scripts
             resources:
-              limits:
-                cpu: 100m
-                memory: 64Mi
-              requests:
-                cpu: 10m
-                memory: 16Mi
+              limits: { cpu: 200m, memory: 128Mi }
+              requests: { cpu: 10m, memory: 32Mi }
           volumes:
           - name: scripts
             configMap:
