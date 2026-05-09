@@ -15,7 +15,7 @@ data:
       <SslPort>${SSL_PORT}</SslPort>
       <EnableSsl>False</EnableSsl>
       <ApiKey>${API_KEY}</ApiKey>
-      <AuthenticationMethod>External</AuthenticationMethod>
+      <AuthenticationMethod>Forms</AuthenticationMethod>
       <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>
       <Branch>master</Branch>
       <LogLevel>info</LogLevel>
