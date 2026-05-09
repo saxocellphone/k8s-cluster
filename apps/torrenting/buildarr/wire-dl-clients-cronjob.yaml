@@ -122,25 +122,23 @@ data:
         echo "1337x indexer already configured"
         return 0
       fi
-      cat > /tmp/idx.json <<EOF
-    {
-      "name": "1337x", "enable": true, "redirect": false, "supportsRss": true,
-      "supportsSearch": true, "supportsRedirect": false, "supportsPagination": true,
-      "appProfileId": 1, "protocol": "torrent", "privacy": "public", "priority": 25,
-      "downloadClientId": 0,
-      "fields": [
-        {"name": "definitionFile", "value": "1337x"},
-        {"name": "baseUrl", "value": "https://1337x.to/"},
-        {"name": "torrentBaseSettings.seedRatio"}
-      ],
-      "implementationName": "Cardigann", "implementation": "Cardigann",
-      "configContract": "CardigannSettings",
-      "tags": [$tag_id]
-    }
-    EOF
+      # Pull Prowlarr's official schema entry for 1337x and submit it back
+      # with our tag attached. Avoids hand-crafting the complex Cardigann
+      # field set (which has version-specific shape).
+      curl -sS -H "X-Api-Key: $PROWLARR_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
+        | python3 -c "
+    import json, sys
+    schemas = json.load(sys.stdin)
+    match = next((s for s in schemas if s.get('name') == '1337x' or s.get('definitionName') == '1337x'), None)
+    if match is None:
+        print('1337x not in schema list', file=sys.stderr); sys.exit(1)
+    match['tags'] = [$tag_id]
+    match['enable'] = True
+    print(json.dumps(match))
+    " > /tmp/idx.json
       code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
         -X POST -H "X-Api-Key: $PROWLARR_KEY" -H "Content-Type: application/json" \
-        --data @/tmp/idx.json "$PROWLARR_BASE/api/v1/indexer")
+        --data @/tmp/idx.json "$PROWLARR_BASE/api/v1/indexer?forceSave=true")
       if [ "$code" = "201" ]; then
         echo "created 1337x indexer (HTTP $code)"
       elif [ "$code" = "400" ] && grep -q -i "unique\|already" /tmp/resp.json; then
