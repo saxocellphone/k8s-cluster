@@ -53,7 +53,12 @@ data:
         m = {c["name"]: c["value"] for c in cookies}
         uid, pw = m.get("uid"), m.get("pass")
         if not uid or not pw:
+            sol = d.get("solution", {})
+            url_after = sol.get("url")
+            html = (sol.get("response") or "")[:600]
             print(f"  ERROR: no uid/pass cookies returned. Got names: {list(m.keys())}")
+            print(f"  URL after POST: {url_after}")
+            print(f"  Response snippet: {html!r}")
             print("  Likely bad credentials, or IPTorrents login flow changed.")
             sys.exit(1)
         cookie_str = f"uid={uid}; pass={pw}"
