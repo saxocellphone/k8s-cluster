@@ -1,0 +1,150 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iptorrents-cookie-refresh-script
+  namespace: torrenting
+data:
+  refresh.py: |
+    #!/usr/bin/env python3
+    """
+    IPTorrents cookie refresher.
+
+    Logs into iptorrents.com via FlareSolverr (CF-protected), captures the
+    uid+pass session cookies, and PUTs them into Prowlarr's IPTorrents
+    indexer config (cookie field).
+
+    Run on a schedule (daily). Idempotent — safe to re-run; always pushes
+    fresh cookies. Fails loudly with non-zero exit if anything goes wrong
+    so the Job shows Failed in `kubectl get jobs`.
+    """
+    import json, os, sys, urllib.request, urllib.parse
+
+    FLARESOLVERR = "http://flaresolverr.torrenting.svc.cluster.local:8191/v1"
+    PROWLARR = "http://prowlarr.torrenting.svc.cluster.local:9696"
+    PROWLARR_KEY = os.environ["PROWLARR_API_KEY"]
+    IPT_USER = os.environ["IPT_USERNAME"]
+    IPT_PASS = os.environ["IPT_PASSWORD"]
+    IPT_LOGIN_URL = "https://iptorrents.com/takelogin.php"
+
+    def _req(url, method="GET", payload=None, headers=None, timeout=30):
+        h = {"Content-Type": "application/json"}
+        if headers: h.update(headers)
+        data = json.dumps(payload).encode() if payload is not None else None
+        req = urllib.request.Request(url, data=data, method=method, headers=h)
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read().decode()
+            return r.status, body
+
+    def flaresolverr_login():
+        post_data = urllib.parse.urlencode({"username": IPT_USER, "password": IPT_PASS})
+        body = {
+            "cmd": "request.post",
+            "url": IPT_LOGIN_URL,
+            "postData": post_data,
+            "maxTimeout": 120000,
+        }
+        print(f"[1/3] FlareSolverr POST -> {IPT_LOGIN_URL}")
+        status, resp = _req(FLARESOLVERR, method="POST", payload=body, timeout=150)
+        d = json.loads(resp)
+        if d.get("status") != "ok":
+            print(f"  FlareSolverr error: {d.get('message', resp[:300])}")
+            sys.exit(1)
+        cookies = d.get("solution", {}).get("cookies", [])
+        m = {c["name"]: c["value"] for c in cookies}
+        uid, pw = m.get("uid"), m.get("pass")
+        if not uid or not pw:
+            print(f"  ERROR: no uid/pass cookies returned. Got names: {list(m.keys())}")
+            print("  Likely bad credentials, or IPTorrents login flow changed.")
+            sys.exit(1)
+        cookie_str = f"uid={uid}; pass={pw}"
+        print(f"  got cookies (uid len={len(uid)}, pass len={len(pw)})")
+        return cookie_str
+
+    def find_iptorrents_indexer():
+        print("[2/3] looking up IPTorrents indexer in Prowlarr")
+        status, body = _req(f"{PROWLARR}/api/v1/indexer", headers={"X-Api-Key": PROWLARR_KEY})
+        xs = json.loads(body)
+        ix = next((x for x in xs if x.get("name", "").lower().startswith("iptorrents")), None)
+        if ix is None:
+            print("  ERROR: no IPTorrents indexer found in Prowlarr")
+            sys.exit(1)
+        print(f"  found id={ix['id']} name={ix['name']!r}")
+        return ix
+
+    def update_cookie(indexer, new_cookie):
+        for f in indexer["fields"]:
+            if f["name"] == "cookie":
+                old = f.get("value") or ""
+                if old == new_cookie:
+                    print("[3/3] cookie unchanged — skipping PUT")
+                    return False
+                f["value"] = new_cookie
+                break
+        else:
+            print("  ERROR: indexer has no 'cookie' field"); sys.exit(1)
+        print(f"[3/3] PUT /api/v1/indexer/{indexer['id']}")
+        status, body = _req(
+            f"{PROWLARR}/api/v1/indexer/{indexer['id']}",
+            method="PUT",
+            payload=indexer,
+            headers={"X-Api-Key": PROWLARR_KEY},
+            timeout=30,
+        )
+        if status not in (200, 202):
+            print(f"  PUT failed (HTTP {status}): {body[:300]}"); sys.exit(1)
+        print(f"  cookie updated (HTTP {status})")
+        return True
+
+    if __name__ == "__main__":
+        cookie = flaresolverr_login()
+        ix = find_iptorrents_indexer()
+        update_cookie(ix, cookie)
+        print("DONE")
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: iptorrents-cookie-refresh
+  namespace: torrenting
+spec:
+  # Daily at 03:00 local time. IPTorrents sessions typically last 30+ days
+  # but the cron runs daily so a single FlareSolverr/CF hiccup doesn't
+  # leave the cookie stale for long.
+  schedule: "0 3 * * *"
+  timeZone: America/Los_Angeles
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: refresh
+            image: python:3.13-alpine
+            command: ["/usr/local/bin/python3", "/scripts/refresh.py"]
+            env:
+            - name: PROWLARR_API_KEY
+              valueFrom:
+                secretKeyRef: { name: arr-bootstrap, key: PROWLARR_API_KEY }
+            - name: IPT_USERNAME
+              valueFrom:
+                secretKeyRef: { name: iptorrents-creds, key: IPT_USERNAME }
+            - name: IPT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: iptorrents-creds, key: IPT_PASSWORD }
+            volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+            resources:
+              limits: { cpu: 200m, memory: 128Mi }
+              requests: { cpu: 20m, memory: 32Mi }
+          volumes:
+          - name: scripts
+            configMap:
+              name: iptorrents-cookie-refresh-script
+              defaultMode: 0755

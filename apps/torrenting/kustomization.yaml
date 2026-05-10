@@ -15,8 +15,10 @@ resources:
   - audiobookshelf/deployment.yaml
   - bootstrap/configmap.yaml
   - buildarr/wire-dl-clients-cronjob.yaml
+  - iptorrents/cookie-refresh-cronjob.yaml
 
 generators:
   - qbittorrent/secret-generator.yaml
   - postgres/secret-generator.yaml
   - bootstrap/secret-generator.yaml
+  - iptorrents/secret-generator.yaml
