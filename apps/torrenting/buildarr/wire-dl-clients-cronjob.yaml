@@ -4,6 +4,11 @@ metadata:
   name: wire-dl-clients-script
   namespace: torrenting
 data:
+  indexers.json: |
+    [
+      {"definitionName": "nyaasi",  "useFlareSolverr": false},
+      {"definitionName": "1337x",   "useFlareSolverr": true}
+    ]
   wire.sh: |
     #!/bin/sh
     set -eu
@@ -16,9 +21,10 @@ data:
     #   - sonarr: root folder /data/tv, qBit download client
     #   - prowlarr: Sonarr/Radarr application links, FlareSolverr proxy
     #
-    # NOT configured here (add via Prowlarr UI when needed):
-    #   - Indexers (CloudFlare-protected ones take 60-120s via FlareSolverr,
-    #     making automation flaky; provider-specific keys also vary).
+    # Indexers are declared in indexers.json (same ConfigMap). Add new ones
+    # there. CF-protected indexers should set "useFlareSolverr": true to be
+    # tagged through the FlareSolverr proxy. Failed adds are logged but
+    # don't stop the job — next CronJob cycle retries them.
 
     QBIT_HOST="qbittorrent.torrenting.svc.cluster.local"
     QBIT_PORT="8080"
@@ -173,6 +179,50 @@ data:
 
     TAG_ID=$(ensure_prowlarr_tag flaresolverr)
     wire_flaresolverr_proxy "$TAG_ID"
+
+    # ---------- prowlarr: indexers from indexers.json ----------
+
+    failed_indexers=0
+    python3 -c "
+    import json
+    items = json.load(open('/scripts/indexers.json'))
+    for i in items:
+        print(f\"{i['definitionName']}|{1 if i.get('useFlareSolverr') else 0}\")
+    " | while IFS='|' read def_name use_flare; do
+      [ -z "$def_name" ] && continue
+      echo "[prowlarr] indexer: $def_name (flaresolverr=$use_flare)"
+      # Resolve the user-facing name (e.g. nyaasi -> 'Nyaa.si').
+      indexer_name=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
+        | python3 -c "import json,sys; ms=[s for s in json.load(sys.stdin) if s.get('definitionName')=='$def_name']; print(ms[0]['name'] if ms else '')")
+      if [ -z "$indexer_name" ]; then
+        echo "  ERROR: definitionName '$def_name' not in Prowlarr schema list"
+        failed_indexers=$((failed_indexers+1)); continue
+      fi
+      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer" | json_count name "$indexer_name")
+      if [ "$existing" -gt 0 ]; then
+        echo "  $indexer_name already configured"; continue
+      fi
+      tags="[]"; tmo=30
+      if [ "$use_flare" = "1" ]; then tags="[$TAG_ID]"; tmo=180; fi
+      curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
+        | python3 -c "
+    import json,sys
+    m = next(s for s in json.load(sys.stdin) if s.get('definitionName')=='$def_name')
+    m.update(enable=True, appProfileId=1, priority=25, tags=$tags)
+    print(json.dumps(m))
+    " > /tmp/idx.json
+      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time $tmo \
+        -X POST -H "X-Api-Key: $PROWLARR_API_KEY" -H "Content-Type: application/json" \
+        --data @/tmp/idx.json "$PROWLARR_BASE/api/v1/indexer")
+      if [ "$code" = "201" ]; then
+        echo "  created $indexer_name (HTTP $code)"
+      elif [ "$code" = "400" ] && grep -q -i "unique\|already" /tmp/resp.json; then
+        echo "  $indexer_name already exists (race-safe skip)"
+      else
+        echo "  FAILED $indexer_name (HTTP $code) — will retry next cycle:"
+        head -c 300 /tmp/resp.json; echo
+      fi
+    done
 
     echo "ALL DONE"
 ---
