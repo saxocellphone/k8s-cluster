@@ -172,15 +172,19 @@ data:
     wire_qbit_paths() {
       echo "[qbittorrent] save paths"
       QBIT_BASE="http://qbittorrent.torrenting.svc.cluster.local:8080"
-      # Login -> session cookie. qBit returns 'Ok.' on success, 'Fails.' on bad creds.
-      login_resp=$(curl -sS -c /tmp/qbit-cookies.txt -X POST \
+      # Login -> session cookie. Newer qBit returns HTTP 200/204 with empty
+      # body on success and 403 on failure (legacy versions returned 'Ok.'
+      # text). Check the status code, not the body.
+      login_code=$(curl -sS -o /dev/null -w '%{http_code}' \
+        -c /tmp/qbit-cookies.txt -X POST \
         -H "Referer: $QBIT_BASE" \
         --data-urlencode "username=$QBIT_USER" \
         --data-urlencode "password=$QBIT_PASS" \
         "$QBIT_BASE/api/v2/auth/login")
-      if [ "$login_resp" != "Ok." ]; then
-        echo "  ERROR: qbit login failed: $login_resp"; return 1
-      fi
+      case "$login_code" in
+        200|204) : ;;
+        *) echo "  ERROR: qbit login failed (HTTP $login_code)"; return 1 ;;
+      esac
       # Read current paths so we can no-op when correct.
       cur=$(curl -sS -b /tmp/qbit-cookies.txt "$QBIT_BASE/api/v2/app/preferences" \
         | python3 -c "import json,sys; p=json.load(sys.stdin); print(p.get('save_path',''),p.get('temp_path',''),p.get('temp_path_enabled',False))")
