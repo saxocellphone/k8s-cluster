@@ -167,8 +167,41 @@ data:
       post_or_skip_dup "FlareSolverr proxy" "$code" /tmp/resp.json
     }
 
+    # ---------- qbittorrent: save paths via Web API ----------
+
+    wire_qbit_paths() {
+      echo "[qbittorrent] save paths"
+      QBIT_BASE="http://qbittorrent.torrenting.svc.cluster.local:8080"
+      # Login -> session cookie. qBit returns 'Ok.' on success, 'Fails.' on bad creds.
+      login_resp=$(curl -sS -c /tmp/qbit-cookies.txt -X POST \
+        -H "Referer: $QBIT_BASE" \
+        --data-urlencode "username=$QBIT_USER" \
+        --data-urlencode "password=$QBIT_PASS" \
+        "$QBIT_BASE/api/v2/auth/login")
+      if [ "$login_resp" != "Ok." ]; then
+        echo "  ERROR: qbit login failed: $login_resp"; return 1
+      fi
+      # Read current paths so we can no-op when correct.
+      cur=$(curl -sS -b /tmp/qbit-cookies.txt "$QBIT_BASE/api/v2/app/preferences" \
+        | python3 -c "import json,sys; p=json.load(sys.stdin); print(p.get('save_path',''),p.get('temp_path',''),p.get('temp_path_enabled',False))")
+      want="/data/qbit/ /data/qbit/incomplete True"
+      if [ "$cur" = "$want" ]; then
+        echo "  save_path already /data/qbit"; return 0
+      fi
+      # Set save_path + temp_path. qBit expects 'json=<urlencoded-json>' form body.
+      code=$(curl -sS -o /tmp/resp.txt -w '%{http_code}' -b /tmp/qbit-cookies.txt \
+        -X POST --data-urlencode 'json={"save_path":"/data/qbit","temp_path":"/data/qbit/incomplete","temp_path_enabled":true}' \
+        "$QBIT_BASE/api/v2/app/setPreferences")
+      if [ "$code" = "200" ]; then
+        echo "  set save_path=/data/qbit, temp_path=/data/qbit/incomplete"
+      else
+        echo "  FAILED setPreferences (HTTP $code):"; cat /tmp/resp.txt; return 1
+      fi
+    }
+
     # ---------- run ----------
 
+    wire_qbit_paths
     wire_dlclient   radarr "$RADARR_BASE" "$RADARR_API_KEY" radarr
     wire_dlclient   sonarr "$SONARR_BASE" "$SONARR_API_KEY" sonarr
     wire_rootfolder radarr "$RADARR_BASE" "$RADARR_API_KEY" /data/movies
