@@ -24,7 +24,7 @@ data:
     PROWLARR_KEY = os.environ["PROWLARR_API_KEY"]
     IPT_USER = os.environ["IPT_USERNAME"]
     IPT_PASS = os.environ["IPT_PASSWORD"]
-    IPT_LOGIN_URL = "https://iptorrents.com/takelogin.php"
+    IPT_LOGIN_URL = "https://iptorrents.com/do-login.php"
 
     def _req(url, method="GET", payload=None, headers=None, timeout=30):
         h = {"Content-Type": "application/json"}
