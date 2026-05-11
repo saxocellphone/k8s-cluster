@@ -107,7 +107,11 @@ data:
     # ---------- prowlarr: app links ----------
 
     wire_prowlarr_app() {
-      local name="$1" impl="$2" base="$3" key="$4"
+      # 5th arg `cats` is an optional JSON array of newznab category IDs
+      # for syncCategories. Defaults to []. Radarr/Sonarr accept empty
+      # but Readarr's Prowlarr-side validator requires at least one
+      # (use [7000] = Books root).
+      local name="$1" impl="$2" base="$3" key="$4" cats="${5:-[]}"
       echo "[prowlarr] app link: $name"
       existing=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/applications" | json_count name "$name")
       [ "$existing" -gt 0 ] && { echo "  $name app link already configured"; return 0; }
@@ -117,7 +121,7 @@ data:
        {"name": "prowlarrUrl", "value": "$PROWLARR_BASE"},
        {"name": "baseUrl", "value": "$base"},
        {"name": "apiKey", "value": "$key"},
-       {"name": "syncCategories", "value": []}
+       {"name": "syncCategories", "value": $cats}
      ],
      "implementationName": "$impl", "implementation": "$impl",
      "configContract": "${impl}Settings", "tags": []}
@@ -174,6 +178,24 @@ data:
     # name + default metadata/quality profile IDs.
 
     wire_readarr_dlclient() {
+      # Two Readarr-specific quirks:
+      #
+      # 1. Field names are inherited from Lidarr (Readarr's parent fork),
+      #    not from Radarr/Sonarr. The qBit category goes in
+      #    `musicCategory`, priorities in `recentTvPriority` /
+      #    `olderTvPriority`. There is no `bookCategory` in the schema.
+      #
+      # 2. Readarr's QBittorrentProxyV2.AuthenticateClient is broken
+      #    against qBittorrent 5.x: it expects a literal `Ok.` response
+      #    body but qBit 5.x returns 204 + empty body, so Readarr always
+      #    throws "Failed to authenticate" even with correct creds. Fix
+      #    isn't merged in nightly yet. Workaround: send empty username
+      #    + password so Readarr's auth code early-returns (it skips the
+      #    check when settings.Username.IsNullOrWhiteSpace()), and rely
+      #    on qBit's bypass_auth_subnet_whitelist (set by
+      #    wire_qbit_paths below) to accept the unauthenticated requests
+      #    from the cluster pod CIDR. If you ever disable that bypass,
+      #    this download client stops working.
       local key="$READARR_API_KEY"
       echo "[readarr] download client"
       existing=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/downloadclient" | json_count name qBittorrent)
@@ -187,11 +209,11 @@ data:
        {"name": "port", "value": $QBIT_PORT},
        {"name": "useSsl", "value": false},
        {"name": "urlBase", "value": ""},
-       {"name": "username", "value": "$QBIT_USER"},
-       {"name": "password", "value": "$QBIT_PASS"},
-       {"name": "bookCategory", "value": "readarr"},
-       {"name": "recentBookPriority", "value": 0},
-       {"name": "olderBookPriority", "value": 0},
+       {"name": "username", "value": ""},
+       {"name": "password", "value": ""},
+       {"name": "musicCategory", "value": "readarr"},
+       {"name": "recentTvPriority", "value": 0},
+       {"name": "olderTvPriority", "value": 0},
        {"name": "initialState", "value": 0}
      ],
      "implementationName": "qBittorrent", "implementation": "QBittorrent",
@@ -248,19 +270,23 @@ data:
         200|204) : ;;
         *) echo "  ERROR: qbit login failed (HTTP $login_code)"; return 1 ;;
       esac
-      # Read current paths so we can no-op when correct.
+      # Read current settings so we can no-op when correct. We also manage
+      # bypass_auth_subnet_whitelist here so Readarr can talk to qBit
+      # without auth (workaround for the qBit 5.x compat bug in
+      # Readarr's QBittorrentProxyV2 -- see wire_readarr_dlclient).
       cur=$(curl -sS -b /tmp/qbit-cookies.txt "$QBIT_BASE/api/v2/app/preferences" \
-        | python3 -c "import json,sys; p=json.load(sys.stdin); print(p.get('save_path',''),p.get('temp_path',''),p.get('temp_path_enabled',False))")
-      want="/data/qbit/ /data/qbit/incomplete True"
+        | python3 -c "import json,sys; p=json.load(sys.stdin); print(p.get('save_path',''),p.get('temp_path',''),p.get('temp_path_enabled',False),p.get('bypass_auth_subnet_whitelist_enabled',False),p.get('bypass_auth_subnet_whitelist',''))")
+      want="/data/qbit/ /data/qbit/incomplete True True 10.244.0.0/16"
       if [ "$cur" = "$want" ]; then
-        echo "  save_path already /data/qbit"; return 0
+        echo "  save_path + bypass_auth_subnet already configured"; return 0
       fi
-      # Set save_path + temp_path. qBit expects 'json=<urlencoded-json>' form body.
+      # Set save_path + temp_path + auth bypass for cluster pod CIDR.
+      # qBit expects 'json=<urlencoded-json>' form body.
       code=$(curl -sS -o /tmp/resp.txt -w '%{http_code}' -b /tmp/qbit-cookies.txt \
-        -X POST --data-urlencode 'json={"save_path":"/data/qbit","temp_path":"/data/qbit/incomplete","temp_path_enabled":true}' \
+        -X POST --data-urlencode 'json={"save_path":"/data/qbit","temp_path":"/data/qbit/incomplete","temp_path_enabled":true,"bypass_auth_subnet_whitelist_enabled":true,"bypass_auth_subnet_whitelist":"10.244.0.0/16"}' \
         "$QBIT_BASE/api/v2/app/setPreferences")
       if [ "$code" = "200" ]; then
-        echo "  set save_path=/data/qbit, temp_path=/data/qbit/incomplete"
+        echo "  set save_path=/data/qbit, temp_path=/data/qbit/incomplete, bypass=10.244.0.0/16"
       else
         echo "  FAILED setPreferences (HTTP $code):"; cat /tmp/resp.txt; return 1
       fi
@@ -287,7 +313,7 @@ data:
     wire_readarr_dlclient                                || echo "[readarr] dlclient wire failed (will retry next cycle)"
     wire_readarr_rootfolder /data/books/ebooks ebooks    || echo "[readarr] ebooks rootfolder wire failed (will retry next cycle)"
     wire_readarr_rootfolder /data/books/audiobooks audiobooks || echo "[readarr] audiobooks rootfolder wire failed (will retry next cycle)"
-    wire_prowlarr_app Readarr Readarr "$READARR_BASE" "$READARR_API_KEY" || echo "[prowlarr] readarr app link wire failed (will retry next cycle)"
+    wire_prowlarr_app Readarr Readarr "$READARR_BASE" "$READARR_API_KEY" '[7000]' || echo "[prowlarr] readarr app link wire failed (will retry next cycle)"
 
     # ---------- prowlarr: indexers from indexers.json ----------
 
