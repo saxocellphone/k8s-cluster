@@ -225,6 +225,38 @@ data:
       post_or_skip_dup "qBittorrent" "$code" /tmp/resp.json
     }
 
+    wire_readarr_metadata() {
+      # Readarr's hardcoded default metadata service (api.bookinfo.club)
+      # was shut down when the official Readarr project was archived in
+      # mid-2025. Without a working metadata service Readarr can't look
+      # up authors/books, so search returns nothing -- the indexer is
+      # never even queried.
+      #
+      # The community fix is `rreading-glasses` (blampe/rreading-glasses
+      # on GitHub), a drop-in compatible API. We point at the public
+      # hosted instance api.bookinfo.pro. To self-host later, swap the
+      # URL and run rreading-glasses in-cluster against our Postgres.
+      local key="$READARR_API_KEY"
+      local want_url="https://api.bookinfo.pro"
+      echo "[readarr] metadata source"
+      cur=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/config/development" \
+        | python3 -c "import json,sys; print(json.load(sys.stdin).get('metadataSource',''))")
+      if [ "$cur" = "$want_url" ]; then
+        echo "  metadataSource already $want_url"; return 0
+      fi
+      cat > /tmp/dev.json <<EOF
+    {"metadataSource":"$want_url","consoleLogLevel":"","logSql":false,"logRotate":50,"filterSentryEvents":true,"id":1}
+    EOF
+      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time 30 \
+        -X PUT -H "X-Api-Key: $key" -H "Content-Type: application/json" \
+        --data @/tmp/dev.json "$READARR_BASE/api/v1/config/development")
+      if [ "$code" = "200" ] || [ "$code" = "202" ]; then
+        echo "  set metadataSource=$want_url (was '${cur:-default}')"
+      else
+        echo "  FAILED set metadataSource (HTTP $code):"; cat /tmp/resp.json; return 1
+      fi
+    }
+
     wire_readarr_rootfolder() {
       local path="$1" name="$2"
       local key="$READARR_API_KEY"
@@ -310,6 +342,7 @@ data:
     # ---------- start; all guarded so transient unreadiness doesn't ------
     # ---------- block the rest of the wiring -- next cycle retries) ------
 
+    wire_readarr_metadata                                || echo "[readarr] metadata source wire failed (will retry next cycle)"
     wire_readarr_dlclient                                || echo "[readarr] dlclient wire failed (will retry next cycle)"
     wire_readarr_rootfolder /data/books/ebooks ebooks    || echo "[readarr] ebooks rootfolder wire failed (will retry next cycle)"
     wire_readarr_rootfolder /data/books/audiobooks audiobooks || echo "[readarr] audiobooks rootfolder wire failed (will retry next cycle)"
