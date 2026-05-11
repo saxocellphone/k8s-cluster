@@ -137,7 +137,9 @@ data:
             "--to", CHAT_ID,
             "--channel", "telegram",
             "--deliver",
-            "--thinking", "low",
+            # grok-4.3 has thinking baked in and rejects any tunable level
+            # other than "off" (the model controls its own reasoning depth).
+            "--thinking", "off",
             "--message", prompt,
         ]
         try:
@@ -149,9 +151,18 @@ data:
                 stderr=True, stdin=False, stdout=True, tty=False,
                 _request_timeout=120,
             )
-            return True, (resp or "")[-300:]
         except Exception as e:
             return False, f"exec failed: {type(e).__name__}: {e}"
+        # The exec stream returns merged stdout+stderr and DOES NOT raise on
+        # non-zero exits. The openclaw CLI prints its errors as plain text
+        # (e.g. "GatewayClientRequestError: ..."). Treat any line starting
+        # with a *Error:* token as a failure.
+        text = resp or ""
+        for marker in ("GatewayClientRequestError", "command terminated",
+                       "Error:", "Usage:"):
+            if marker in text:
+                return False, f"openclaw CLI error: {text.strip()[-200:]}"
+        return True, text[-200:]
 
 
     def alert_to_openclaw_prompt(alert, remediation):
