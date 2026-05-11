@@ -98,8 +98,18 @@ spec:
           c.agents.defaults.sandbox = c.agents.defaults.sandbox || {};
           c.agents.defaults.sandbox.browser = c.agents.defaults.sandbox.browser || {};
           c.agents.defaults.sandbox.browser.allowHostControl = true;
+          // Normalize channels.telegram.streaming: schema now requires an object.
+          // Older versions persisted it as a boolean which causes a startup-time
+          // validation error ("must be object"). Drop the field entirely so the
+          // gateway falls back to its defaults; user can re-enable via UI.
+          if (c.channels && c.channels.telegram && "streaming" in c.channels.telegram) {
+            const s = c.channels.telegram.streaming;
+            if (s === null || typeof s !== "object" || Array.isArray(s)) {
+              delete c.channels.telegram.streaming;
+            }
+          }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl)");
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized)");
         volumeMounts:
         - name: openclaw-data
           mountPath: /home/node/.openclaw
