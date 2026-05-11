@@ -98,6 +98,9 @@ spec:
           c.agents.defaults.sandbox = c.agents.defaults.sandbox || {};
           c.agents.defaults.sandbox.browser = c.agents.defaults.sandbox.browser || {};
           c.agents.defaults.sandbox.browser.allowHostControl = true;
+          // Pin default model to Grok 4.3 via xAI provider. Auth comes from
+          // XAI_API_KEY env var on the gateway container.
+          c.agents.defaults.model = "xai/grok-4.3";
           // Normalize channels.telegram.streaming: schema now requires an object.
           // Older versions persisted it as a boolean which causes a startup-time
           // validation error ("must be object"). Drop the field entirely so the
@@ -109,7 +112,7 @@ spec:
             }
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized)");
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3");
         volumeMounts:
         - name: openclaw-data
           mountPath: /home/node/.openclaw
@@ -127,6 +130,11 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: ANTHROPIC_API_KEY
+        - name: XAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: XAI_API_KEY
         - name: TELEGRAM_BOT_TOKEN
           valueFrom:
             secretKeyRef:
