@@ -38,11 +38,14 @@ spec:
           mountPath: /scripts
       containers:
       - name: readarr
-        # Readarr has never had a stable release; LinuxServer ships only
-        # `develop` and `nightly` tags. The plain `develop` multi-arch
-        # manifest is broken (no amd64 entry) -- use the explicit
-        # `amd64-develop` tag instead. All cluster nodes are amd64.
-        image: linuxserver/readarr:amd64-develop
+        # Readarr has never had a stable release; LinuxServer ships
+        # `develop` and `nightly` channels. The rolling `develop` and
+        # `amd64-develop` tags both ship empty multi-arch manifests
+        # (`"manifests": []`) so kubelet rejects them with "no match for
+        # platform". The versioned tags do have proper amd64/arm64
+        # entries -- bump this manually when LSIO publishes a new
+        # develop release: https://hub.docker.com/r/linuxserver/readarr/tags
+        image: linuxserver/readarr:0.4.18-develop
         env:
         - name: PUID
           value: "1001"
