@@ -8,6 +8,23 @@ grafana:
 prometheus:
   prometheusSpec:
     retention: 15d
+    # Hard storage cap: drop oldest blocks before disk fills. Set to ~80% of the
+    # 50 Gi PVC so there's headroom for compaction (Prom rewrites blocks during
+    # compaction, transiently using up to ~2x the largest block's space).
+    # Without this, a cardinality explosion would fill the PV in days and put
+    # the TSDB into an unrecoverable crashloop.
+    retentionSize: "40GiB"
+    # Resource budget. Currently ~715Mi / 80m at steady state.
+    # Memory LIMIT (not just request) is what protects the node: a cardinality
+    # explosion OOM-kills the container instead of evicting other pods on the
+    # node. Intentionally no CPU limit — CPU throttling hurts query latency
+    # more than it saves anything.
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
     nodeSelector:
       extensions.talos.dev/iscsi-tools: v0.2.0
     storageSpec:
