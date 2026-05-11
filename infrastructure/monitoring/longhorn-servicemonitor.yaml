@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: longhorn
+  namespace: monitoring
+  # The kube-prometheus-stack Prometheus instance selects ServiceMonitors
+  # carrying release=kube-prometheus-stack. Without this label the SM exists
+  # but is invisible to the operator.
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - longhorn
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  endpoints:
+    - port: manager
+      interval: 30s
+      scrapeTimeout: 10s
+      path: /metrics

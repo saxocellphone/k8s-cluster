@@ -77,6 +77,156 @@ additionalPrometheusRulesMap:
                 Effective query window is now less than 15d. Either increase the
                 PVC + retentionSize, or reduce ingestion via metricRelabelings.
 
+  longhorn-health:
+    groups:
+      - name: longhorn-health
+        rules:
+          - alert: LonghornVolumeDegraded
+            expr: longhorn_volume_robustness == 2
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn volume {{ $labels.volume }} is degraded"
+              description: |
+                Volume {{ $labels.volume }} on node {{ $labels.node }} has lost
+                a replica and is running with reduced redundancy for 10m+.
+                Check Longhorn UI (http://longhorn.k8s.home) for details.
+
+          - alert: LonghornVolumeFaulted
+            expr: longhorn_volume_robustness == 3
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Longhorn volume {{ $labels.volume }} is FAULTED (data unavailable)"
+              description: |
+                Volume {{ $labels.volume }} has all replicas failed. Workload
+                using this volume cannot read or write. Investigate immediately
+                via Longhorn UI.
+
+          - alert: LonghornNodeStorageFull
+            expr: |
+              (longhorn_node_storage_usage_bytes
+                / longhorn_node_storage_capacity_bytes) > 0.85
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn node {{ $labels.node }} storage > 85% full"
+              description: |
+                Longhorn-managed disk on {{ $labels.node }} is {{ $value | humanizePercentage }} full.
+                New volume creation and replica scheduling will fail when this
+                hits the over-provisioning ceiling.
+
+          - alert: LonghornDiskSchedulingDisabled
+            expr: longhorn_disk_status{condition="Schedulable", condition_reason!=""} == 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Longhorn disk on {{ $labels.node }} is not schedulable"
+              description: |
+                Disk {{ $labels.disk }} on node {{ $labels.node }} cannot
+                accept new replicas. Reason: {{ $labels.condition_reason }}.
+
+  homelab-services:
+    groups:
+      - name: homelab-services
+        rules:
+          # qBittorrent's gluetun VPN sidecar dying without taking qBit down
+          # would mean torrenting traffic leaks the host IP. Treat as critical.
+          - alert: QbittorrentVPNSidecarDown
+            expr: |
+              kube_pod_container_status_ready{namespace="torrenting",pod=~"qbittorrent-.*",container="gluetun"} == 0
+            for: 2m
+            labels:
+              severity: critical
+              namespace: torrenting
+            annotations:
+              summary: "qBittorrent VPN sidecar (gluetun) is not ready"
+              description: |
+                Pod {{ $labels.pod }} container gluetun is not ready for 2m+.
+                If qBittorrent itself is still running, traffic may leak the
+                host IP. Either restart the pod or stop qBittorrent.
+
+          # OpenClaw is the ops/notification path -- if it's down we lose
+          # both Telegram remediation reports AND the bot interface.
+          - alert: OpenclawDown
+            expr: |
+              kube_pod_status_ready{namespace="openclaw",condition="true"} * on(pod, namespace)
+              kube_pod_labels{label_app="openclaw"} == 0
+              or absent(kube_pod_status_ready{namespace="openclaw"})
+            for: 5m
+            labels:
+              severity: critical
+              namespace: openclaw
+            annotations:
+              summary: "OpenClaw gateway pod not ready"
+              description: |
+                The openclaw deployment has no ready pod for 5m+. Telegram-
+                routed alerts (including this one) cannot be delivered. Check
+                with kubectl logs -n openclaw deploy/openclaw.
+
+          # Generic catch-all for any homelab workload pod stuck not-ready.
+          # Excludes platform namespaces (kube-prometheus-stack already covers
+          # those with KubeDeploymentReplicasMismatch / KubeStatefulSetReplicasMismatch).
+          - alert: HomelabPodStuckNotReady
+            expr: |
+              sum by (namespace, pod) (
+                kube_pod_status_ready{
+                  namespace=~"torrenting|openclaw",
+                  condition="true"
+                }
+              ) == 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready for 15m"
+              description: |
+                Pod has not reached Ready state for 15m. Likely candidates:
+                image pull failure, init container error, missing secret, or
+                an ongoing rollout that's stuck.
+
+          # Container OOM-killed in any homelab namespace. The default chart
+          # rule fires only on "OOMKilled" containers in restartCount delta;
+          # this catches the moment of the kill so we can act.
+          - alert: HomelabContainerOOMKilled
+            expr: |
+              kube_pod_container_status_last_terminated_reason{
+                namespace=~"torrenting|openclaw|monitoring",
+                reason="OOMKilled"
+              } * on(namespace, pod, container)
+              kube_pod_container_status_last_terminated_exitcode != 0 == 1
+              and on(namespace, pod, container)
+              changes(kube_pod_container_status_restarts_total[5m]) > 0
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} OOMKilled"
+              description: |
+                Container was OOMKilled in the last 5 minutes. Either bump
+                the memory limit, or investigate why memory grew (cardinality
+                explosion for prom, leak elsewhere).
+
+          # Postgres pod (torrenting/postgres-0) is the backbone of all *arr
+          # apps' persistent state. Treat downtime as critical.
+          - alert: TorrentingPostgresDown
+            expr: |
+              kube_statefulset_status_replicas_ready{namespace="torrenting",statefulset="postgres"} < 1
+            for: 5m
+            labels:
+              severity: critical
+              namespace: torrenting
+            annotations:
+              summary: "torrenting/postgres-0 has no ready replica"
+              description: |
+                The Postgres StatefulSet backing the *arr apps has 0 ready
+                replicas for 5m+. All *arr apps will be erroring on database
+                connections. Check pod events and PV state.
+
 # Drop a small set of apiserver histogram bucket families that contribute
 # significant cardinality (~13% of total series) but are not referenced by
 # any default kube-prometheus-stack alert rule or built-in dashboard. The
