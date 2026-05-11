@@ -35,17 +35,22 @@ spec:
           image: python:3.11-slim
           imagePullPolicy: IfNotPresent
           # Install the kubernetes client lib at startup. Avoids needing a
-          # custom image / private registry. Cached in pip's wheel cache
-          # across restarts of the same pod (volatile across pod recreates).
+          # custom image / private registry. Installed to a writable
+          # PYTHONUSERBASE under /tmp because the default ~/.local is on
+          # the read-only root path for non-root users.
           command: ["/bin/sh", "-c"]
           args:
             - |
               set -e
-              pip install --quiet --no-cache-dir kubernetes==31.0.0
+              export PYTHONUSERBASE=/tmp/pypkgs
+              mkdir -p "$PYTHONUSERBASE"
+              pip install --user --quiet --no-cache-dir kubernetes==31.0.0
               exec python /app/responder.py
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
+            - name: HOME
+              value: /tmp
             - name: TELEGRAM_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
