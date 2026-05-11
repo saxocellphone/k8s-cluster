@@ -33,7 +33,6 @@ data:
 
     OPENCLAW_NS = "openclaw"
     OPENCLAW_LABEL = "app=openclaw"
-    OPENCLAW_SESSION = "agent:main:main"
     BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
     CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
@@ -128,9 +127,14 @@ data:
         )
         if not pod:
             return False, "no Ready openclaw pod found"
+        # Use --to <chatId> rather than --session-id; the latter requires
+        # the session to have a fully-resolved deliveryContext at CLI parse
+        # time which depends on the channel having paired the chat. --to
+        # is the explicit, stateless form: agent runs in an ephemeral
+        # session keyed by the chat id and delivers to that telegram chat.
         cmd = [
             "openclaw", "agent",
-            "--session-id", OPENCLAW_SESSION,
+            "--to", CHAT_ID,
             "--channel", "telegram",
             "--deliver",
             "--thinking", "low",
