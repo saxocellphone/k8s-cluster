@@ -5,6 +5,18 @@ grafana:
       initDatasources: true
       watchMethod: LIST
 
+# Drop a small set of apiserver histogram bucket families that contribute
+# significant cardinality (~13% of total series in this cluster) but are not
+# referenced by any default kube-prometheus-stack alert rule or built-in
+# dashboard. The corresponding _count and _sum metrics are kept (not dropped),
+# so average-over-time queries remain available.
+kubeApiServer:
+  serviceMonitor:
+    metricRelabelings:
+      - sourceLabels: [__name__]
+        regex: 'apiserver_(request_body_size_bytes|response_sizes|watch_cache_read_wait_seconds|watch_list_duration_seconds)_bucket'
+        action: drop
+
 prometheus:
   prometheusSpec:
     retention: 15d
