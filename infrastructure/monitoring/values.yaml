@@ -78,10 +78,20 @@ additionalPrometheusRulesMap:
                 PVC + retentionSize, or reduce ingestion via metricRelabelings.
 
 # Drop a small set of apiserver histogram bucket families that contribute
-# significant cardinality (~13% of total series in this cluster) but are not
-# referenced by any default kube-prometheus-stack alert rule or built-in
-# dashboard. The corresponding _count and _sum metrics are kept (not dropped),
-# so average-over-time queries remain available.
+# significant cardinality (~13% of total series) but are not referenced by
+# any default kube-prometheus-stack alert rule or built-in dashboard. The
+# corresponding _count and _sum metrics are kept, so average-over-time
+# queries remain available.
+#
+# KNOWN ISSUE (kube-prometheus-stack 80.13.0 + Prometheus 3.9.0):
+# Operator-generated metric_relabel_configs are silently ignored. The rule
+# below ends up correctly written into the on-disk Prometheus config and
+# passes `promtool check config`, but
+#   sum(scrape_samples_scraped) - sum(scrape_samples_post_metric_relabeling)
+# is exactly 0 across every job (including pre-existing kubelet drops that
+# ship with the chart). This rule is left in place so it starts working once
+# the upstream bug is fixed in a chart/Prometheus upgrade. Until then, the
+# `retentionSize: 40GiB` cap below is what protects us from disk exhaustion.
 kubeApiServer:
   serviceMonitor:
     metricRelabelings:
