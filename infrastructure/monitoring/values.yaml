@@ -10,6 +10,46 @@ grafana:
       initDatasources: true
       watchMethod: LIST
 
+# Route all alerts to the alert-responder webhook in this namespace.
+# The responder attempts safe per-alertname remediation, then crafts a
+# Telegram message via OpenClaw (with direct-Telegram fallback when
+# OpenClaw is unreachable).
+alertmanager:
+  config:
+    route:
+      receiver: alert-responder
+      # Group by alertname so a burst of related fires becomes one webhook
+      # delivery, but route every group to the responder. No child routes
+      # for now -- one receiver handles everything.
+      group_by: ["alertname", "namespace"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        # Watchdog is the always-firing canary that confirms the alerting
+        # pipeline works. Don't bother the user with it -- send to /dev/null.
+        - matchers:
+            - alertname = "Watchdog"
+          receiver: "null"
+        # InfoInhibitor is intentionally always-active to suppress info-level
+        # noise; same treatment.
+        - matchers:
+            - alertname = "InfoInhibitor"
+          receiver: "null"
+    receivers:
+      - name: "null"
+      - name: alert-responder
+        webhook_configs:
+          - url: http://alert-responder.monitoring.svc:8080/webhook
+            send_resolved: true
+            max_alerts: 0  # 0 means unlimited per request
+    inhibit_rules:
+      - source_matchers:
+          - severity = "critical"
+        target_matchers:
+          - severity =~ "warning|info"
+        equal: ["alertname", "namespace"]
+
 # Early-warning alerts for TSDB growth. The retentionSize cap (40 GiB) and
 # the memory limit (2 GiB) protect Prometheus from outright failure, but they
 # trigger only AT the limit. These alerts fire EARLIER so we can intervene

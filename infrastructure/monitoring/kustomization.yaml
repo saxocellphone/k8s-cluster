@@ -8,6 +8,10 @@ kind: Kustomization
 resources:
   - ingress.yaml
   - longhorn-servicemonitor.yaml
+  - alert-responder-rbac.yaml
+  - alert-responder-config.yaml
+  - alert-responder-deployment.yaml
 
 generators:
   - grafana-secret-generator.yaml
+  - alert-responder-secret-generator.yaml

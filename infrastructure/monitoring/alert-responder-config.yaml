@@ -1,0 +1,260 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alert-responder-code
+  namespace: monitoring
+data:
+  responder.py: |
+    """
+    alert-responder: receives Alertmanager v2 webhooks, attempts safe
+    remediation per a static playbook, and notifies the user via Telegram.
+
+    Notification path priority:
+      1. Via OpenClaw (kubernetes pods/exec into openclaw pod, run
+         `openclaw agent --channel telegram --deliver`). Costs an LLM turn
+         (Grok 4.3) but produces a richer summary and is "the same bot
+         talking to me" UX-wise.
+      2. Direct Telegram bot API fallback when OpenClaw is unreachable
+         OR when the alert is OpenclawDown itself (can't ask a dead
+         service to deliver its own death notice).
+
+    Remediation is intentionally narrow: only `restart_pod` for now, only
+    on alerts in the static PLAYBOOKS dict. Everything else is notify-only.
+    """
+    import json
+    import logging
+    import os
+    import sys
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from urllib import request as urlreq, error as urlerr
+
+    from kubernetes import client, config
+    from kubernetes.stream import stream
+
+    OPENCLAW_NS = "openclaw"
+    OPENCLAW_LABEL = "app=openclaw"
+    OPENCLAW_SESSION = "agent:main:main"
+    BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+    CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+
+    config.load_incluster_config()
+    v1 = client.CoreV1Api()
+
+    # alertname -> remediation_action. None == "notify only, do not auto-act".
+    PLAYBOOKS = {
+        # Default kube-prometheus-stack alerts
+        "KubePodCrashLooping": "restart_pod",
+        "KubePodNotReady": "restart_pod",
+        # Custom homelab alerts
+        "QbittorrentVPNSidecarDown": "restart_pod",
+        "HomelabPodStuckNotReady": "restart_pod",
+        # Notify-only (data-sensitive or self-healing already)
+        "TorrentingPostgresDown": None,
+        "LonghornVolumeDegraded": None,
+        "LonghornVolumeFaulted": None,
+        "LonghornNodeStorageFull": None,
+        "HomelabContainerOOMKilled": None,
+    }
+
+    log = logging.getLogger("responder")
+
+
+    def restart_pod(alert):
+        labels = alert["labels"]
+        pod = labels.get("pod")
+        ns = labels.get("namespace")
+        if not (pod and ns):
+            return "skipped: alert has no pod/namespace label"
+        try:
+            v1.delete_namespaced_pod(pod, ns)
+            return f"deleted pod {ns}/{pod} (controller will recreate)"
+        except client.ApiException as e:
+            return f"delete failed: {e.status} {e.reason}"
+        except Exception as e:
+            return f"delete failed: {type(e).__name__}: {e}"
+
+
+    REMEDIATIONS = {"restart_pod": restart_pod}
+
+
+    def attempt_remediation(alert):
+        name = alert["labels"]["alertname"]
+        action = PLAYBOOKS.get(name)
+        if action is None:
+            return "no auto-remediation defined for this alert"
+        fn = REMEDIATIONS.get(action)
+        if not fn:
+            return f"unknown action {action!r}"
+        return fn(alert)
+
+
+    def send_telegram_direct(text):
+        """Last-resort path: bypass OpenClaw, hit api.telegram.org directly."""
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = json.dumps({
+            "chat_id": CHAT_ID,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }).encode()
+        req = urlreq.Request(
+            url, data=payload, headers={"Content-Type": "application/json"}
+        )
+        try:
+            with urlreq.urlopen(req, timeout=10) as r:
+                return r.status == 200
+        except urlerr.URLError as e:
+            log.error("direct telegram send failed: %s", e)
+            return False
+
+
+    def send_via_openclaw(prompt):
+        """Run `openclaw agent` inside the openclaw pod via pods/exec.
+
+        Returns (ok, info). On success info is a short tail of stdout. On
+        failure info contains a short error description for logging.
+        """
+        try:
+            pods = v1.list_namespaced_pod(
+                OPENCLAW_NS, label_selector=OPENCLAW_LABEL
+            )
+        except Exception as e:
+            return False, f"openclaw pod list failed: {e}"
+        pod = next(
+            (p for p in pods.items
+             if p.status.phase == "Running"
+             and all(c.ready for c in (p.status.container_statuses or []))),
+            None,
+        )
+        if not pod:
+            return False, "no Ready openclaw pod found"
+        cmd = [
+            "openclaw", "agent",
+            "--session-id", OPENCLAW_SESSION,
+            "--channel", "telegram",
+            "--deliver",
+            "--thinking", "low",
+            "--message", prompt,
+        ]
+        try:
+            resp = stream(
+                v1.connect_get_namespaced_pod_exec,
+                pod.metadata.name, OPENCLAW_NS,
+                container="openclaw",
+                command=cmd,
+                stderr=True, stdin=False, stdout=True, tty=False,
+                _request_timeout=120,
+            )
+            return True, (resp or "")[-300:]
+        except Exception as e:
+            return False, f"exec failed: {type(e).__name__}: {e}"
+
+
+    def alert_to_openclaw_prompt(alert, remediation):
+        labels = alert["labels"]
+        ann = alert.get("annotations", {})
+        # Keep only meaningful labels in the prompt -- strip noise.
+        skip = {"alertname", "prometheus", "prometheus_replica", "endpoint",
+                "container", "service", "job"}
+        keep = {k: v for k, v in labels.items() if k not in skip}
+        return (
+            "An infrastructure alert just fired in the homelab cluster. "
+            "Send the following summary to me on Telegram. Use plain text, "
+            "max 6 lines, no follow-up question, no markdown headers. "
+            "Tone: factual, terse.\n\n"
+            f"Alert: {labels['alertname']}\n"
+            f"Severity: {labels.get('severity', '?')}\n"
+            f"Status: {alert.get('status', 'firing')}\n"
+            f"Summary: {ann.get('summary', '(none)')}\n"
+            f"Description: {ann.get('description', '(none)')[:400]}\n"
+            f"Labels: {json.dumps(keep)}\n"
+            f"Auto-remediation result: {remediation}"
+        )
+
+
+    def alert_to_fallback_html(alert, remediation, note=""):
+        labels = alert["labels"]
+        ann = alert.get("annotations", {})
+        sev = labels.get("severity", "?").upper()
+        body = (
+            f"<b>[{sev}] {labels['alertname']}</b>\n"
+            f"{ann.get('summary', '')}\n"
+            f"{ann.get('description', '')[:400]}\n\n"
+            f"<i>Remediation: {remediation}</i>"
+        )
+        if note:
+            body += f"\n<i>{note}</i>"
+        return body
+
+
+    def handle_alert(alert):
+        name = alert["labels"]["alertname"]
+        status = alert.get("status", "firing")
+
+        if status == "resolved":
+            send_telegram_direct(f"<b>RESOLVED:</b> {name}")
+            return
+
+        # Bootstrapping problem: if openclaw is the failing service, we cannot
+        # ask it to deliver the death-notice. Skip to fallback path directly.
+        if name == "OpenclawDown":
+            send_telegram_direct(alert_to_fallback_html(
+                alert, "skipped (alert is about openclaw itself)",
+                note="Sent directly: OpenClaw cannot notify of its own outage.",
+            ))
+            return
+
+        remediation = attempt_remediation(alert)
+        log.info("alert=%s status=%s remediation=%r", name, status, remediation)
+
+        ok, info = send_via_openclaw(alert_to_openclaw_prompt(alert, remediation))
+        if not ok:
+            log.warning("openclaw delivery failed (%s); falling back", info)
+            send_telegram_direct(alert_to_fallback_html(
+                alert, remediation,
+                note=f"OpenClaw delivery failed ({info[:80]}); sent directly.",
+            ))
+
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            if self.path != "/webhook":
+                self.send_response(404); self.end_headers(); return
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode())
+                for alert in body.get("alerts", []):
+                    try:
+                        handle_alert(alert)
+                    except Exception:
+                        log.exception("handle_alert crashed for %r",
+                                      alert.get("labels"))
+                self.send_response(200); self.end_headers()
+                self.wfile.write(b"ok")
+            except Exception as e:
+                log.exception("webhook handler crashed")
+                self.send_response(500); self.end_headers()
+                self.wfile.write(str(e).encode())
+
+        def do_GET(self):
+            if self.path == "/healthz":
+                self.send_response(200); self.end_headers()
+                self.wfile.write(b"ok")
+            else:
+                self.send_response(404); self.end_headers()
+
+        def log_message(self, fmt, *args):  # silence default access logging
+            return
+
+
+    def main():
+        logging.basicConfig(
+            level=logging.INFO, stream=sys.stdout,
+            format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        )
+        log.info("alert-responder starting on :8080")
+        HTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
+
+
+    if __name__ == "__main__":
+        main()
