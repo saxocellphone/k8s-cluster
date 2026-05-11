@@ -82,6 +82,19 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  name: readarr-config-pvc
+  namespace: torrenting
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
   name: audiobookshelf-config-pvc
   namespace: torrenting
 spec:

@@ -11,6 +11,7 @@ resources:
   - prowlarr/deployment.yaml
   - radarr/deployment.yaml
   - sonarr/deployment.yaml
+  - readarr/deployment.yaml
   - flaresolverr/deployment.yaml
   - audiobookshelf/deployment.yaml
   - bootstrap/configmap.yaml
