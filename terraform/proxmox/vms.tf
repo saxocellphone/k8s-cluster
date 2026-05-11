@@ -144,3 +144,64 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
     type = "l26"
   }
 }
+
+# K8s worker: rebuild of talos-pik-q76 (the original VM was destroyed).
+# Mirrors zeus1's spec — same CPU/RAM/disks for parity as Longhorn replica peer.
+# Boots from Talos metal-amd64.iso in maintenance mode; you then apply the
+# worker machine config via talosctl to install Talos to scsi0 and join cluster.
+resource "proxmox_virtual_environment_vm" "k8s_worker_pik" {
+  provider  = proxmox.pve2
+  node_name = var.pve2_node_name
+  vm_id     = 102 # next free ID after zeus1=101
+  name      = "pik2"
+
+  bios            = "seabios"
+  boot_order      = ["ide2", "scsi0", "net0"] # CDROM first for initial install
+  scsi_hardware   = "virtio-scsi-single"
+  on_boot         = true # auto-start after host reboot — fix for what bit us today
+  keyboard_layout = "en-us"
+
+  agent {
+    enabled = true
+    type    = "virtio"
+  }
+  cpu {
+    cores   = 3
+    sockets = 1
+    type    = "host"
+  }
+  memory {
+    dedicated = 12000
+  }
+  network_device {
+    bridge   = "vmbr0"
+    firewall = true
+    model    = "virtio"
+    # mac_address omitted — Proxmox auto-generates a unique BC:24:11:* MAC
+  }
+  # OS disk
+  disk {
+    interface    = "scsi0"
+    datastore_id = "local-lvm"
+    file_format  = "raw"
+    iothread     = true
+    size         = 32
+  }
+  # Longhorn data disk (matches longhorn-disk-patch-pik.yaml expectations)
+  disk {
+    interface    = "scsi1"
+    datastore_id = "local-lvm"
+    file_format  = "raw"
+    iothread     = true
+    size         = 128
+  }
+  # Talos installer ISO
+  cdrom {
+    enabled  = true
+    file_id  = "local:iso/metal-amd64.iso"
+    interface = "ide2"
+  }
+  operating_system {
+    type = "l26"
+  }
+}
