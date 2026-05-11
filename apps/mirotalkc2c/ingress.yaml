@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mirotalkc2c
+  namespace: mirotalkc2c
+  annotations:
+    # WebRTC signaling is socket.io over WebSockets; the long-lived upgrade
+    # connection needs generous timeouts so peers don't get dropped mid-call.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - c2c.k8s.home
+    secretName: mirotalkc2c-tls
+  rules:
+  - host: c2c.k8s.home
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mirotalkc2c
+            port:
+              number: 8080
