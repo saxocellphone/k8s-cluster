@@ -131,12 +131,21 @@ data:
         # the session to have a fully-resolved deliveryContext at CLI parse
         # time which depends on the channel having paired the chat. --to
         # is the explicit, stateless form: agent runs in an ephemeral
-        # session keyed by the chat id and delivers to that telegram chat.
+        # session keyed by the chat id, and the agent uses its `message`
+        # tool to deliver to that telegram chat.
+        #
+        # IMPORTANT: --deliver is intentionally OMITTED. With --deliver, the
+        # agent's *text reply* is also auto-sent to the channel, which
+        # produces a duplicate because the prompt makes the agent call its
+        # `message` tool (delivering the alert) AND emit a text reply
+        # (delivered again by --deliver). Without --deliver, only the
+        # message-tool send reaches Telegram; the text reply lands in the
+        # session log and goes nowhere. The prompt below is explicit so
+        # the agent reliably picks the tool path.
         cmd = [
             "openclaw", "agent",
             "--to", CHAT_ID,
             "--channel", "telegram",
-            "--deliver",
             # grok-4.3 has thinking baked in and rejects any tunable level
             # other than "off" (the model controls its own reasoning depth).
             "--thinking", "off",
@@ -174,9 +183,10 @@ data:
         keep = {k: v for k, v in labels.items() if k not in skip}
         return (
             "An infrastructure alert just fired in the homelab cluster. "
-            "Send the following summary to me on Telegram. Use plain text, "
-            "max 6 lines, no follow-up question, no markdown headers. "
-            "Tone: factual, terse.\n\n"
+            "Use the `message` tool exactly once to deliver a summary to me on "
+            "Telegram (chat 8046271128). Plain text, max 6 lines, no markdown "
+            "headers, no follow-up question, factual + terse. After the tool "
+            "call returns, do not produce any further text reply.\n\n"
             f"Alert: {labels['alertname']}\n"
             f"Severity: {labels.get('severity', '?')}\n"
             f"Status: {alert.get('status', 'firing')}\n"
