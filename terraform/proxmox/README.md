@@ -1,94 +1,85 @@
 # Proxmox VMs as Terraform
 
-Manages the VMs that host the Talos Kubernetes cluster (and anything else
-running on Proxmox). Uses the [bpg/proxmox](https://registry.terraform.io/providers/bpg/proxmox/latest)
-provider.
+Manages VMs across **two standalone Proxmox hosts** (not clustered) using
+the [bpg/proxmox](https://registry.terraform.io/providers/bpg/proxmox/latest)
+provider with **two aliased provider blocks**:
+
+| Alias | Host | Endpoint | Node name (in PVE UI) |
+|---|---|---|---|
+| `proxmox.pve1` | `192.168.8.191` | `https://192.168.8.191:8006/` | `pve2` |
+| `proxmox.pve2` | `192.168.8.226` | `https://192.168.8.226:8006/` | `pve` |
+
+Each VM resource declares `provider = proxmox.<alias>` to pin it to a host.
 
 ## Bootstrap (one-time)
 
-### 1. Create a Proxmox API token
+### 1. Create one API token on EACH Proxmox host
 
-In the Proxmox UI (https://192.168.8.191:8006/):
+In each Proxmox UI:
 
 1. **Datacenter → Permissions → API Tokens → Add**
 2. User: `root@pam`
 3. Token ID: `terraform`
 4. **Uncheck** "Privilege Separation" (so the token inherits root's perms)
-5. Click Add → copy the displayed `Token ID` (`root@pam!terraform`) and
-   `Secret` (a UUID). The secret is shown only once.
+5. Click Add → copy the displayed `Secret` (UUID, shown once)
 
-### 2. Set credentials in your shell (don't commit these)
+### 2. Set Terraform variables in your shell (don't commit these)
 
-```bash
-export PROXMOX_VE_ENDPOINT='https://192.168.8.191:8006/'
-export PROXMOX_VE_API_TOKEN='root@pam!terraform=<UUID-secret>'
-export PROXMOX_VE_INSECURE=true   # self-signed cert on LAN
+Fish:
+```fish
+set -gx TF_VAR_pve1_endpoint  'https://192.168.8.191:8006/'
+set -gx TF_VAR_pve1_api_token 'root@pam!terraform=AAA-...'
+set -gx TF_VAR_pve2_endpoint  'https://192.168.8.226:8006/'
+set -gx TF_VAR_pve2_api_token 'root@pam!terraform=BBB-...'
 ```
 
-Optional: drop the same lines in `~/.config/proxmox-tf.env` and `source` it.
+Bash/zsh:
+```bash
+export TF_VAR_pve1_endpoint='https://192.168.8.191:8006/'
+export TF_VAR_pve1_api_token='root@pam!terraform=AAA-...'
+export TF_VAR_pve2_endpoint='https://192.168.8.226:8006/'
+export TF_VAR_pve2_api_token='root@pam!terraform=BBB-...'
+```
 
-### 3. Initialize
+### 3. Initialize + plan
 
 ```bash
 cd terraform/proxmox
 terraform init
-```
-
-### 4. Find your node + VM names
-
-```bash
-# What does Proxmox call its nodes?
-curl -sk -H "Authorization: PVEAPIToken=$PROXMOX_VE_API_TOKEN" \
-  https://192.168.8.191:8006/api2/json/nodes | jq -r '.data[].node'
-
-# What VMs exist?
-curl -sk -H "Authorization: PVEAPIToken=$PROXMOX_VE_API_TOKEN" \
-  https://192.168.8.191:8006/api2/json/cluster/resources?type=vm \
-  | jq -r '.data[] | "\(.vmid) \(.name) on=\(.node) status=\(.status)"'
-```
-
-Update `pve_node_primary` (and `pve_node_secondary` if clustered) in
-`variables.tf` with what comes back.
-
-### 5. Import existing VMs one at a time
-
-For each VM:
-
-```bash
-# Add a stub resource in vms.tf (see the example skeleton)
-# Then import:
-terraform import proxmox_virtual_environment_vm.pik <node-name>/165
-
-# Now check what differs:
 terraform plan
-# Edit vms.tf until plan is clean (no changes proposed)
+terraform apply
 ```
 
-Repeat for every VM you want under management.
+## Currently managed
+
+| Resource | Provider | VM ID | PVE name | Talos hostname / IP |
+|---|---|---|---|---|
+| `proxmox_virtual_environment_vm.apollo1` | pve1 | 100 | `apollo1` | non-K8s |
+| `proxmox_virtual_environment_vm.k8s_control_plane` | pve2 | 100 | `talos2` | talos-mru-smr (192.168.8.227) |
+| `proxmox_virtual_environment_vm.k8s_worker_gcx` | pve2 | 101 | `zeus1` | talos-gcx-zwd (192.168.8.126) |
+
+Missing: `talos-pik-q76` (192.168.8.165). Was a worker but VM no longer exists
+on either Proxmox host. Recreate by adding a new resource block (clone or
+fresh from Talos disk image) and apply.
 
 ## Routine workflow
 
 ```bash
-# Edit vms.tf — change CPU, memory, disk, etc.
 terraform plan       # preview
 terraform apply      # apply
-
-# To create a new VM:
-# Add a new resource block, then `terraform apply`.
 ```
+
+To create a new VM: add a new resource block, then `terraform apply`.
 
 ## State
 
-State is local in `terraform.tfstate` (gitignored). Fine for a single
-operator. To collaborate or run from a CI/CD runner later, switch to a
-remote backend (S3-compatible, or `kubernetes` backend storing state in a
-cluster Secret).
+Local `terraform.tfstate` (gitignored). Fine for single operator. Switch to
+remote backend (S3-compatible or `kubernetes` Secret backend) for CI/CD.
 
 ## What this does NOT do
 
 - Install Proxmox itself (manual: ISO → installer → network config)
-- Manage Talos OS config inside the VM (use `talosctl apply-config` on top
-  of the configs in `../../talos/`)
-- Run on a schedule / from a runner — Terraform applies are local. To make
-  apply automatic on Git push, add Atlantis, tofu-controller, or a GitHub
-  Action that runs `terraform apply` after PR merge.
+- Manage Talos OS config inside the VM (use `talosctl apply-config` on the
+  configs in `../../talos/`)
+- Run on a schedule. Add Atlantis, tofu-controller, or GitHub Actions to
+  apply on git push.

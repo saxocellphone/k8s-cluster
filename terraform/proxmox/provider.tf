@@ -1,14 +1,30 @@
-# Provider auth via env vars — keep secrets out of Git:
-#   export PROXMOX_VE_ENDPOINT='https://192.168.8.191:8006/'
-#   export PROXMOX_VE_API_TOKEN='root@pam!terraform=<UUID-from-proxmox-ui>'
-#   export PROXMOX_VE_INSECURE=true   # self-signed cert is OK on LAN
+# Two standalone Proxmox hosts, each managed via its own provider alias.
+# Auth is per-host since each host has its own user/token database.
 #
-# (The provider also accepts username + password via PROXMOX_VE_USERNAME /
-# PROXMOX_VE_PASSWORD; tokens are preferred since they can be revoked.)
+# Set via env vars (Terraform reads TF_VAR_* automatically):
+#   set -gx TF_VAR_pve1_endpoint  'https://192.168.8.191:8006/'
+#   set -gx TF_VAR_pve1_api_token 'root@pam!terraform=<UUID-on-pve1>'
+#   set -gx TF_VAR_pve2_endpoint  'https://192.168.8.226:8006/'
+#   set -gx TF_VAR_pve2_api_token 'root@pam!terraform=<UUID-on-pve2>'
+
 provider "proxmox" {
-  # All settings come from env vars above. Endpoint defaults to one host;
-  # if your two PVE hosts are clustered, this works for both — any node in
-  # the cluster serves the API for the whole cluster.
+  alias     = "pve1"
+  endpoint  = var.pve1_endpoint
+  api_token = var.pve1_api_token
+  insecure  = true
+
+  ssh {
+    agent    = true
+    username = var.pve_ssh_user
+  }
+}
+
+provider "proxmox" {
+  alias     = "pve2"
+  endpoint  = var.pve2_endpoint
+  api_token = var.pve2_api_token
+  insecure  = true
+
   ssh {
     agent    = true
     username = var.pve_ssh_user
