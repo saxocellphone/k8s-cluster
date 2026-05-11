@@ -6,8 +6,10 @@ metadata:
 data:
   indexers.json: |
     [
-      {"definitionName": "nyaasi",  "useFlareSolverr": false},
-      {"definitionName": "1337x",   "useFlareSolverr": true}
+      {"definitionName": "nyaasi",          "useFlareSolverr": false},
+      {"definitionName": "1337x",           "useFlareSolverr": true},
+      {"definitionName": "internetarchive", "useFlareSolverr": false},
+      {"definitionName": "ebookbay",        "useFlareSolverr": true}
     ]
   wire.sh: |
     #!/bin/sh
