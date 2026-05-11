@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mirotalkc2c
+  namespace: mirotalkc2c
+  labels:
+    app: mirotalkc2c
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mirotalkc2c
+  template:
+    metadata:
+      labels:
+        app: mirotalkc2c
+      annotations:
+        # Restart pods when the .env Secret changes (Argo CD won't roll us
+        # automatically because the env is mounted as a file, not envFrom).
+        checksum/env: replace-on-change
+    spec:
+      containers:
+      - name: mirotalkc2c
+        image: mirotalk/c2c:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        # The upstream image reads /src/.env via dotenv on startup. We mount
+        # the SOPS-managed Secret as a single file at that exact path.
+        volumeMounts:
+        - name: env
+          mountPath: /src/.env
+          subPath: .env
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+      volumes:
+      - name: env
+        secret:
+          secretName: mirotalkc2c-env
+          defaultMode: 0400
+          items:
+          - key: .env
+            path: .env

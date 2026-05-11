@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mirotalkc2c
+  namespace: mirotalkc2c
+spec:
+  selector:
+    app: mirotalkc2c
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+    protocol: TCP
