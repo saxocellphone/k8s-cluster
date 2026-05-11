@@ -1,5 +1,10 @@
 grafana:
-  adminPassword: REDACTED
+  # Admin credentials come from the SOPS-encrypted Secret `grafana-admin`
+  # in the monitoring namespace, applied by the monitoring-extras app.
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
   sidecar:
     datasources:
       initDatasources: true

@@ -40,8 +40,8 @@ spec:
     repoURL: https://github.com/saxocellphone/k8s-cluster.git
     targetRevision: main
     path: infrastructure/monitoring
-    directory:
-      exclude: values.yaml
+    # Kustomize is auto-detected from the directory's kustomization.yaml.
+    # Helm values.yaml is excluded by the kustomization.yaml's resource list.
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

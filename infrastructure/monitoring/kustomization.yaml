@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# values.yaml is intentionally NOT listed here -- it's a Helm values file
+# referenced by the `monitoring` Application as $values, not a Kubernetes
+# resource to apply.
+
+resources:
+  - ingress.yaml
+
+generators:
+  - grafana-secret-generator.yaml
