@@ -13,3 +13,12 @@ _out/talosconfig
 
 # OS files
 .DS_Store
+
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+.terraformrc
