@@ -212,12 +212,15 @@ data:
         log.info("alert=%s status=%s remediation=%r", name, status, remediation)
 
         ok, info = send_via_openclaw(alert_to_openclaw_prompt(alert, remediation))
-        if not ok:
+        if ok:
+            log.info("delivered via openclaw (info=%s)", info[:120])
+        else:
             log.warning("openclaw delivery failed (%s); falling back", info)
-            send_telegram_direct(alert_to_fallback_html(
+            sent = send_telegram_direct(alert_to_fallback_html(
                 alert, remediation,
                 note=f"OpenClaw delivery failed ({info[:80]}); sent directly.",
             ))
+            log.info("direct telegram fallback %s", "succeeded" if sent else "FAILED")
 
 
     class Handler(BaseHTTPRequestHandler):
