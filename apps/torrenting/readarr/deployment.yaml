@@ -39,8 +39,10 @@ spec:
       containers:
       - name: readarr
         # Readarr has never had a stable release; LinuxServer ships only
-        # `develop` and `nightly` tags. `develop` is the canonical "use this".
-        image: linuxserver/readarr:develop
+        # `develop` and `nightly` tags. The plain `develop` multi-arch
+        # manifest is broken (no amd64 entry) -- use the explicit
+        # `amd64-develop` tag instead. All cluster nodes are amd64.
+        image: linuxserver/readarr:amd64-develop
         env:
         - name: PUID
           value: "1001"
