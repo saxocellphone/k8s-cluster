@@ -329,12 +329,16 @@ data:
     # ---------- run ----------
 
     wire_qbit_paths
-    wire_dlclient   radarr "$RADARR_BASE" "$RADARR_API_KEY" radarr
+    # Radarr is scaled to 0 -- skip its wiring instead of crashing the
+    # script on connection-refused. Sonarr/Prowlarr/Readarr still wire.
+    # If you scale radarr back up, no change here is needed; the calls
+    # become real on the next cron cycle.
+    wire_dlclient   radarr "$RADARR_BASE" "$RADARR_API_KEY" radarr      || echo "[radarr] skipped (unreachable -- scaled to 0?)"
     wire_dlclient   sonarr "$SONARR_BASE" "$SONARR_API_KEY" sonarr
-    wire_rootfolder radarr "$RADARR_BASE" "$RADARR_API_KEY" /data/movies
+    wire_rootfolder radarr "$RADARR_BASE" "$RADARR_API_KEY" /data/movies || echo "[radarr] skipped (unreachable -- scaled to 0?)"
     wire_rootfolder sonarr "$SONARR_BASE" "$SONARR_API_KEY" /data/tv
 
-    wire_prowlarr_app Radarr Radarr "$RADARR_BASE" "$RADARR_API_KEY"
+    wire_prowlarr_app Radarr Radarr "$RADARR_BASE" "$RADARR_API_KEY"    || echo "[radarr] skipped (unreachable -- scaled to 0?)"
     wire_prowlarr_app Sonarr Sonarr "$SONARR_BASE" "$SONARR_API_KEY"
 
     TAG_ID=$(ensure_prowlarr_tag flaresolverr)
