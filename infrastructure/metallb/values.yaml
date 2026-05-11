@@ -14,6 +14,17 @@
 # 5s timeout + 5 failures = ~50s of consecutive misses before kill, which
 # matches what FRR can tolerate during a busy reload.
 speaker:
+  # Override the default RollingUpdate strategy of maxUnavailable=1. With the
+  # default, a single bad pod (e.g. the FRR-daemon-startup issue currently
+  # affecting talos-pik-q76) blocks the rollout indefinitely on every other
+  # node. maxUnavailable=100% lets all pods roll at once -- safe here because
+  # MetalLB speakers run on every node and brief gaps just mean the LB
+  # IP fail-over takes one extra heartbeat to converge.
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+
   livenessProbe:
     enabled: true
     initialDelaySeconds: 10
