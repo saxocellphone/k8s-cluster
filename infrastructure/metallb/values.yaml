@@ -1,2 +1,34 @@
 # MetalLB installed with default values
 # IPAddressPool and L2Advertisement are in resources/config.yaml
+
+# Loosen the probes on speaker (and the FRR sidecar, which inherits the same
+# values per the chart's templates/speaker.yaml).
+#
+# Defaults are timeoutSeconds=1, failureThreshold=3 -- which is far too tight
+# for FRR's vtysh CLI under any node load. Result: speaker pods on multiple
+# nodes (carbon-node 2632 restarts in 121d, talos-gcx-zwd 931 in 89d,
+# talos-pik-q76 30 in 4h) flap continuously, occasionally dragging the
+# DaemonSet's available count below desired long enough to trip the
+# default KubeDaemonSetRolloutStuck alert.
+#
+# 5s timeout + 5 failures = ~50s of consecutive misses before kill, which
+# matches what FRR can tolerate during a busy reload.
+speaker:
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 5
+    successThreshold: 1
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 5
+    successThreshold: 1
+  startupProbe:
+    enabled: true
+    periodSeconds: 5
+    failureThreshold: 60   # 60 * 5s = 5 minutes for FRR to come up on slow nodes
