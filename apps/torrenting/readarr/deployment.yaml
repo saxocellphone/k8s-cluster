@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: readarr
+  namespace: torrenting
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: readarr
+  template:
+    metadata:
+      labels:
+        app: readarr
+    spec:
+      nodeSelector:
+        extensions.talos.dev/iscsi-tools: v0.2.0
+      initContainers:
+      - name: seed-config
+        image: busybox:1.36
+        command: ["/bin/sh", "/scripts/seed-arr-config.sh"]
+        env:
+        - name: PORT
+          value: "8787"
+        - name: SSL_PORT
+          value: "9898"
+        - name: INSTANCE_NAME
+          value: "Readarr"
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: arr-bootstrap
+              key: READARR_API_KEY
+        volumeMounts:
+        - name: readarr-config
+          mountPath: /config
+        - name: bootstrap-scripts
+          mountPath: /scripts
+      containers:
+      - name: readarr
+        # Readarr has never had a stable release; LinuxServer ships only
+        # `develop` and `nightly` tags. `develop` is the canonical "use this".
+        image: linuxserver/readarr:develop
+        env:
+        - name: PUID
+          value: "1001"
+        - name: PGID
+          value: "100"
+        - name: TZ
+          value: America/Los_Angeles
+        - name: UMASK
+          value: "002"
+        ports:
+        - containerPort: 8787
+          name: http
+        volumeMounts:
+        - mountPath: /config
+          name: readarr-config
+        - mountPath: /data
+          name: torrents
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 8787
+          initialDelaySeconds: 120
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 8787
+          initialDelaySeconds: 120
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+      volumes:
+      - name: readarr-config
+        persistentVolumeClaim:
+          claimName: readarr-config-pvc
+      - name: torrents
+        persistentVolumeClaim:
+          claimName: torrents-unified-pvc
+      - name: bootstrap-scripts
+        configMap:
+          name: arr-bootstrap-scripts
+          defaultMode: 0755

@@ -33,6 +33,7 @@ data:
 
     RADARR_BASE="http://radarr.torrenting.svc.cluster.local:7878"
     SONARR_BASE="http://sonarr.torrenting.svc.cluster.local:8989"
+    READARR_BASE="http://readarr.torrenting.svc.cluster.local:8787"
     PROWLARR_BASE="http://prowlarr.torrenting.svc.cluster.local:9696"
 
     # ---------- helpers ----------
@@ -167,6 +168,68 @@ data:
       post_or_skip_dup "FlareSolverr proxy" "$code" /tmp/resp.json
     }
 
+    # ---------- readarr: download client + root folders ----------
+    # Readarr is on /api/v1 (radarr/sonarr are on /api/v3) and uses
+    # bookCategory instead of movie/tvCategory. Root folders also need
+    # name + default metadata/quality profile IDs.
+
+    wire_readarr_dlclient() {
+      local key="$READARR_API_KEY"
+      echo "[readarr] download client"
+      existing=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/downloadclient" | json_count name qBittorrent)
+      [ "$existing" -gt 0 ] && { echo "  qBittorrent already configured"; return 0; }
+      cat > /tmp/payload.json <<EOF
+    {"enable": true, "protocol": "torrent", "priority": 1,
+     "removeCompletedDownloads": true, "removeFailedDownloads": true,
+     "name": "qBittorrent",
+     "fields": [
+       {"name": "host", "value": "$QBIT_HOST"},
+       {"name": "port", "value": $QBIT_PORT},
+       {"name": "useSsl", "value": false},
+       {"name": "urlBase", "value": ""},
+       {"name": "username", "value": "$QBIT_USER"},
+       {"name": "password", "value": "$QBIT_PASS"},
+       {"name": "bookCategory", "value": "readarr"},
+       {"name": "recentBookPriority", "value": 0},
+       {"name": "olderBookPriority", "value": 0},
+       {"name": "initialState", "value": 0}
+     ],
+     "implementationName": "qBittorrent", "implementation": "QBittorrent",
+     "configContract": "QBittorrentSettings", "tags": []}
+    EOF
+      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time 30 \
+        -X POST -H "X-Api-Key: $key" -H "Content-Type: application/json" \
+        --data @/tmp/payload.json "$READARR_BASE/api/v1/downloadclient")
+      post_or_skip_dup "qBittorrent" "$code" /tmp/resp.json
+    }
+
+    wire_readarr_rootfolder() {
+      local path="$1" name="$2"
+      local key="$READARR_API_KEY"
+      echo "[readarr] root folder $path ($name)"
+      existing=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/rootfolder" \
+        | python3 -c "import json,sys; xs=json.load(sys.stdin); print(sum(1 for x in xs if x.get('path')=='$path'))")
+      [ "$existing" -gt 0 ] && { echo "  $path already configured"; return 0; }
+      # Readarr auto-creates default Standard metadata + quality profiles on
+      # first boot. Use whichever IDs exist; fall back to 1.
+      meta_id=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/metadataprofile" \
+        | python3 -c "import json,sys; ps=json.load(sys.stdin); print(ps[0]['id'] if ps else 1)")
+      qual_id=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/qualityprofile" \
+        | python3 -c "import json,sys; ps=json.load(sys.stdin); print(ps[0]['id'] if ps else 1)")
+      cat > /tmp/rf.json <<EOF
+    {"path": "$path", "name": "$name",
+     "defaultMetadataProfileId": $meta_id,
+     "defaultQualityProfileId": $qual_id,
+     "defaultMonitorOption": "all",
+     "defaultNewItemMonitorOption": "all",
+     "defaultTags": []}
+    EOF
+      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time 30 \
+        -X POST -H "X-Api-Key: $key" -H "Content-Type: application/json" \
+        --data @/tmp/rf.json "$READARR_BASE/api/v1/rootfolder")
+      post_or_skip_dup "root folder $path" "$code" /tmp/resp.json
+    }
+
     # ---------- qbittorrent: save paths via Web API ----------
 
     wire_qbit_paths() {
@@ -216,6 +279,15 @@ data:
 
     TAG_ID=$(ensure_prowlarr_tag flaresolverr)
     wire_flaresolverr_proxy "$TAG_ID"
+
+    # ---------- readarr (wired after the v3 arrs in case it's slower to ----
+    # ---------- start; all guarded so transient unreadiness doesn't ------
+    # ---------- block the rest of the wiring -- next cycle retries) ------
+
+    wire_readarr_dlclient                                || echo "[readarr] dlclient wire failed (will retry next cycle)"
+    wire_readarr_rootfolder /data/books/ebooks ebooks    || echo "[readarr] ebooks rootfolder wire failed (will retry next cycle)"
+    wire_readarr_rootfolder /data/books/audiobooks audiobooks || echo "[readarr] audiobooks rootfolder wire failed (will retry next cycle)"
+    wire_prowlarr_app Readarr Readarr "$READARR_BASE" "$READARR_API_KEY" || echo "[prowlarr] readarr app link wire failed (will retry next cycle)"
 
     # ---------- prowlarr: indexers from indexers.json ----------
 
@@ -292,6 +364,9 @@ spec:
             - name: SONARR_API_KEY
               valueFrom:
                 secretKeyRef: { name: arr-bootstrap, key: SONARR_API_KEY }
+            - name: READARR_API_KEY
+              valueFrom:
+                secretKeyRef: { name: arr-bootstrap, key: READARR_API_KEY }
             - name: PROWLARR_API_KEY
               valueFrom:
                 secretKeyRef: { name: arr-bootstrap, key: PROWLARR_API_KEY }
