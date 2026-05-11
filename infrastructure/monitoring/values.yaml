@@ -211,14 +211,33 @@ additionalPrometheusRulesMap:
           # Generic catch-all for any homelab workload pod stuck not-ready.
           # Excludes platform namespaces (kube-prometheus-stack already covers
           # those with KubeDeploymentReplicasMismatch / KubeStatefulSetReplicasMismatch).
+          #
+          # Two important `unless` clauses:
+          #
+          #   1. Job-owned pods (CronJob runs) become Ready=False the moment
+          #      they complete and stay that way until the CronJob's history
+          #      retention prunes them. Without this exclusion the alert fires
+          #      every successful CronJob run after the 15m for-duration --
+          #      and worse, the responder then "remediates" by deleting the
+          #      completion-history pod, which is harmless but noisy.
+          #
+          #   2. Pods in terminal phases (Succeeded/Failed) are also Ready=
+          #      False permanently. We only want the alert for pods that are
+          #      meant to be Ready (Pending/Running/Unknown).
           - alert: HomelabPodStuckNotReady
             expr: |
-              sum by (namespace, pod) (
+              (
                 kube_pod_status_ready{
                   namespace=~"torrenting|openclaw",
                   condition="true"
-                }
-              ) == 0
+                } == 0
+              )
+              unless on (namespace, pod) (
+                kube_pod_owner{owner_kind="Job"}
+              )
+              unless on (namespace, pod) (
+                kube_pod_status_phase{phase=~"Succeeded|Failed"} == 1
+              )
             for: 15m
             labels:
               severity: warning
@@ -227,7 +246,9 @@ additionalPrometheusRulesMap:
               description: |
                 Pod has not reached Ready state for 15m. Likely candidates:
                 image pull failure, init container error, missing secret, or
-                an ongoing rollout that's stuck.
+                an ongoing rollout that's stuck. CronJob-completion pods are
+                excluded by the alert expression; if you see this fire, it's
+                a real workload pod that hasn't recovered.
 
           # Container OOM-killed in any homelab namespace. The default chart
           # rule fires only on "OOMKilled" containers in restartCount delta;
