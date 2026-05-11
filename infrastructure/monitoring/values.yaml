@@ -5,6 +5,73 @@ grafana:
       initDatasources: true
       watchMethod: LIST
 
+# Early-warning alerts for TSDB growth. The retentionSize cap (40 GiB) and
+# the memory limit (2 GiB) protect Prometheus from outright failure, but they
+# trigger only AT the limit. These alerts fire EARLIER so we can intervene
+# before degradation: dropping recent metrics (size cap) or restart loops
+# (memory limit) become inevitable.
+additionalPrometheusRulesMap:
+  prometheus-tsdb-guard:
+    groups:
+      - name: prometheus-tsdb-guard
+        rules:
+          # Linear projection of on-disk size 7 days into the future. If we'd
+          # exceed 30 GiB by then (75% of the 40 GiB cap), retention.size
+          # truncation is imminent and we'll start losing the older end of
+          # the 15d query window. Use 6h sample window so transient bumps
+          # don't fire it.
+          - alert: PrometheusStorageProjectedFull
+            expr: |
+              predict_linear(prometheus_tsdb_storage_blocks_bytes[6h], 7 * 24 * 3600)
+                > 30 * 1024 * 1024 * 1024
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus TSDB on-disk size projected to exceed 30 GiB within 7 days"
+              description: |
+                Linear projection of prometheus_tsdb_storage_blocks_bytes over the
+                last 6h indicates on-disk size will exceed 30 GiB within 7 days
+                (current cap: 40 GiB via --storage.tsdb.retention.size). Once the
+                cap is hit, the oldest blocks will be truncated regardless of the
+                15d time-based retention. Investigate cardinality growth via
+                /api/v1/status/tsdb (top series-by-metric) and the new-jobs query:
+                count by (job)({__name__=~".+"}).
+
+          # Absolute head series threshold. Current baseline is ~138k. 1M is
+          # ~7x baseline -- well beyond what would be expected from organic
+          # cluster growth, so almost certainly a cardinality bug somewhere.
+          - alert: PrometheusHeadSeriesHigh
+            expr: prometheus_tsdb_head_series > 1000000
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus head series exceeds 1M (currently {{ $value | humanize }})"
+              description: |
+                Active in-memory series count is over 1,000,000. Baseline for this
+                cluster is ~138k. This is almost always a misbehaving exporter
+                (unique label values per request, IDs in label values, etc).
+                Memory use scales with cardinality and the container limit is 2 Gi.
+
+          # Fires the first time retention.size actually deletes blocks. This
+          # is the "your protection just kicked in" alarm: the cluster is now
+          # storing less than 15 days of metrics, and it'll keep shrinking
+          # until ingestion drops or the PVC is grown.
+          - alert: PrometheusRetentionSizeTriggered
+            expr: increase(prometheus_tsdb_size_retentions_total[1h]) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Prometheus is dropping blocks due to size cap, not age"
+              description: |
+                prometheus_tsdb_size_retentions_total has incremented in the last
+                hour, meaning the 40 GiB --storage.tsdb.retention.size cap
+                truncated blocks before the 15d time-based retention would have.
+                Effective query window is now less than 15d. Either increase the
+                PVC + retentionSize, or reduce ingestion via metricRelabelings.
+
 # Drop a small set of apiserver histogram bucket families that contribute
 # significant cardinality (~13% of total series in this cluster) but are not
 # referenced by any default kube-prometheus-stack alert rule or built-in
