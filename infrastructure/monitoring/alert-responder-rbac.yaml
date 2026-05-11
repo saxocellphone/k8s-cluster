@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alert-responder
+  namespace: monitoring
+---
+# Cluster-wide read so the responder can build alert context (look up pod
+# state, deployment status, events) without having to maintain a per-namespace
+# permission list.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alert-responder-read
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "events", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alert-responder-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alert-responder-read
+subjects:
+  - kind: ServiceAccount
+    name: alert-responder
+    namespace: monitoring
+---
+# Pod restart in workload namespaces. Scoped narrowly: only delete pods
+# (which triggers the controller to recreate). NOT delete deployments/sts/
+# secrets/anything else. NOT exec, NOT modify specs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: alert-responder-pod-restart
+  namespace: torrenting
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alert-responder-pod-restart
+  namespace: torrenting
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: alert-responder-pod-restart
+subjects:
+  - kind: ServiceAccount
+    name: alert-responder
+    namespace: monitoring
+---
+# In the openclaw namespace, in addition to delete-pod (for restart
+# remediation), grant pods/exec so the responder can invoke
+# `openclaw agent` inside the gateway container to send Telegram messages.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: alert-responder-openclaw-exec
+  namespace: openclaw
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: alert-responder-openclaw-exec
+  namespace: openclaw
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: alert-responder-openclaw-exec
+subjects:
+  - kind: ServiceAccount
+    name: alert-responder
+    namespace: monitoring
