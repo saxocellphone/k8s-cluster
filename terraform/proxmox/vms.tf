@@ -1,39 +1,146 @@
-# VM resource definitions for the Talos K8s cluster.
+# VMs across both Proxmox hosts. Each block sets `provider = proxmox.<alias>`
+# explicitly so Terraform knows which host to talk to.
 #
-# These are placeholders — fill in real values after running `terraform import`
-# on each existing VM (see README.md for the procedure). Don't apply until each
-# resource block matches what's actually on the Proxmox host, or Terraform will
-# try to "fix" the live VM by replacing settings.
-#
-# Recommended import workflow:
-#   1. terraform plan against an empty resource → shows "would create"
-#   2. terraform import proxmox_virtual_environment_vm.<name> <node>/<vmid>
-#   3. terraform plan again → should now show only diff between live state
-#      and the resource block. Update block until plan is empty.
-#   4. Repeat for each VM.
+# Discovered via API + imported into state. To make changes, edit here and
+# run `terraform plan` / `terraform apply`.
 
-# Example skeleton — uncomment and adapt after import:
-#
-# resource "proxmox_virtual_environment_vm" "pik" {
-#   name      = "pik-q76"
-#   node_name = var.pve_node_primary
-#   vm_id     = 165
-#   on_boot   = true
-#
-#   cpu {
-#     cores = 4
-#     type  = "host"
-#   }
-#   memory {
-#     dedicated = 8192
-#   }
-#   disk {
-#     datastore_id = "local-lvm"  # adjust to your storage
-#     interface    = "scsi0"
-#     size         = 80
-#   }
-#   network_device {
-#     bridge = "vmbr0"
-#     model  = "virtio"
-#   }
-# }
+# ---------- pve1 (192.168.8.191) ----------
+
+# apollo1 — non-K8s workload (no Talos guest agent detected)
+resource "proxmox_virtual_environment_vm" "apollo1" {
+  provider  = proxmox.pve1
+  node_name = var.pve1_node_name
+  vm_id     = 100
+  name      = "apollo1"
+
+  bios          = "seabios"
+  boot_order    = ["scsi0", "ide2", "net0"]
+  scsi_hardware = "virtio-scsi-single"
+  on_boot       = false
+
+  cpu {
+    cores   = 2
+    sockets = 1
+    type    = "x86-64-v2-AES"
+  }
+  memory {
+    dedicated = 4096
+  }
+  network_device {
+    bridge      = "vmbr0"
+    firewall    = true
+    mac_address = "BC:24:11:E2:C5:33"
+    model       = "virtio"
+  }
+  disk {
+    interface    = "scsi0"
+    datastore_id = "local-lvm"
+    file_format  = "raw"
+    iothread     = true
+    size         = 32
+  }
+  disk {
+    interface    = "scsi1"
+    datastore_id = "local-lvm"
+    file_format  = "raw"
+    iothread     = true
+    size         = 128
+  }
+  operating_system {
+    type = "l26"
+  }
+}
+
+# ---------- pve2 (192.168.8.226) ----------
+
+# K8s control plane: Talos hostname talos-mru-smr, IP 192.168.8.227
+resource "proxmox_virtual_environment_vm" "k8s_control_plane" {
+  provider  = proxmox.pve2
+  node_name = var.pve2_node_name
+  vm_id     = 100
+  name      = "talos2"
+
+  bios          = "seabios"
+  boot_order    = ["scsi0", "ide2", "net0"]
+  scsi_hardware = "virtio-scsi-single"
+  on_boot       = false
+
+  agent {
+    type    = "virtio"
+    enabled = true
+  }
+  cpu {
+    cores   = 1
+    sockets = 1
+    type    = "x86-64-v2-AES"
+  }
+  memory {
+    dedicated = 4096
+  }
+  network_device {
+    bridge      = "vmbr0"
+    firewall    = true
+    mac_address = "BC:24:11:BC:80:85"
+    model       = "virtio"
+  }
+  disk {
+    interface    = "scsi0"
+    datastore_id = "local-lvm"
+    file_format  = "raw"
+    iothread     = true
+    size         = 32
+  }
+  operating_system {
+    type = "l26"
+  }
+}
+
+# K8s worker: Talos hostname talos-gcx-zwd, IP 192.168.8.126
+# Has the dedicated Longhorn disk (scsi1, 128GB).
+resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
+  provider  = proxmox.pve2
+  node_name = var.pve2_node_name
+  vm_id     = 101
+  name      = "zeus1"
+
+  bios          = "seabios"
+  boot_order    = ["scsi0", "ide2", "net0"]
+  scsi_hardware = "virtio-scsi-single"
+  on_boot       = false
+
+  agent {
+    type    = "virtio"
+    enabled = true
+  }
+  cpu {
+    cores   = 3
+    sockets = 1
+    type    = "host"
+  }
+  memory {
+    dedicated = 12000
+  }
+  network_device {
+    bridge      = "vmbr0"
+    firewall    = true
+    mac_address = "BC:24:11:F7:2C:CB"
+    model       = "virtio"
+  }
+  disk {
+    interface    = "scsi0"
+    datastore_id = "local-lvm"
+    file_format  = "raw"
+    iothread     = true
+    size         = 32
+  }
+  disk {
+    interface    = "scsi1"
+    datastore_id = "local-lvm"
+    file_format  = "raw"
+    iothread     = true
+    size         = 128
+  }
+  operating_system {
+    type = "l26"
+  }
+}
