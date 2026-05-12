@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clipcascade
+  namespace: clipcascade
+  annotations:
+    # Clipboard sync is STOMP over WebSockets; the long-lived upgrade
+    # connection needs generous timeouts so devices don't get bounced.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Allow paste sizes up to CC_MAX_MESSAGE_SIZE_IN_MiB (5) plus framing.
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - clipcascade.k8s.home
+    secretName: clipcascade-tls
+  rules:
+  - host: clipcascade.k8s.home
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: clipcascade
+            port:
+              number: 8080
