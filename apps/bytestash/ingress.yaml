@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bytestash
+  namespace: bytestash
+  annotations:
+    # Snippets can be larger than nginx's default 1m body cap; allow generous
+    # paste sizes without surprises.
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - bytestash.k8s.home
+    secretName: bytestash-tls
+  rules:
+  - host: bytestash.k8s.home
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: bytestash
+            port:
+              number: 5000
