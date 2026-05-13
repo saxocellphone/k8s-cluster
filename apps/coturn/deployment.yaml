@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coturn
+  namespace: coturn
+  labels:
+    app: coturn
+spec:
+  # hostNetwork is incompatible with running multiple replicas on the same
+  # node (port collision). Pinning to one replica on carbon-node is the
+  # intent — we are deliberately a single point of failure here, accepted
+  # in exchange for not having to forward ports from multiple nodes.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: coturn
+  template:
+    metadata:
+      labels:
+        app: coturn
+    spec:
+      # Pin to carbon-node specifically:
+      #   - Talos workers have an immutable rootfs and stricter PSA defaults
+      #     that make hostNetwork awkward.
+      #   - The router port-forward must point at one node IP; pinning here
+      #     guarantees that IP (192.168.8.140) stays correct.
+      nodeSelector:
+        kubernetes.io/hostname: carbon-node
+      # hostNetwork lets coturn bind real ports on the node and, more
+      # importantly, lets it allocate from the relay port range
+      # (50000-50100/UDP) without each port needing its own kube-proxy
+      # iptables rule via NodePort.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      initContainers:
+        # Detect the cluster's current public IP at pod startup and stamp it
+        # into a freshly-rendered turnserver.conf alongside the TURN
+        # credentials from the SOPS secret. The rendered file is written to
+        # an emptyDir shared with the main container.
+        - name: render-config
+          image: alpine/curl:8.10.1
+          command: ["sh", "-euc"]
+          args:
+            - |
+              PUBLIC_IP=$(curl -fsS --max-time 10 https://api.ipify.org \
+                       || curl -fsS --max-time 10 https://ifconfig.me \
+                       || curl -fsS --max-time 10 https://icanhazip.com)
+              if [ -z "$PUBLIC_IP" ]; then
+                echo "FATAL: failed to detect public IP from any of the three providers" >&2
+                exit 1
+              fi
+              echo "Detected: PUBLIC_IP=$PUBLIC_IP  LAN_IP=$NODE_IP"
+              # Use a non-/ delimiter for sed since base64 may contain /.
+              # `|` is safe — we control all replacement values here.
+              sed -e "s|@@PUBLIC_IP@@|$PUBLIC_IP|g" \
+                  -e "s|@@LAN_IP@@|$NODE_IP|g" \
+                  -e "s|@@USER@@|$TURN_USER|g" \
+                  -e "s|@@PASSWORD@@|$TURN_PASSWORD|g" \
+                  /template/turnserver.conf > /rendered/turnserver.conf
+              # Echo the rendered config except for the credential line.
+              echo "--- rendered turnserver.conf (user= line redacted) ---"
+              grep -v "^user=" /rendered/turnserver.conf
+              echo "--- end of rendered config ---"
+          env:
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: TURN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: coturn-credentials
+                  key: TURN_USER
+            - name: TURN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: coturn-credentials
+                  key: TURN_PASSWORD
+          volumeMounts:
+            - name: template
+              mountPath: /template
+              readOnly: true
+            - name: rendered-config
+              mountPath: /rendered
+      containers:
+        - name: coturn
+          image: coturn/coturn:4.7.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-c"
+            - "/etc/coturn/turnserver.conf"
+          # Liveness/readiness use the TCP listener on 3478. coturn answers
+          # TCP SYN as soon as the port is bound, which is good enough for
+          # "is coturn alive" without speaking the STUN protocol from k8s.
+          readinessProbe:
+            tcpSocket:
+              port: 3478
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 3478
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: rendered-config
+              mountPath: /etc/coturn
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+      volumes:
+        - name: template
+          configMap:
+            name: coturn-config-template
+        - name: rendered-config
+          emptyDir: {}
