@@ -288,6 +288,21 @@ additionalPrometheusRulesMap:
                 replicas for 5m+. All *arr apps will be erroring on database
                 connections. Check pod events and PV state.
 
+# Disable scrape targets for control-plane components that Talos does not
+# expose on the conventional kube-prometheus-stack endpoints. Each ships with
+# a Service + ServiceMonitor pointing at a host:port (10257/10259/10249) that
+# Talos either binds to localhost only or doesn't expose at all -- the
+# resulting `TargetDown` warnings have been firing forever with no actual
+# fix path. Disabling here also drops the default PrometheusRules that
+# reference these targets (notably KubeVersionMismatch's per-component
+# version gather).
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
 # Drop a small set of apiserver histogram bucket families that contribute
 # significant cardinality (~13% of total series) but are not referenced by
 # any default kube-prometheus-stack alert rule or built-in dashboard. The
