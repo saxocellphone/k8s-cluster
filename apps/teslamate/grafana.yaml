@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: teslamate-grafana
+  namespace: teslamate
+  labels:
+    app: teslamate-grafana
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: teslamate-grafana
+  template:
+    metadata:
+      labels:
+        app: teslamate-grafana
+    spec:
+      nodeSelector:
+        extensions.talos.dev/iscsi-tools: v0.2.0
+      containers:
+        - name: grafana
+          image: teslamate/grafana:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_USER
+              value: teslamate
+            - name: DATABASE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: teslamate-credentials
+                  key: DATABASE_PASS
+            - name: DATABASE_NAME
+              value: teslamate
+            - name: DATABASE_HOST
+              value: teslamate-postgres
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: teslamate-grafana-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: teslamate-grafana-pvc
+  namespace: teslamate
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
