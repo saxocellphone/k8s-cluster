@@ -66,26 +66,6 @@ spec:
             name: sonarr
             port:
               number: 8989
-  - host: readarr.k8s.home
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: readarr
-            port:
-              number: 8787
-  - host: readarr.192.168.8.201.nip.io
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: readarr
-            port:
-              number: 8787
   - host: audiobooks.k8s.home
     http:
       paths:

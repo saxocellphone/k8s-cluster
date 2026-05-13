@@ -5,13 +5,15 @@
 # Idempotent-ish bootstrap for exposing the *arr stack via Cloudflare Tunnel
 # behind Cloudflare Access. Performs four operations against the CF API:
 #
-#   1. Appends 5 ingress rules to the existing `homelab` tunnel:
+#   1. Appends 3 ingress rules to the existing `homelab` tunnel:
 #        sonarr.victornazzaro.com   -> sonarr.torrenting.svc:8989
 #        radarr.victornazzaro.com   -> radarr.torrenting.svc:7878
-#        prowlarr.victornazzaro.com -> prowlarr.torrenting.svc:9696
-#        readarr.victornazzaro.com  -> readarr.torrenting.svc:8787
 #        qbit.victornazzaro.com     -> qbittorrent.torrenting.svc:8080
 #      (preserves all existing rules; keeps the catch-all 404 last)
+#
+#      Note: prowlarr and readarr were originally exposed too but are
+#      no longer; prowlarr is admin-only so doesn't warrant a public
+#      hostname, and readarr was removed from the cluster entirely.
 #
 #   2. Creates an orange-clouded CNAME in Cloudflare DNS for each new
 #      hostname, pointing at <tunnel-id>.cfargotunnel.com.
@@ -64,12 +66,10 @@ EMAIL="$1"
 API="https://api.cloudflare.com/client/v4"
 DOMAIN="victornazzaro.com"
 
-# 5 hostnames + their cluster service URLs.
+# 3 hostnames + their cluster service URLs.
 declare -a HOSTNAMES=(
   "sonarr.${DOMAIN}|http://sonarr.torrenting.svc.cluster.local:8989"
   "radarr.${DOMAIN}|http://radarr.torrenting.svc.cluster.local:7878"
-  "prowlarr.${DOMAIN}|http://prowlarr.torrenting.svc.cluster.local:9696"
-  "readarr.${DOMAIN}|http://readarr.torrenting.svc.cluster.local:8787"
   "qbit.${DOMAIN}|http://qbittorrent.torrenting.svc.cluster.local:8080"
 )
 

@@ -25,9 +25,6 @@ DATABASES=(
   "radarr_log"
   "sonarr_main"
   "sonarr_log"
-  "readarr_main"
-  "readarr_log"
-  "readarr_cache"
 )
 
 # Backup each database

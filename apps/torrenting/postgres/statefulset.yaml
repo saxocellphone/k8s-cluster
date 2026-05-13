@@ -22,18 +22,14 @@ data:
       SELECT 'CREATE DATABASE radarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'radarr_log')\gexec
       SELECT 'CREATE DATABASE sonarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sonarr_main')\gexec
       SELECT 'CREATE DATABASE sonarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sonarr_log')\gexec
-      SELECT 'CREATE DATABASE readarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'readarr_main')\gexec
-      SELECT 'CREATE DATABASE readarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'readarr_log')\gexec
-      SELECT 'CREATE DATABASE readarr_cache OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'readarr_cache')\gexec
+      -- readarr_{main,log,cache} were here historically; readarr was removed.
+      -- Existing databases (if any) are left alone -- DROP them manually if desired.
       GRANT ALL PRIVILEGES ON DATABASE prowlarr_main TO arr_user;
       GRANT ALL PRIVILEGES ON DATABASE prowlarr_log TO arr_user;
       GRANT ALL PRIVILEGES ON DATABASE radarr_main TO arr_user;
       GRANT ALL PRIVILEGES ON DATABASE radarr_log TO arr_user;
       GRANT ALL PRIVILEGES ON DATABASE sonarr_main TO arr_user;
       GRANT ALL PRIVILEGES ON DATABASE sonarr_log TO arr_user;
-      GRANT ALL PRIVILEGES ON DATABASE readarr_main TO arr_user;
-      GRANT ALL PRIVILEGES ON DATABASE readarr_log TO arr_user;
-      GRANT ALL PRIVILEGES ON DATABASE readarr_cache TO arr_user;
     EOSQL
     echo "Database initialization complete!"
 ---

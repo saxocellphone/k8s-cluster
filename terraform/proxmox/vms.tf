@@ -106,7 +106,8 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
   bios          = "seabios"
   boot_order    = ["scsi0", "ide2", "net0"]
   scsi_hardware = "virtio-scsi-single"
-  on_boot       = false
+  on_boot       = true # auto-start after pve2 reboot — was false, caused 18h cluster degradation
+  started       = true # explicit: ensure VM is running (provider default, made explicit)
 
   agent {
     type    = "virtio"
