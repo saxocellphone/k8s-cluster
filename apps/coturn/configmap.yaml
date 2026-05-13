@@ -39,8 +39,9 @@ data:
     # Without these, anyone with valid credentials could use this TURN
     # server as a proxy to scan the internal network or hit cloud metadata
     # endpoints. Block all RFC1918, link-local, loopback, and IPv6 ULA.
+    # `no-loopback-peers` was removed in recent coturn; the loopback range
+    # is covered by the `denied-peer-ip=127.0.0.0-127.255.255.255` line below.
     no-multicast-peers
-    no-loopback-peers
     denied-peer-ip=0.0.0.0-0.255.255.255
     denied-peer-ip=10.0.0.0-10.255.255.255
     denied-peer-ip=100.64.0.0-100.127.255.255
@@ -59,10 +60,9 @@ data:
     denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
     denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 
-    # Disable obsolete TLS versions (we're not running TURNS yet but coturn
-    # opens TLS sockets opportunistically; harmless to set).
-    no-tlsv1
-    no-tlsv1_1
+    # (Old `no-tlsv1` / `no-tlsv1_1` options were removed in recent coturn;
+    #  TLS version control is now handled at the OpenSSL layer. We're also
+    #  not running TURNS yet, so this is moot until cert-manager is added.)
 
     # Disable the local CLI socket (port 5766) — we don't use it.
     no-cli
