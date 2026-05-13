@@ -16,5 +16,13 @@ spec:
     automated:
       prune: false
       selfHeal: true
+    # coturn runs with hostNetwork: true (so it can bind real ports on the
+    # node and serve the relay UDP range without 100+ NodePort iptables
+    # rules). The cluster default PodSecurity admission level is `baseline`,
+    # which forbids host namespaces, so this namespace must be labeled
+    # `privileged` for the pod to be admitted.
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: privileged
     syncOptions:
       - CreateNamespace=true
