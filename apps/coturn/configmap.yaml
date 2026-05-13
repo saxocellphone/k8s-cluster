@@ -72,6 +72,24 @@ data:
     total-quota=100
     user-quota=20
 
+    # ---- Bandwidth caps -----------------------------------------------
+    # Despite the misleading name, both `bps-capacity` and `max-bps` are
+    # in BYTES per second, not bits per second (verified against upstream's
+    # example turnserver.conf and source). These limits bound the worst-case
+    # impact of credential leakage / abuse: even if someone extracts the
+    # creds from a browser session and tries to use this as a free relay,
+    # they can't saturate our home upload bandwidth.
+    #
+    # Per-session cap: 750000 B/s = 6 Mbps. A 1080p video stream is ~3 Mbps
+    # in each direction so this leaves comfortable headroom for HD calls
+    # while bounding abuse.
+    max-bps=750000
+    # Server-wide cap: 2500000 B/s = 20 Mbps. At max-bps that's ~3 concurrent
+    # HD calls or many lower-bandwidth ones; well below typical residential
+    # upload (Webpass: usually 100+ Mbps up) so legitimate use is never the
+    # ceiling, and abuse is hard-capped to a fraction of our pipe.
+    bps-capacity=2500000
+
     # ---- Logging ------------------------------------------------------
     log-file=stdout
     no-stdout-log=false
