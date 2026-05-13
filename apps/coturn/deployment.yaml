@@ -40,7 +40,7 @@ spec:
         # credentials from the SOPS secret. The rendered file is written to
         # an emptyDir shared with the main container.
         - name: render-config
-          image: alpine/curl:8.10.1
+          image: alpine/curl:8.17.0
           command: ["sh", "-euc"]
           args:
             - |
