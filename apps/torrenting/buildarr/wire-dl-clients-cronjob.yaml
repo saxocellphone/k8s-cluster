@@ -35,7 +35,6 @@ data:
 
     RADARR_BASE="http://radarr.torrenting.svc.cluster.local:7878"
     SONARR_BASE="http://sonarr.torrenting.svc.cluster.local:8989"
-    READARR_BASE="http://readarr.torrenting.svc.cluster.local:8787"
     PROWLARR_BASE="http://prowlarr.torrenting.svc.cluster.local:9696"
 
     # ---------- helpers ----------
@@ -110,9 +109,7 @@ data:
 
     wire_prowlarr_app() {
       # 5th arg `cats` is an optional JSON array of newznab category IDs
-      # for syncCategories. Defaults to []. Radarr/Sonarr accept empty
-      # but Readarr's Prowlarr-side validator requires at least one
-      # (use [7000] = Books root).
+      # for syncCategories. Defaults to []. Radarr/Sonarr accept empty.
       local name="$1" impl="$2" base="$3" key="$4" cats="${5:-[]}"
       echo "[prowlarr] app link: $name"
       existing=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/applications" | json_count name "$name")
@@ -174,117 +171,9 @@ data:
       post_or_skip_dup "FlareSolverr proxy" "$code" /tmp/resp.json
     }
 
-    # ---------- readarr: download client + root folders ----------
-    # Readarr is on /api/v1 (radarr/sonarr are on /api/v3) and uses
-    # bookCategory instead of movie/tvCategory. Root folders also need
-    # name + default metadata/quality profile IDs.
-
-    wire_readarr_dlclient() {
-      # Two Readarr-specific quirks:
-      #
-      # 1. Field names are inherited from Lidarr (Readarr's parent fork),
-      #    not from Radarr/Sonarr. The qBit category goes in
-      #    `musicCategory`, priorities in `recentTvPriority` /
-      #    `olderTvPriority`. There is no `bookCategory` in the schema.
-      #
-      # 2. Readarr's QBittorrentProxyV2.AuthenticateClient is broken
-      #    against qBittorrent 5.x: it expects a literal `Ok.` response
-      #    body but qBit 5.x returns 204 + empty body, so Readarr always
-      #    throws "Failed to authenticate" even with correct creds. Fix
-      #    isn't merged in nightly yet. Workaround: send empty username
-      #    + password so Readarr's auth code early-returns (it skips the
-      #    check when settings.Username.IsNullOrWhiteSpace()), and rely
-      #    on qBit's bypass_auth_subnet_whitelist (set by
-      #    wire_qbit_paths below) to accept the unauthenticated requests
-      #    from the cluster pod CIDR. If you ever disable that bypass,
-      #    this download client stops working.
-      local key="$READARR_API_KEY"
-      echo "[readarr] download client"
-      existing=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/downloadclient" | json_count name qBittorrent)
-      [ "$existing" -gt 0 ] && { echo "  qBittorrent already configured"; return 0; }
-      cat > /tmp/payload.json <<EOF
-    {"enable": true, "protocol": "torrent", "priority": 1,
-     "removeCompletedDownloads": true, "removeFailedDownloads": true,
-     "name": "qBittorrent",
-     "fields": [
-       {"name": "host", "value": "$QBIT_HOST"},
-       {"name": "port", "value": $QBIT_PORT},
-       {"name": "useSsl", "value": false},
-       {"name": "urlBase", "value": ""},
-       {"name": "username", "value": ""},
-       {"name": "password", "value": ""},
-       {"name": "musicCategory", "value": "readarr"},
-       {"name": "recentTvPriority", "value": 0},
-       {"name": "olderTvPriority", "value": 0},
-       {"name": "initialState", "value": 0}
-     ],
-     "implementationName": "qBittorrent", "implementation": "QBittorrent",
-     "configContract": "QBittorrentSettings", "tags": []}
-    EOF
-      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time 30 \
-        -X POST -H "X-Api-Key: $key" -H "Content-Type: application/json" \
-        --data @/tmp/payload.json "$READARR_BASE/api/v1/downloadclient")
-      post_or_skip_dup "qBittorrent" "$code" /tmp/resp.json
-    }
-
-    wire_readarr_metadata() {
-      # Readarr's hardcoded default metadata service (api.bookinfo.club)
-      # was shut down when the official Readarr project was archived in
-      # mid-2025. Without a working metadata service Readarr can't look
-      # up authors/books, so search returns nothing -- the indexer is
-      # never even queried.
-      #
-      # The community fix is `rreading-glasses` (blampe/rreading-glasses
-      # on GitHub), a drop-in compatible API. We point at the public
-      # hosted instance api.bookinfo.pro. To self-host later, swap the
-      # URL and run rreading-glasses in-cluster against our Postgres.
-      local key="$READARR_API_KEY"
-      local want_url="https://api.bookinfo.pro"
-      echo "[readarr] metadata source"
-      cur=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/config/development" \
-        | python3 -c "import json,sys; print(json.load(sys.stdin).get('metadataSource',''))")
-      if [ "$cur" = "$want_url" ]; then
-        echo "  metadataSource already $want_url"; return 0
-      fi
-      cat > /tmp/dev.json <<EOF
-    {"metadataSource":"$want_url","consoleLogLevel":"","logSql":false,"logRotate":50,"filterSentryEvents":true,"id":1}
-    EOF
-      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time 30 \
-        -X PUT -H "X-Api-Key: $key" -H "Content-Type: application/json" \
-        --data @/tmp/dev.json "$READARR_BASE/api/v1/config/development")
-      if [ "$code" = "200" ] || [ "$code" = "202" ]; then
-        echo "  set metadataSource=$want_url (was '${cur:-default}')"
-      else
-        echo "  FAILED set metadataSource (HTTP $code):"; cat /tmp/resp.json; return 1
-      fi
-    }
-
-    wire_readarr_rootfolder() {
-      local path="$1" name="$2"
-      local key="$READARR_API_KEY"
-      echo "[readarr] root folder $path ($name)"
-      existing=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/rootfolder" \
-        | python3 -c "import json,sys; xs=json.load(sys.stdin); print(sum(1 for x in xs if x.get('path')=='$path'))")
-      [ "$existing" -gt 0 ] && { echo "  $path already configured"; return 0; }
-      # Readarr auto-creates default Standard metadata + quality profiles on
-      # first boot. Use whichever IDs exist; fall back to 1.
-      meta_id=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/metadataprofile" \
-        | python3 -c "import json,sys; ps=json.load(sys.stdin); print(ps[0]['id'] if ps else 1)")
-      qual_id=$(curl -sS -H "X-Api-Key: $key" "$READARR_BASE/api/v1/qualityprofile" \
-        | python3 -c "import json,sys; ps=json.load(sys.stdin); print(ps[0]['id'] if ps else 1)")
-      cat > /tmp/rf.json <<EOF
-    {"path": "$path", "name": "$name",
-     "defaultMetadataProfileId": $meta_id,
-     "defaultQualityProfileId": $qual_id,
-     "defaultMonitorOption": "all",
-     "defaultNewItemMonitorOption": "all",
-     "defaultTags": []}
-    EOF
-      code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time 30 \
-        -X POST -H "X-Api-Key: $key" -H "Content-Type: application/json" \
-        --data @/tmp/rf.json "$READARR_BASE/api/v1/rootfolder")
-      post_or_skip_dup "root folder $path" "$code" /tmp/resp.json
-    }
+    # (readarr was removed from the cluster; its download-client / metadata /
+    # root-folder / prowlarr-app-link wiring used to live here. See git
+    # history for the original implementation if it's ever resurrected.)
 
     # ---------- qbittorrent: save paths via Web API ----------
 
@@ -305,9 +194,10 @@ data:
         *) echo "  ERROR: qbit login failed (HTTP $login_code)"; return 1 ;;
       esac
       # Read current settings so we can no-op when correct. We also manage
-      # bypass_auth_subnet_whitelist here so Readarr can talk to qBit
-      # without auth (workaround for the qBit 5.x compat bug in
-      # Readarr's QBittorrentProxyV2 -- see wire_readarr_dlclient).
+      # bypass_auth_subnet_whitelist here (originally a workaround for a
+      # qBit-5.x compat bug in Readarr's QBittorrentProxyV2; harmless to
+      # keep enabled now that readarr is gone, removes a future surprise
+      # if anything else wants unauthenticated qBit access from the cluster).
       cur=$(curl -sS -b /tmp/qbit-cookies.txt "$QBIT_BASE/api/v2/app/preferences" \
         | python3 -c "import json,sys; p=json.load(sys.stdin); print(p.get('save_path',''),p.get('temp_path',''),p.get('temp_path_enabled',False),p.get('bypass_auth_subnet_whitelist_enabled',False),p.get('bypass_auth_subnet_whitelist',''))")
       want="/data/qbit/ /data/qbit/incomplete True True 10.244.0.0/16"
@@ -329,30 +219,19 @@ data:
     # ---------- run ----------
 
     wire_qbit_paths
-    # Radarr is scaled to 0 -- skip its wiring instead of crashing the
-    # script on connection-refused. Sonarr/Prowlarr/Readarr still wire.
-    # If you scale radarr back up, no change here is needed; the calls
-    # become real on the next cron cycle.
-    wire_dlclient   radarr "$RADARR_BASE" "$RADARR_API_KEY" radarr      || echo "[radarr] skipped (unreachable -- scaled to 0?)"
+    # All `|| echo "skipped"` falls cover the case where one of the *arr
+    # services is temporarily unreachable (newly bootstrapped, scaled to 0,
+    # restarting); the next cron cycle re-attempts.
+    wire_dlclient   radarr "$RADARR_BASE" "$RADARR_API_KEY" radarr      || echo "[radarr] skipped (unreachable)"
     wire_dlclient   sonarr "$SONARR_BASE" "$SONARR_API_KEY" sonarr
-    wire_rootfolder radarr "$RADARR_BASE" "$RADARR_API_KEY" /data/movies || echo "[radarr] skipped (unreachable -- scaled to 0?)"
+    wire_rootfolder radarr "$RADARR_BASE" "$RADARR_API_KEY" /data/movies || echo "[radarr] skipped (unreachable)"
     wire_rootfolder sonarr "$SONARR_BASE" "$SONARR_API_KEY" /data/tv
 
-    wire_prowlarr_app Radarr Radarr "$RADARR_BASE" "$RADARR_API_KEY"    || echo "[radarr] skipped (unreachable -- scaled to 0?)"
+    wire_prowlarr_app Radarr Radarr "$RADARR_BASE" "$RADARR_API_KEY"    || echo "[radarr] skipped (unreachable)"
     wire_prowlarr_app Sonarr Sonarr "$SONARR_BASE" "$SONARR_API_KEY"
 
     TAG_ID=$(ensure_prowlarr_tag flaresolverr)
     wire_flaresolverr_proxy "$TAG_ID"
-
-    # ---------- readarr (wired after the v3 arrs in case it's slower to ----
-    # ---------- start; all guarded so transient unreadiness doesn't ------
-    # ---------- block the rest of the wiring -- next cycle retries) ------
-
-    wire_readarr_metadata                                || echo "[readarr] metadata source wire failed (will retry next cycle)"
-    wire_readarr_dlclient                                || echo "[readarr] dlclient wire failed (will retry next cycle)"
-    wire_readarr_rootfolder /data/books/ebooks ebooks    || echo "[readarr] ebooks rootfolder wire failed (will retry next cycle)"
-    wire_readarr_rootfolder /data/books/audiobooks audiobooks || echo "[readarr] audiobooks rootfolder wire failed (will retry next cycle)"
-    wire_prowlarr_app Readarr Readarr "$READARR_BASE" "$READARR_API_KEY" '[7000]' || echo "[prowlarr] readarr app link wire failed (will retry next cycle)"
 
     # ---------- prowlarr: indexers from indexers.json ----------
 
@@ -456,9 +335,6 @@ spec:
             - name: SONARR_API_KEY
               valueFrom:
                 secretKeyRef: { name: arr-bootstrap, key: SONARR_API_KEY }
-            - name: READARR_API_KEY
-              valueFrom:
-                secretKeyRef: { name: arr-bootstrap, key: READARR_API_KEY }
             - name: PROWLARR_API_KEY
               valueFrom:
                 secretKeyRef: { name: arr-bootstrap, key: PROWLARR_API_KEY }
