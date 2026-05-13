@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coturn-config-template
+  namespace: coturn
+data:
+  # Template rendered at pod-startup by the render-config initContainer.
+  # Placeholders @@PUBLIC_IP@@ and @@LAN_IP@@ are substituted at runtime; the
+  # username/password come from the SOPS-managed `coturn-credentials` Secret.
+  turnserver.conf: |
+    # ---- Network -------------------------------------------------------
+    # We run with hostNetwork: true on carbon-node, so the pod sees the
+    # node's interfaces directly. Bind to the LAN IP only (avoids loopback).
+    listening-ip=@@LAN_IP@@
+    relay-ip=@@LAN_IP@@
+    listening-port=3478
+
+    # The router port-forwards 3478/UDP+TCP from the public IP to this node.
+    # `external-ip=PUBLIC/PRIVATE` tells coturn to advertise the public IP in
+    # XOR-RELAYED-ADDRESS responses while binding sockets on the private IP.
+    external-ip=@@PUBLIC_IP@@/@@LAN_IP@@
+
+    # ---- Relay port range ---------------------------------------------
+    # coturn's default range is 49152-65535 (16k ports), which is far more
+    # than a homelab needs and a pain to forward. 100 ports = ~50 concurrent
+    # relayed call legs, which is comfortably more than we'll ever use.
+    min-port=50000
+    max-port=50100
+
+    # ---- Authentication -----------------------------------------------
+    # Long-term credential mechanism with a single static user/password.
+    # The `realm` is just an opaque string used in the auth challenge; by
+    # convention it's a domain name.
+    lt-cred-mech
+    realm=victornazzaro.com
+    user=@@USER@@:@@PASSWORD@@
+
+    # ---- Hardening (anti-SSRF) ----------------------------------------
+    # Without these, anyone with valid credentials could use this TURN
+    # server as a proxy to scan the internal network or hit cloud metadata
+    # endpoints. Block all RFC1918, link-local, loopback, and IPv6 ULA.
+    no-multicast-peers
+    no-loopback-peers
+    denied-peer-ip=0.0.0.0-0.255.255.255
+    denied-peer-ip=10.0.0.0-10.255.255.255
+    denied-peer-ip=100.64.0.0-100.127.255.255
+    denied-peer-ip=127.0.0.0-127.255.255.255
+    denied-peer-ip=169.254.0.0-169.254.255.255
+    denied-peer-ip=172.16.0.0-172.31.255.255
+    denied-peer-ip=192.0.0.0-192.0.0.255
+    denied-peer-ip=192.0.2.0-192.0.2.255
+    denied-peer-ip=192.168.0.0-192.168.255.255
+    denied-peer-ip=198.18.0.0-198.19.255.255
+    denied-peer-ip=198.51.100.0-198.51.100.255
+    denied-peer-ip=203.0.113.0-203.0.113.255
+    denied-peer-ip=224.0.0.0-239.255.255.255
+    denied-peer-ip=240.0.0.0-255.255.255.255
+    denied-peer-ip=::1
+    denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+    denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+
+    # Disable obsolete TLS versions (we're not running TURNS yet but coturn
+    # opens TLS sockets opportunistically; harmless to set).
+    no-tlsv1
+    no-tlsv1_1
+
+    # Disable the local CLI socket (port 5766) — we don't use it.
+    no-cli
+
+    # ---- Quotas (cheap abuse mitigation) ------------------------------
+    # Cap simultaneous allocations server-wide and per-user.
+    total-quota=100
+    user-quota=20
+
+    # ---- Logging ------------------------------------------------------
+    log-file=stdout
+    no-stdout-log=false
+    simple-log
+    fingerprint
