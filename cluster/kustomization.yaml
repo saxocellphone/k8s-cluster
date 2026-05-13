@@ -5,3 +5,4 @@ resources:
   - storage-classes.yaml
   - persistent-volumes.yaml
   - rbac.yaml
+  - coredns-affinity.yaml

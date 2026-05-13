@@ -1,0 +1,53 @@
+# Pin CoreDNS pods away from carbon-node.
+#
+# Why: carbon-node (Linux Mint) uses systemd-resolved, so the kubelet propagates
+# `nameserver 127.0.0.53` into pod /etc/resolv.conf. CoreDNS's default Corefile
+# does `forward . /etc/resolv.conf`, which inside the pod's netns loops back to
+# itself (`[FATAL] plugin/loop: Loop (127.0.0.1:* -> :53) detected for zone "."`)
+# and crash-loops the pod. The Talos workers avoid this via
+# `hostDNS.forwardKubeDNSToHost: true` in their machine config — kubelet there
+# hands the pod a Talos hostDNS service IP instead of 127.0.0.53.
+#
+# Fix: keep CoreDNS off carbon-node. Service routing via 10.96.0.10 still works
+# for pods on carbon-node — kube-proxy forwards them to the Talos-resident
+# CoreDNS replicas.
+#
+# This manifest is a partial Deployment applied via Server-Side Apply, so we
+# only own `spec.template.spec.affinity`. image/replicas/args/etc. remain owned
+# by kubeadm (the original installer). If a future Talos bootstrap ever wipes
+# this, Argo selfHeal re-applies it. If Talos changes the CoreDNS image or
+# command, those changes still flow through unimpeded.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns
+  namespace: kube-system
+  annotations:
+    argocd.argoproj.io/sync-options: ServerSideApply=true
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - carbon-node
+        # Preserve the kubeadm-shipped podAntiAffinity. SSA replaces the entire
+        # `affinity` object atomically per subfield, so we must redeclare both
+        # nodeAffinity and podAntiAffinity here — otherwise the existing
+        # podAntiAffinity (which spreads replicas across hostnames) is lost.
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchExpressions:
+                    - key: k8s-app
+                      operator: In
+                      values:
+                        - kube-dns
