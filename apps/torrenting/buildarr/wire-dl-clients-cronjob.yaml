@@ -430,7 +430,13 @@ spec:
   schedule: "*/30 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 3
+  # Keep only the most-recent failed Job. Otherwise an outage that takes the
+  # *arr stack down accumulates up to 3 failed Jobs (1.5h at the */30
+  # schedule), and Argo flags `torrenting` as Degraded long after the actual
+  # services recover — successful runs do not auto-clean failed siblings.
+  # With limit=1, a single subsequent failure rolls the prior failure out and
+  # Argo flips back to Healthy as soon as one success follows.
+  failedJobsHistoryLimit: 1
   startingDeadlineSeconds: 600
   jobTemplate:
     spec:
