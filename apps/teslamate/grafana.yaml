@@ -19,6 +19,10 @@ spec:
     spec:
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
+      # Grafana runs as uid 472; Longhorn PVCs mount root-owned.
+      # fsGroup ensures the volume is group-writable for Grafana.
+      securityContext:
+        fsGroup: 472
       containers:
         - name: grafana
           image: teslamate/grafana:latest
