@@ -13,6 +13,13 @@ spec:
     metadata:
       labels:
         app: qbittorrent
+      annotations:
+        # Rate-limit at the CNI level to prevent BitTorrent traffic from
+        # overwhelming the switch's management CPU with high packet rates.
+        # These limits are enforced by the bandwidth CNI plugin (tc/tbf)
+        # on the pod's veth interface — no app-level config needed.
+        kubernetes.io/ingress-bandwidth: "100M"
+        kubernetes.io/egress-bandwidth: "50M"
     spec:
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
