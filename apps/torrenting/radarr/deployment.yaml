@@ -31,6 +31,15 @@ spec:
             secretKeyRef:
               name: arr-bootstrap
               key: RADARR_API_KEY
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-arr-credentials
+              key: arr-user-password
+        - name: POSTGRES_MAIN_DB
+          value: radarr_main
+        - name: POSTGRES_LOG_DB
+          value: radarr_log
         volumeMounts:
         - name: radarr-config
           mountPath: /config
