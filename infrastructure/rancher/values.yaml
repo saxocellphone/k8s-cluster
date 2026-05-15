@@ -1,0 +1,21 @@
+hostname: rancher.k8s.home
+replicas: 1
+bootstrapPassword: admin
+
+# Internal/lab install: Rancher asks cert-manager to mint a self-signed cert.
+# Keep this LAN-only; do not expose through Cloudflare without auth in front.
+ingress:
+  ingressClassName: nginx
+  tls:
+    source: rancher
+
+tls: ingress
+certmanager:
+  version: v1.20.2
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
