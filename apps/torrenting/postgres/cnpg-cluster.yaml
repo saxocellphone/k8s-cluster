@@ -23,12 +23,12 @@ spec:
       secret:
         name: postgres-arr-credentials
       postInitSQL:
-        - SELECT 'CREATE DATABASE prowlarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'prowlarr_main')\gexec
-        - SELECT 'CREATE DATABASE prowlarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'prowlarr_log')\gexec
-        - SELECT 'CREATE DATABASE radarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'radarr_main')\gexec
-        - SELECT 'CREATE DATABASE radarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'radarr_log')\gexec
-        - SELECT 'CREATE DATABASE sonarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sonarr_main')\gexec
-        - SELECT 'CREATE DATABASE sonarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sonarr_log')\gexec
+        - CREATE DATABASE prowlarr_main OWNER arr_user
+        - CREATE DATABASE prowlarr_log OWNER arr_user
+        - CREATE DATABASE radarr_main OWNER arr_user
+        - CREATE DATABASE radarr_log OWNER arr_user
+        - CREATE DATABASE sonarr_main OWNER arr_user
+        - CREATE DATABASE sonarr_log OWNER arr_user
   monitoring:
     enablePodMonitor: true
   resources:
