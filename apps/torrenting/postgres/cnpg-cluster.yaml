@@ -1,7 +1,7 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: postgres
+  name: arr-postgres
   namespace: torrenting
 spec:
   instances: 2
