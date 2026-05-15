@@ -34,7 +34,7 @@ spec:
               name: memos-db
               key: MEMOS_DSN
         - name: MEMOS_INSTANCE_URL
-          value: http://memos.k8s.home
+          value: https://memos.victornazzaro.com
         readinessProbe:
           httpGet:
             path: /
