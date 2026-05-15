@@ -1,0 +1,38 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: torrenting
+spec:
+  instances: 2
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.10
+  primaryUpdateMethod: switchover
+  storage:
+    size: 5Gi
+    storageClass: longhorn
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
+  bootstrap:
+    initdb:
+      database: postgres
+      owner: arr_user
+      secret:
+        name: postgres-arr-credentials
+      postInitSQL:
+        - SELECT 'CREATE DATABASE prowlarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'prowlarr_main')\gexec
+        - SELECT 'CREATE DATABASE prowlarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'prowlarr_log')\gexec
+        - SELECT 'CREATE DATABASE radarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'radarr_main')\gexec
+        - SELECT 'CREATE DATABASE radarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'radarr_log')\gexec
+        - SELECT 'CREATE DATABASE sonarr_main OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sonarr_main')\gexec
+        - SELECT 'CREATE DATABASE sonarr_log OWNER arr_user' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sonarr_log')\gexec
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
