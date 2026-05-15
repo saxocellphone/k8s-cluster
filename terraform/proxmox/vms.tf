@@ -147,10 +147,9 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
   }
 }
 
-# K8s worker on pve191: Talos hostname currently talos-worker-pve1-01
-# (VM name already corrected to talos-worker-pve191-01; rename the Kubernetes
-# node during the next planned rebuild). Has the dedicated Longhorn disk
-# (scsi1, 128GB) and uses the Longhorn-capable Talos schematic.
+# K8s worker on pve191: Talos hostname talos-worker-pve191-01.
+# Has the dedicated Longhorn disk (scsi1, 128GB) and uses the
+# Longhorn-capable Talos schematic.
 resource "proxmox_virtual_environment_vm" "k8s_worker_pve191" {
   provider  = proxmox.pve1
   node_name = var.pve1_node_name

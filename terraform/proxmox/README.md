@@ -55,7 +55,7 @@ terraform apply
 | Resource | Provider | VM ID | PVE name | Talos hostname / IP |
 |---|---|---|---|---|
 | `proxmox_virtual_environment_vm.apollo1` | pve1 | 100 | `apollo1` | non-K8s |
-| `proxmox_virtual_environment_vm.k8s_worker_pve191` | pve1 | 101 | `talos-worker-pve191-01` | currently `talos-worker-pve1-01` (192.168.8.194); rename during next planned rebuild |
+| `proxmox_virtual_environment_vm.k8s_worker_pve191` | pve1 | 101 | `talos-worker-pve191-01` | talos-worker-pve191-01 (192.168.8.194) |
 | `proxmox_virtual_environment_vm.k8s_control_plane` | pve2 | 100 | `talos-cp-pve226-01` | talos-mru-smr (192.168.8.227) |
 | `proxmox_virtual_environment_vm.k8s_worker_gcx` | pve2 | 101 | `talos-worker-pve226-01` | talos-gcx-zwd (192.168.8.125) |
 
