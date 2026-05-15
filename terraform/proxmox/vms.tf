@@ -53,17 +53,18 @@ resource "proxmox_virtual_environment_vm" "apollo1" {
 
 # ---------- pve2 (192.168.8.226) ----------
 
-# K8s control plane: Talos hostname talos-mru-smr, IP 192.168.8.227
+# K8s control plane on pve226: Talos hostname talos-mru-smr, IP 192.168.8.227
 resource "proxmox_virtual_environment_vm" "k8s_control_plane" {
   provider  = proxmox.pve2
   node_name = var.pve2_node_name
   vm_id     = 100
-  name      = "talos2"
+  name      = "talos-cp-pve226-01"
 
   bios          = "seabios"
   boot_order    = ["scsi0", "ide2", "net0"]
   scsi_hardware = "virtio-scsi-single"
-  on_boot       = false
+  on_boot       = true
+  started       = true
 
   agent {
     type    = "virtio"
@@ -95,19 +96,19 @@ resource "proxmox_virtual_environment_vm" "k8s_control_plane" {
   }
 }
 
-# K8s worker: Talos hostname talos-gcx-zwd, IP 192.168.8.126
+# K8s worker on pve226: Talos hostname talos-gcx-zwd, IP 192.168.8.125
 # Has the dedicated Longhorn disk (scsi1, 128GB).
 resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
   provider  = proxmox.pve2
   node_name = var.pve2_node_name
   vm_id     = 101
-  name      = "zeus1"
+  name      = "talos-worker-pve226-01"
 
   bios          = "seabios"
   boot_order    = ["scsi0", "ide2", "net0"]
   scsi_hardware = "virtio-scsi-single"
-  on_boot       = true # auto-start after pve2 reboot — was false, caused 18h cluster degradation
-  started       = true # explicit: ensure VM is running (provider default, made explicit)
+  on_boot       = true
+  started       = true
 
   agent {
     type    = "virtio"
@@ -119,7 +120,7 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
     type    = "host"
   }
   memory {
-    dedicated = 12000
+    dedicated = 9000
   }
   network_device {
     bridge      = "vmbr0"
@@ -146,20 +147,21 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
   }
 }
 
-# K8s worker: rebuild of talos-pik-q76 (the original VM was destroyed).
-# Mirrors zeus1's spec — same CPU/RAM/disks for parity as Longhorn replica peer.
-# Boots from Talos metal-amd64.iso in maintenance mode; you then apply the
-# worker machine config via talosctl to install Talos to scsi0 and join cluster.
-resource "proxmox_virtual_environment_vm" "k8s_worker_pik" {
-  provider  = proxmox.pve2
-  node_name = var.pve2_node_name
-  vm_id     = 102 # next free ID after zeus1=101
-  name      = "pik2"
+# K8s worker on pve191: Talos hostname currently talos-worker-pve1-01
+# (VM name already corrected to talos-worker-pve191-01; rename the Kubernetes
+# node during the next planned rebuild). Has the dedicated Longhorn disk
+# (scsi1, 128GB) and uses the Longhorn-capable Talos schematic.
+resource "proxmox_virtual_environment_vm" "k8s_worker_pve191" {
+  provider  = proxmox.pve1
+  node_name = var.pve1_node_name
+  vm_id     = 101
+  name      = "talos-worker-pve191-01"
 
   bios            = "seabios"
   boot_order      = ["ide2", "scsi0", "net0"] # CDROM first for initial install
   scsi_hardware   = "virtio-scsi-single"
-  on_boot         = true # auto-start after host reboot — fix for what bit us today
+  on_boot         = true
+  started         = true
   keyboard_layout = "en-us"
 
   agent {
@@ -167,18 +169,18 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_pik" {
     type    = "virtio"
   }
   cpu {
-    cores   = 3
+    cores   = 2
     sockets = 1
     type    = "host"
   }
   memory {
-    dedicated = 12000
+    dedicated = 8000
   }
   network_device {
-    bridge   = "vmbr0"
-    firewall = true
-    model    = "virtio"
-    # mac_address omitted — Proxmox auto-generates a unique BC:24:11:* MAC
+    bridge      = "vmbr0"
+    firewall    = true
+    mac_address = "BC:24:11:AA:F7:3B"
+    model       = "virtio"
   }
   # OS disk
   disk {
@@ -188,7 +190,7 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_pik" {
     iothread     = true
     size         = 32
   }
-  # Longhorn data disk (matches longhorn-disk-patch-pik.yaml expectations)
+  # Longhorn data disk (mounted at /var/mnt/longhorn by Talos disk config)
   disk {
     interface    = "scsi1"
     datastore_id = "local-lvm"
@@ -198,8 +200,8 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_pik" {
   }
   # Talos installer ISO
   cdrom {
-    enabled  = true
-    file_id  = "local:iso/metal-amd64.iso"
+    enabled   = true
+    file_id   = "local:iso/metal-amd64.iso"
     interface = "ide2"
   }
   operating_system {
