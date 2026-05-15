@@ -90,8 +90,7 @@ spec:
             memory: 128Mi
       volumes:
       - name: sonarr-config
-        persistentVolumeClaim:
-          claimName: sonarr-config-pvc
+        emptyDir: {}
       - name: torrents
         persistentVolumeClaim:
           claimName: torrents-unified-pvc

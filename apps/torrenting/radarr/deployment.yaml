@@ -90,8 +90,7 @@ spec:
             memory: 128Mi
       volumes:
       - name: radarr-config
-        persistentVolumeClaim:
-          claimName: radarr-config-pvc
+        emptyDir: {}
       - name: torrents
         persistentVolumeClaim:
           claimName: torrents-unified-pvc
