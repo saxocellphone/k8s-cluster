@@ -16,3 +16,13 @@ spec:
             name: memos
             port:
               number: 5230
+  - host: memos.victornazzaro.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: memos
+            port:
+              number: 5230
