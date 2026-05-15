@@ -23,6 +23,12 @@ data:
       <SslCertPassword></SslCertPassword>
       <UrlBase></UrlBase>
       <InstanceName>${INSTANCE_NAME}</InstanceName>
+      <PostgresUser>arr_user</PostgresUser>
+      <PostgresPassword>${POSTGRES_PASSWORD}</PostgresPassword>
+      <PostgresHost>platform-postgres-rw.database.svc.cluster.local</PostgresHost>
+      <PostgresPort>5432</PostgresPort>
+      <PostgresMainDb>${POSTGRES_MAIN_DB}</PostgresMainDb>
+      <PostgresLogDb>${POSTGRES_LOG_DB}</PostgresLogDb>
     </Config>
     EOF
     chown 1001:100 /config/config.xml
