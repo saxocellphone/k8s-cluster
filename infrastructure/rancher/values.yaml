@@ -1,9 +1,9 @@
-hostname: rancher.k8s.home
+hostname: rancher.victornazzaro.com
 replicas: 1
 bootstrapPassword: admin
 
-# Internal/lab install: Rancher asks cert-manager to mint a self-signed cert.
-# Keep this LAN-only; do not expose through Cloudflare without auth in front.
+# Rancher asks cert-manager to mint a self-signed cert. Public access should
+# be protected by Cloudflare Access in front of the Cloudflare Tunnel route.
 ingress:
   ingressClassName: nginx
   tls:
