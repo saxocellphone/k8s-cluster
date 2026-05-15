@@ -18,6 +18,6 @@ resources:
 
 generators:
   - qbittorrent/secret-generator.yaml
-  - postgres/secret-generator.yaml
+  - platform-postgres-secret-generator.yaml
   - bootstrap/secret-generator.yaml
   - iptorrents/secret-generator.yaml
