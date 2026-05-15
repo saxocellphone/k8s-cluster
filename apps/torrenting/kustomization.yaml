@@ -8,7 +8,6 @@ resources:
   - qbittorrent/service-headless.yaml
   - qbittorrent/configmap.yaml
   - postgres/statefulset.yaml
-  - postgres/cnpg-cluster.yaml
   - prowlarr/deployment.yaml
   - radarr/deployment.yaml
   - sonarr/deployment.yaml

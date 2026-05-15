@@ -1,8 +1,8 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: arr-postgres
-  namespace: torrenting
+  name: platform-postgres
+  namespace: database
 spec:
   instances: 2
   imageName: ghcr.io/cloudnative-pg/postgresql:16.10
@@ -21,7 +21,7 @@ spec:
       database: postgres
       owner: arr_user
       secret:
-        name: postgres-arr-credentials
+        name: platform-postgres-app
       postInitSQL:
         - CREATE DATABASE prowlarr_main OWNER arr_user
         - CREATE DATABASE prowlarr_log OWNER arr_user
