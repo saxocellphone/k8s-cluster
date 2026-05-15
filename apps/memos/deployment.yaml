@@ -19,6 +19,9 @@ spec:
       - name: memos
         image: neosmemo/memos:stable
         imagePullPolicy: IfNotPresent
+        args:
+        - --port
+        - "5230"
         ports:
         - name: http
           containerPort: 5230
