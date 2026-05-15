@@ -16,7 +16,7 @@ spec:
             name: memos
             port:
               number: 5230
-  - host: memos.victornazzaro.com
+  - host: paste.victornazzaro.com
     http:
       paths:
       - path: /
