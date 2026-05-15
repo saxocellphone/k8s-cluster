@@ -34,7 +34,7 @@ spec:
               name: memos-db
               key: MEMOS_DSN
         - name: MEMOS_INSTANCE_URL
-          value: https://memos.victornazzaro.com
+          value: https://paste.victornazzaro.com
         readinessProbe:
           httpGet:
             path: /
