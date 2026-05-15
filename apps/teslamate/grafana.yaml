@@ -70,17 +70,4 @@ spec:
               mountPath: /var/lib/grafana
       volumes:
         - name: grafana-data
-          persistentVolumeClaim:
-            claimName: teslamate-grafana-pvc
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: teslamate-grafana-pvc
-  namespace: teslamate
-spec:
-  accessModes: ["ReadWriteOnce"]
-  storageClassName: longhorn
-  resources:
-    requests:
-      storage: 2Gi
+          emptyDir: {}

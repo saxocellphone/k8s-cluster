@@ -88,8 +88,7 @@ spec:
             memory: 128Mi
       volumes:
       - name: prowlarr-config
-        persistentVolumeClaim:
-          claimName: prowlarr-config-pvc
+        emptyDir: {}
       - name: bootstrap-scripts
         configMap:
           name: arr-bootstrap-scripts

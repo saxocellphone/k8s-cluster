@@ -3,7 +3,6 @@ kind: Kustomization
 
 resources:
   - configmap.yaml
-  - postgres.yaml
   - deployment.yaml
   - grafana.yaml
   - services.yaml
