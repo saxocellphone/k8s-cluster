@@ -55,12 +55,14 @@ terraform apply
 | Resource | Provider | VM ID | PVE name | Talos hostname / IP |
 |---|---|---|---|---|
 | `proxmox_virtual_environment_vm.apollo1` | pve1 | 100 | `apollo1` | non-K8s |
-| `proxmox_virtual_environment_vm.k8s_control_plane` | pve2 | 100 | `talos2` | talos-mru-smr (192.168.8.227) |
-| `proxmox_virtual_environment_vm.k8s_worker_gcx` | pve2 | 101 | `zeus1` | talos-gcx-zwd (192.168.8.126) |
+| `proxmox_virtual_environment_vm.k8s_worker_pve191` | pve1 | 101 | `talos-worker-pve191-01` | currently `talos-worker-pve1-01` (192.168.8.194); rename during next planned rebuild |
+| `proxmox_virtual_environment_vm.k8s_control_plane` | pve2 | 100 | `talos-cp-pve226-01` | talos-mru-smr (192.168.8.227) |
+| `proxmox_virtual_environment_vm.k8s_worker_gcx` | pve2 | 101 | `talos-worker-pve226-01` | talos-gcx-zwd (192.168.8.125) |
 
-Missing: `talos-pik-q76` (192.168.8.165). Was a worker but VM no longer exists
-on either Proxmox host. Recreate by adding a new resource block (clone or
-fresh from Talos disk image) and apply.
+Former pve2 worker `pik2`/`talos-im5-2ok` (VM 102) was removed after repeated
+userspace hangs and pve2 memory pressure. The steady-state topology is now one
+control plane on pve2 plus one Longhorn-capable Talos worker on each Proxmox
+host.
 
 ## Routine workflow
 
