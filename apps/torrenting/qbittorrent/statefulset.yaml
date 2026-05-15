@@ -150,8 +150,7 @@ spec:
         persistentVolumeClaim:
           claimName: torrents-unified-pvc
       - name: qbit-config
-        persistentVolumeClaim:
-          claimName: qbit-config-pvc
+        emptyDir: {}
       - name: bootstrap-scripts
         configMap:
           name: arr-bootstrap-scripts
