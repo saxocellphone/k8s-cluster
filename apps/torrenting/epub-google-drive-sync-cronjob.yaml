@@ -46,7 +46,6 @@ spec:
                 --filter "+ *.cbz" \
                 --filter "+ *.CBZ" \
                 --filter "- *" \
-                --create-empty-src-dirs \
                 --fast-list \
                 --transfers 4 \
                 --checkers 8 \
