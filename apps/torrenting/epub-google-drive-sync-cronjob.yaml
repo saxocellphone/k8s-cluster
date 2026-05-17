@@ -28,7 +28,7 @@ spec:
               cp /config-template/rclone.conf /tmp/rclone/rclone.conf
               chmod 600 /tmp/rclone/rclone.conf
 
-              rclone copy "$SOURCE" "$DESTINATION" \
+              rclone copy "$SOURCE" "$EPUB_DESTINATION" \
                 --config /tmp/rclone/rclone.conf \
                 --filter "+ *.epub" \
                 --filter "+ *.EPUB" \
@@ -40,11 +40,26 @@ spec:
                 --drive-chunk-size 64M \
                 --log-level INFO \
                 --stats 1m
+
+              rclone copy "$SOURCE" "$CBZ_DESTINATION" \
+                --config /tmp/rclone/rclone.conf \
+                --filter "+ *.cbz" \
+                --filter "+ *.CBZ" \
+                --filter "- *" \
+                --create-empty-src-dirs \
+                --fast-list \
+                --transfers 4 \
+                --checkers 8 \
+                --drive-chunk-size 64M \
+                --log-level INFO \
+                --stats 1m
             env:
             - name: SOURCE
               value: /books
-            - name: DESTINATION
+            - name: EPUB_DESTINATION
               value: gdrive:Rakuten Kobo/epubs
+            - name: CBZ_DESTINATION
+              value: gdrive:Rakuten Kobo/cbz
             resources:
               limits:
                 cpu: 500m
