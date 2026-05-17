@@ -1,0 +1,81 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: epub-google-drive-sync
+  namespace: torrenting
+spec:
+  schedule: "0 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: rclone
+            image: rclone/rclone:latest
+            command: ["/bin/sh", "-c"]
+            args:
+            - |
+              set -eu
+              mkdir -p /tmp/rclone
+              cp /config-template/rclone.conf /tmp/rclone/rclone.conf
+              chmod 600 /tmp/rclone/rclone.conf
+
+              rclone copy "$SOURCE" "$DESTINATION" \
+                --config /tmp/rclone/rclone.conf \
+                --filter "+ *.epub" \
+                --filter "+ *.EPUB" \
+                --filter "- *" \
+                --create-empty-src-dirs \
+                --fast-list \
+                --transfers 4 \
+                --checkers 8 \
+                --drive-chunk-size 64M \
+                --log-level INFO \
+                --stats 1m
+            env:
+            - name: SOURCE
+              value: /books
+            - name: DESTINATION
+              value: gdrive:Rakuten Kobo/epubs
+            resources:
+              limits:
+                cpu: 500m
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              runAsGroup: 100
+              runAsNonRoot: true
+              runAsUser: 1001
+            volumeMounts:
+            - name: books
+              mountPath: /books
+              subPath: books/ebooks
+              readOnly: true
+            - name: rclone-config
+              mountPath: /config-template
+              readOnly: true
+          volumes:
+          - name: books
+            persistentVolumeClaim:
+              claimName: torrents-unified-pvc
+          - name: rclone-config
+            secret:
+              secretName: google-drive-rclone
+              defaultMode: 0444
+              items:
+              - key: rclone.conf
+                path: rclone.conf

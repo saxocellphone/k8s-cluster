@@ -15,9 +15,11 @@ resources:
   - bootstrap/configmap.yaml
   - buildarr/wire-dl-clients-cronjob.yaml
   - iptorrents/cookie-refresh-cronjob.yaml
+  - epub-google-drive-sync-cronjob.yaml
 
 generators:
   - qbittorrent/secret-generator.yaml
   - platform-postgres-secret-generator.yaml
   - bootstrap/secret-generator.yaml
   - iptorrents/secret-generator.yaml
+  - google-drive-rclone-secret-generator.yaml
