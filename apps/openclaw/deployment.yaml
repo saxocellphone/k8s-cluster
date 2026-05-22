@@ -79,6 +79,12 @@ spec:
           try { c = JSON.parse(fs.readFileSync(p, "utf8")); } catch(e) {}
           c.gateway = c.gateway || {};
           c.gateway.bind = "lan";
+          // Upstream `openclaw:latest` now refuses to start without
+          // `gateway.mode`. Set it explicitly to `local` (matching `bind: lan`
+          // — non-tunneled, in-cluster reachable only). Without this line the
+          // container errors with "Gateway start blocked: existing config is
+          // missing gateway.mode" and CrashLoopBackOffs.
+          c.gateway.mode = "local";
           c.gateway.controlUi = c.gateway.controlUi || {};
           c.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
           delete c.gateway.auth;
