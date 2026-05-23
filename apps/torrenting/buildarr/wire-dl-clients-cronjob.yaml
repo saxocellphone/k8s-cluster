@@ -15,6 +15,12 @@ data:
     #!/bin/sh
     set -eu
     # Idempotent post-deploy wiring for the *arr stack.
+    # NOTE: every external curl in this script MUST carry --max-time. A
+    # missing timeout combined with `set -e` was responsible for occasional
+    # cron failures (a brief stall on any API turned into a hung pod or a
+    # premature exit). Helper invocations that aren't already protected with
+    # `|| echo "[…] skipped"` should be — keep this script resilient to a
+    # single transient blip; the next */30 cycle retries anyway.
     # Replaces what Buildarr was supposed to do (it was unreliable for our
     # use case). All steps check existence first and are safe to re-run.
     #
@@ -61,7 +67,7 @@ data:
     wire_dlclient() {
       local name="$1" base="$2" key="$3" category="$4"
       echo "[$name] download client"
-      existing=$(curl -sS -H "X-Api-Key: $key" "$base/api/v3/downloadclient" | json_count name qBittorrent)
+      existing=$(curl -sS --max-time 30 -H "X-Api-Key: $key" "$base/api/v3/downloadclient" | json_count name qBittorrent)
       [ "$existing" -gt 0 ] && { echo "  qBittorrent already configured"; return 0; }
       cat > /tmp/payload.json <<EOF
     {"enable": true, "protocol": "torrent", "priority": 1,
@@ -97,7 +103,7 @@ data:
     wire_rootfolder() {
       local name="$1" base="$2" key="$3" path="$4"
       echo "[$name] root folder $path"
-      existing=$(curl -sS -H "X-Api-Key: $key" "$base/api/v3/rootfolder" | python3 -c "import json,sys; xs=json.load(sys.stdin); print(sum(1 for x in xs if x.get('path')=='$path'))")
+      existing=$(curl -sS --max-time 30 -H "X-Api-Key: $key" "$base/api/v3/rootfolder" | python3 -c "import json,sys; xs=json.load(sys.stdin); print(sum(1 for x in xs if x.get('path')=='$path'))")
       [ "$existing" -gt 0 ] && { echo "  $path already configured"; return 0; }
       code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time 30 \
         -X POST -H "X-Api-Key: $key" -H "Content-Type: application/json" \
@@ -112,7 +118,7 @@ data:
       # for syncCategories. Defaults to []. Radarr/Sonarr accept empty.
       local name="$1" impl="$2" base="$3" key="$4" cats="${5:-[]}"
       echo "[prowlarr] app link: $name"
-      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/applications" | json_count name "$name")
+      existing=$(curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/applications" | json_count name "$name")
       [ "$existing" -gt 0 ] && { echo "  $name app link already configured"; return 0; }
       cat > /tmp/app.json <<EOF
     {"name": "$name", "syncLevel": "addOnly",
@@ -136,14 +142,14 @@ data:
     ensure_prowlarr_tag() {
       # Prints id to stdout; logs to stderr.
       local label="$1"
-      existing_id=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/tag" \
+      existing_id=$(curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/tag" \
         | python3 -c "import json,sys; tags=json.load(sys.stdin); print(next((t['id'] for t in tags if t['label']=='$label'),''))")
       if [ -n "$existing_id" ]; then
         echo "  tag '$label' already exists (id=$existing_id)" >&2
         echo "$existing_id"
         return 0
       fi
-      response=$(curl -sS -X POST -H "X-Api-Key: $PROWLARR_API_KEY" -H "Content-Type: application/json" \
+      response=$(curl -sS --max-time 30 -X POST -H "X-Api-Key: $PROWLARR_API_KEY" -H "Content-Type: application/json" \
         -d "{\"label\":\"$label\"}" "$PROWLARR_BASE/api/v1/tag")
       new_id=$(echo "$response" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
       echo "  created tag '$label' (id=$new_id)" >&2
@@ -153,7 +159,7 @@ data:
     wire_flaresolverr_proxy() {
       local tag_id="$1"
       echo "[prowlarr] FlareSolverr proxy"
-      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexerproxy" | json_count name FlareSolverr)
+      existing=$(curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexerproxy" | json_count name FlareSolverr)
       [ "$existing" -gt 0 ] && { echo "  FlareSolverr proxy already configured"; return 0; }
       cat > /tmp/proxy.json <<EOF
     {"name": "FlareSolverr",
@@ -183,12 +189,12 @@ data:
       # Login -> session cookie. Newer qBit returns HTTP 200/204 with empty
       # body on success and 403 on failure (legacy versions returned 'Ok.'
       # text). Check the status code, not the body.
-      login_code=$(curl -sS -o /dev/null -w '%{http_code}' \
+      login_code=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' \
         -c /tmp/qbit-cookies.txt -X POST \
         -H "Referer: $QBIT_BASE" \
         --data-urlencode "username=$QBIT_USER" \
         --data-urlencode "password=$QBIT_PASS" \
-        "$QBIT_BASE/api/v2/auth/login")
+        "$QBIT_BASE/api/v2/auth/login" || echo 000)
       case "$login_code" in
         200|204) : ;;
         *) echo "  ERROR: qbit login failed (HTTP $login_code)"; return 1 ;;
@@ -198,17 +204,33 @@ data:
       # qBit-5.x compat bug in Readarr's QBittorrentProxyV2; harmless to
       # keep enabled now that readarr is gone, removes a future surprise
       # if anything else wants unauthenticated qBit access from the cluster).
-      cur=$(curl -sS -b /tmp/qbit-cookies.txt "$QBIT_BASE/api/v2/app/preferences" \
-        | python3 -c "import json,sys; p=json.load(sys.stdin); print(p.get('save_path',''),p.get('temp_path',''),p.get('temp_path_enabled',False),p.get('bypass_auth_subnet_whitelist_enabled',False),p.get('bypass_auth_subnet_whitelist',''))")
+      # Two-step (curl to file, python parse) instead of pipe: the previous
+      # `curl | python3` pipeline failed silently when curl returned an
+      # empty body on a transient hiccup — python's json.load raised and
+      # `set -e` killed the whole job. Capturing the body first lets us
+      # validate before parsing.
+      if ! curl -sS --max-time 30 -o /tmp/qbit-prefs.json -b /tmp/qbit-cookies.txt \
+          "$QBIT_BASE/api/v2/app/preferences"; then
+        echo "  ERROR: qbit GET preferences failed (curl exit non-zero)"; return 1
+      fi
+      # One-liner parse with `|| echo PARSE_ERROR` fallback: if curl returned
+      # an empty body on a transient blip, python's json.load raises and
+      # `set -e` would have killed the whole job. Catching it lets the
+      # caller report and return non-zero gracefully (and the `||` on the
+      # top-level call turns that into a logged skip).
+      cur=$(python3 -c "import json; p=json.load(open('/tmp/qbit-prefs.json')); print(p.get('save_path',''),p.get('temp_path',''),p.get('temp_path_enabled',False),p.get('bypass_auth_subnet_whitelist_enabled',False),p.get('bypass_auth_subnet_whitelist',''))" 2>/dev/null || echo "PARSE_ERROR")
+      if [ "$cur" = "PARSE_ERROR" ]; then
+        echo "  ERROR: qbit prefs parse failed (body: $(head -c 200 /tmp/qbit-prefs.json))"; return 1
+      fi
       want="/data/qbit/ /data/qbit/incomplete True True 10.244.0.0/16"
       if [ "$cur" = "$want" ]; then
         echo "  save_path + bypass_auth_subnet already configured"; return 0
       fi
       # Set save_path + temp_path + auth bypass for cluster pod CIDR.
       # qBit expects 'json=<urlencoded-json>' form body.
-      code=$(curl -sS -o /tmp/resp.txt -w '%{http_code}' -b /tmp/qbit-cookies.txt \
+      code=$(curl -sS --max-time 30 -o /tmp/resp.txt -w '%{http_code}' -b /tmp/qbit-cookies.txt \
         -X POST --data-urlencode 'json={"save_path":"/data/qbit","temp_path":"/data/qbit/incomplete","temp_path_enabled":true,"bypass_auth_subnet_whitelist_enabled":true,"bypass_auth_subnet_whitelist":"10.244.0.0/16"}' \
-        "$QBIT_BASE/api/v2/app/setPreferences")
+        "$QBIT_BASE/api/v2/app/setPreferences" || echo 000)
       if [ "$code" = "200" ]; then
         echo "  set save_path=/data/qbit, temp_path=/data/qbit/incomplete, bypass=10.244.0.0/16"
       else
@@ -218,20 +240,26 @@ data:
 
     # ---------- run ----------
 
-    wire_qbit_paths
     # All `|| echo "skipped"` falls cover the case where one of the *arr
     # services is temporarily unreachable (newly bootstrapped, scaled to 0,
-    # restarting); the next cron cycle re-attempts.
+    # restarting); the next cron cycle re-attempts. wire_qbit_paths is
+    # likewise non-fatal — a transient login/preferences blip used to take
+    # out the whole job before this guard.
+    wire_qbit_paths                                                     || echo "[qbittorrent] skipped (transient)"
     wire_dlclient   radarr "$RADARR_BASE" "$RADARR_API_KEY" radarr      || echo "[radarr] skipped (unreachable)"
-    wire_dlclient   sonarr "$SONARR_BASE" "$SONARR_API_KEY" sonarr
+    wire_dlclient   sonarr "$SONARR_BASE" "$SONARR_API_KEY" sonarr      || echo "[sonarr] skipped (unreachable)"
     wire_rootfolder radarr "$RADARR_BASE" "$RADARR_API_KEY" /data/movies || echo "[radarr] skipped (unreachable)"
-    wire_rootfolder sonarr "$SONARR_BASE" "$SONARR_API_KEY" /data/tv
+    wire_rootfolder sonarr "$SONARR_BASE" "$SONARR_API_KEY" /data/tv    || echo "[sonarr] skipped (unreachable)"
 
     wire_prowlarr_app Radarr Radarr "$RADARR_BASE" "$RADARR_API_KEY"    || echo "[radarr] skipped (unreachable)"
-    wire_prowlarr_app Sonarr Sonarr "$SONARR_BASE" "$SONARR_API_KEY"
+    wire_prowlarr_app Sonarr Sonarr "$SONARR_BASE" "$SONARR_API_KEY"    || echo "[sonarr] skipped (unreachable)"
 
-    TAG_ID=$(ensure_prowlarr_tag flaresolverr)
-    wire_flaresolverr_proxy "$TAG_ID"
+    TAG_ID=$(ensure_prowlarr_tag flaresolverr || echo "")
+    if [ -n "$TAG_ID" ]; then
+      wire_flaresolverr_proxy "$TAG_ID"                                 || echo "[prowlarr] flaresolverr proxy skipped (transient)"
+    else
+      echo "[prowlarr] tag/proxy skipped (prowlarr unreachable)"
+    fi
 
     # ---------- prowlarr: indexers from indexers.json ----------
 
@@ -245,13 +273,13 @@ data:
       [ -z "$def_name" ] && continue
       echo "[prowlarr] indexer: $def_name (flaresolverr=$use_flare)"
       # Resolve the user-facing name (e.g. nyaasi -> 'Nyaa.si').
-      indexer_name=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
+      indexer_name=$(curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
         | python3 -c "import json,sys; ms=[s for s in json.load(sys.stdin) if s.get('definitionName')=='$def_name']; print(ms[0]['name'] if ms else '')")
       if [ -z "$indexer_name" ]; then
         echo "  ERROR: definitionName '$def_name' not in Prowlarr schema list"
         failed_indexers=$((failed_indexers+1)); continue
       fi
-      existing=$(curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer" | json_count name "$indexer_name")
+      existing=$(curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer" | json_count name "$indexer_name")
       if [ "$existing" -gt 0 ]; then
         echo "  $indexer_name already configured"; continue
       fi
@@ -264,7 +292,7 @@ data:
       # there crashes the entire wire job under set -e. POSTing with
       # enable=False skips the test (Prowlarr only tests enabled
       # indexers); PUT with forceSave=true bypasses the re-test.
-      curl -sS -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
+      curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
         | python3 -c "
     import json,sys
     m = next(s for s in json.load(sys.stdin) if s.get('definitionName')=='$def_name')
@@ -321,6 +349,12 @@ spec:
     spec:
       backoffLimit: 2
       ttlSecondsAfterFinished: 86400
+      # Hard upper bound on a single Job's pod lifetime. The whole script
+      # is a sequence of short HTTP calls + indexer adds; even with every
+      # curl on `--max-time 30` and ~10 calls, success comfortably fits
+      # in <2 min. 600s catches hangs that slip past the per-call timeout
+      # (e.g. a python3 invocation reading from a stalled file).
+      activeDeadlineSeconds: 600
       template:
         spec:
           restartPolicy: OnFailure
