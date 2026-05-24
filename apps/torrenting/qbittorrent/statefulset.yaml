@@ -171,8 +171,16 @@ spec:
       - name: torrents
         persistentVolumeClaim:
           claimName: torrents-unified-pvc
+      # qbit-config holds /config/qBittorrent: BT_backup (one file per
+      # active torrent), categories.json, watched_folders.json, RSS state,
+      # logs, and the seeded qBittorrent.conf. Was emptyDir originally —
+      # which meant every pod restart wiped the torrent list (the .torrent
+      # data on /data survives, but qBit has to be re-told which torrents
+      # to seed). Backed by Longhorn now so state survives restarts, node
+      # reboots, image rolls, etc. See apps/torrenting/qbittorrent/config-pvc.yaml.
       - name: qbit-config
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: qbit-config
       - name: bootstrap-scripts
         configMap:
           name: arr-bootstrap-scripts

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbit-config
+  namespace: torrenting
+spec:
+  # Longhorn (write-heavy state: BT_backup/*.fastresume files are
+  # rewritten on every checkpoint, qBittorrent uses SQLite-style locking
+  # under /config). Per Claude.md, longhorn is the right class for
+  # this — nfs-client would suffer on the small frequent writes and
+  # local-storage is not allowed on Talos workers.
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: longhorn
+  resources:
+    requests:
+      # 5Gi is ~100x what qBit needs in practice (BT_backup entries are
+      # ~1-10 KiB each; logs rotate). Longhorn bills allocated, not used,
+      # but headroom is cheap on a homelab cluster.
+      storage: 5Gi
