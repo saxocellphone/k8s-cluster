@@ -23,13 +23,17 @@ data:
     and swallowed — the sidecar must never exit non-zero or it'll race
     the main containers' restart logic. SIGTERM exits cleanly.
     """
-    import json, os, signal, time, urllib.request
+    import json, os, signal, time, urllib.error, urllib.request
 
     MAM_ID = os.environ["MAM_ID"]
     CHECK = int(os.environ.get("MAM_CHECK_INTERVAL_SECONDS", "300"))
     MIN_UPDATE = int(os.environ.get("MAM_MIN_UPDATE_INTERVAL_SECONDS", "3600"))
     IPIFY = "https://api.ipify.org"
     MAM_URL = "https://t.myanonamouse.net/json/dynamicSeedbox.php"
+    # MAM's anti-bot rejects requests with no/empty User-Agent with HTTP 403
+    # before even checking the cookie. urllib defaults to "Python-urllib/X.Y"
+    # which MAM does NOT accept either. Send a generic browser UA.
+    USER_AGENT = os.environ.get("MAM_USER_AGENT", "Mozilla/5.0 (mousehole)")
 
     stop = False
     def _shutdown(signum, _):
@@ -54,9 +58,24 @@ data:
 
     def tell_mam():
         try:
-            status, body = _get(MAM_URL, headers={"Cookie": f"mam_id={MAM_ID}"}, timeout=30)
+            status, body = _get(
+                MAM_URL,
+                headers={
+                    "Cookie": f"mam_id={MAM_ID}",
+                    "User-Agent": USER_AGENT,
+                },
+                timeout=30,
+            )
             d = json.loads(body) if body else {}
             return status, d, body
+        except urllib.error.HTTPError as e:
+            # urllib raises on 4xx/5xx; capture the response body so we can
+            # see MAM's actual error message (often a useful JSON payload).
+            try:
+                body = e.read().decode()
+            except Exception:
+                body = ""
+            return e.code, {}, body
         except Exception as e:
             return 0, {}, f"exception: {e}"
 
