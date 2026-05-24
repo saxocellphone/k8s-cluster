@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mousehole-script
+  namespace: torrenting
+data:
+  mousehole.py: |
+    #!/usr/bin/env python3
+    """MouseHole: keep MyAnonaMouse session pinned to the current Gluetun IP.
+
+    Runs as a native sidecar in the qbittorrent pod (init container with
+    restartPolicy=Always). Shares Gluetun's network namespace, so every
+    outbound request below transits the VPN tunnel — the IP MAM sees is
+    the same one qBittorrent announces to trackers.
+
+    Loop: every CHECK seconds, look up our current public IP via ipify.
+    If it changed since the last successful MAM update (or if MIN_UPDATE
+    seconds have elapsed for a periodic refresh), call MAM's dynamic
+    seedbox endpoint to re-pin the session. MAM rate-limits to once per
+    hour; honor that with a cooldown when it tells us "too recent".
+
+    Failures (DNS hiccup, Gluetun still handshaking, MAM 5xx) are logged
+    and swallowed — the sidecar must never exit non-zero or it'll race
+    the main containers' restart logic. SIGTERM exits cleanly.
+    """
+    import json, os, signal, time, urllib.request
+
+    MAM_ID = os.environ["MAM_ID"]
+    CHECK = int(os.environ.get("MAM_CHECK_INTERVAL_SECONDS", "300"))
+    MIN_UPDATE = int(os.environ.get("MAM_MIN_UPDATE_INTERVAL_SECONDS", "3600"))
+    IPIFY = "https://api.ipify.org"
+    MAM_URL = "https://t.myanonamouse.net/json/dynamicSeedbox.php"
+
+    stop = False
+    def _shutdown(signum, _):
+        global stop
+        print(f"[mousehole] received signal {signum}, shutting down", flush=True)
+        stop = True
+    signal.signal(signal.SIGTERM, _shutdown)
+    signal.signal(signal.SIGINT, _shutdown)
+
+    def _get(url, headers=None, timeout=30):
+        req = urllib.request.Request(url, headers=headers or {})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read().decode()
+
+    def public_ip():
+        try:
+            _, body = _get(IPIFY, timeout=15)
+            return body.strip()
+        except Exception as e:
+            print(f"[mousehole] ipify lookup failed: {e}", flush=True)
+            return None
+
+    def tell_mam():
+        try:
+            status, body = _get(MAM_URL, headers={"Cookie": f"mam_id={MAM_ID}"}, timeout=30)
+            d = json.loads(body) if body else {}
+            return status, d, body
+        except Exception as e:
+            return 0, {}, f"exception: {e}"
+
+    last_ip = None
+    last_update = 0.0
+    print(f"[mousehole] starting (check={CHECK}s, min_update={MIN_UPDATE}s)", flush=True)
+    while not stop:
+        ip = public_ip()
+        if ip is None:
+            time.sleep(CHECK); continue
+        now = time.time()
+        ip_changed = ip != last_ip
+        cooldown_ok = (now - last_update) >= MIN_UPDATE
+        if not ip_changed and not cooldown_ok:
+            time.sleep(CHECK); continue
+        reason = "ip changed" if ip_changed else "periodic refresh"
+        print(f"[mousehole] updating MAM ({reason}): ip={ip}", flush=True)
+        status, d, body = tell_mam()
+        if status == 200 and d.get("Success"):
+            print(f"[mousehole] OK: {d.get('msg', body[:120])}", flush=True)
+            last_ip = ip
+            last_update = now
+        else:
+            # Common transient: {"Success":false,"msg":"Last change too recent"}
+            print(f"[mousehole] update did NOT succeed (HTTP {status}): {body[:300]}", flush=True)
+            if "too recent" in body.lower():
+                # MAM rate-limited us; treat as cooldown so we don't hammer.
+                last_update = now
+        time.sleep(CHECK)
+    print("[mousehole] exiting", flush=True)

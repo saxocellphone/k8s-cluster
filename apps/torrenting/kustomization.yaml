@@ -16,6 +16,7 @@ resources:
   - buildarr/wire-dl-clients-cronjob.yaml
   - iptorrents/cookie-refresh-cronjob.yaml
   - epub-google-drive-sync-cronjob.yaml
+  - mam/configmap.yaml
 
 generators:
   - qbittorrent/secret-generator.yaml
@@ -23,3 +24,4 @@ generators:
   - bootstrap/secret-generator.yaml
   - iptorrents/secret-generator.yaml
   - google-drive-rclone-secret-generator.yaml
+  - mam/secret-generator.yaml

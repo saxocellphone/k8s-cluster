@@ -52,6 +52,28 @@ spec:
           mountPath: /config
         - name: bootstrap-scripts
           mountPath: /scripts
+      # Native sidecar (k8s >= 1.29; cluster is v1.34.1). Pins our MAM
+      # session to the current Gluetun exit IP — without this, every VPN
+      # reconnect locks the MAM session and torrents stall.
+      # Shares Gluetun's network namespace by virtue of living in the
+      # same pod, so the outbound MAM call uses the same public IP as
+      # qBittorrent's tracker traffic.
+      - name: mousehole
+        image: python:3.13-alpine
+        restartPolicy: Always
+        command: ["/usr/local/bin/python3", "/scripts/mousehole.py"]
+        env:
+        - name: MAM_ID
+          valueFrom:
+            secretKeyRef:
+              name: mam-credentials
+              key: MAM_ID
+        volumeMounts:
+        - name: mousehole-scripts
+          mountPath: /scripts
+        resources:
+          limits: { cpu: 100m, memory: 64Mi }
+          requests: { cpu: 10m, memory: 32Mi }
       containers:
       - name: gluetun
         image: qmcgaw/gluetun
@@ -154,4 +176,8 @@ spec:
       - name: bootstrap-scripts
         configMap:
           name: arr-bootstrap-scripts
+          defaultMode: 0755
+      - name: mousehole-scripts
+        configMap:
+          name: mousehole-script
           defaultMode: 0755
