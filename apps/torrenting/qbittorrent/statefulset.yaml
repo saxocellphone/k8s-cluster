@@ -68,6 +68,11 @@ spec:
             secretKeyRef:
               name: mam-credentials
               key: MAM_ID
+        # MAM session is locked to ProtonVPN's owned ASN (199218, Proton AG).
+        # When Gluetun lands us on a partner ASN, mousehole asks Gluetun to
+        # reconnect via its control server until we end up in an allowed ASN.
+        - name: MAM_ALLOWED_ASNS
+          value: "199218"
         volumeMounts:
         - name: mousehole-scripts
           mountPath: /scripts
@@ -124,6 +129,13 @@ spec:
           name: http-2
         - containerPort: 8000
           name: control
+        volumeMounts:
+        # Widens the no-auth role on Gluetun's control server so mousehole
+        # (in this pod's loopback) can issue PUT /v1/vpn/status to reroll
+        # the tunnel when MAM rejects a partner-ASN exit.
+        - name: gluetun-auth
+          mountPath: /gluetun/auth/config.toml
+          subPath: config.toml
         resources:
           limits:
             cpu: "1"
@@ -192,3 +204,6 @@ spec:
         configMap:
           name: mousehole-script
           defaultMode: 0755
+      - name: gluetun-auth
+        configMap:
+          name: gluetun-auth-config

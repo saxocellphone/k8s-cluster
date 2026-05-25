@@ -13,23 +13,33 @@ data:
     outbound request below transits the VPN tunnel — the IP MAM sees is
     the same one qBittorrent announces to trackers.
 
+    ASN-aware behavior: ProtonVPN routes US connections through a mix of
+    owned (ASN 199218, Proton AG) and partner exits (Datacamp 60068,
+    212238, ...). The MAM session is locked to ASN 199218, so a partner
+    exit makes MAM reject the dynamicSeedbox update with "ASN mismatch".
+    When that happens we PUT /v1/vpn/status on Gluetun's loopback control
+    server to disconnect+reconnect, re-check, and retry. Bounded by
+    REROLL_MAX so we never spin forever if every server is in the wrong
+    ASN (transient ProtonVPN outage etc.).
+
     Loop: every CHECK seconds, look up our current public IP via ipify.
     If it changed since the last successful MAM update (or if MIN_UPDATE
-    seconds have elapsed for a periodic refresh), call MAM's dynamic
-    seedbox endpoint to re-pin the session. MAM rate-limits to once per
-    hour; honor that with a cooldown when it tells us "too recent".
-
-    Failures (DNS hiccup, Gluetun still handshaking, MAM 5xx) are logged
-    and swallowed — the sidecar must never exit non-zero or it'll race
-    the main containers' restart logic. SIGTERM exits cleanly.
+    seconds have elapsed for a periodic refresh), call MAM. Failures
+    (DNS hiccup, Gluetun still handshaking, MAM 5xx) are logged and
+    swallowed — the sidecar must never exit non-zero or it'll race the
+    main containers' restart logic. SIGTERM exits cleanly.
     """
     import json, os, signal, time, urllib.error, urllib.request
 
     MAM_ID = os.environ["MAM_ID"]
     CHECK = int(os.environ.get("MAM_CHECK_INTERVAL_SECONDS", "300"))
     MIN_UPDATE = int(os.environ.get("MAM_MIN_UPDATE_INTERVAL_SECONDS", "3600"))
+    ALLOWED_ASNS = {int(x) for x in os.environ.get("MAM_ALLOWED_ASNS", "").split(",") if x.strip()}
+    REROLL_MAX = int(os.environ.get("MOUSEHOLE_REROLL_MAX_ATTEMPTS", "8"))
+    REROLL_WAIT = int(os.environ.get("MOUSEHOLE_REROLL_WAIT_SECONDS", "20"))
     IPIFY = "https://api.ipify.org"
     MAM_URL = "https://t.myanonamouse.net/json/dynamicSeedbox.php"
+    GLUETUN = os.environ.get("GLUETUN_CONTROL_URL", "http://127.0.0.1:8000")
     # MAM's anti-bot rejects requests with no/empty User-Agent with HTTP 403
     # before even checking the cookie. urllib defaults to "Python-urllib/X.Y"
     # which MAM does NOT accept either. Send a generic browser UA.
@@ -43,14 +53,14 @@ data:
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT, _shutdown)
 
-    def _get(url, headers=None, timeout=30):
-        req = urllib.request.Request(url, headers=headers or {})
+    def _request(url, *, method="GET", data=None, headers=None, timeout=30):
+        req = urllib.request.Request(url, method=method, data=data, headers=headers or {})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, r.read().decode()
 
     def public_ip():
         try:
-            _, body = _get(IPIFY, timeout=15)
+            _, body = _request(IPIFY, timeout=15)
             return body.strip()
         except Exception as e:
             print(f"[mousehole] ipify lookup failed: {e}", flush=True)
@@ -58,16 +68,10 @@ data:
 
     def tell_mam():
         try:
-            status, body = _get(
+            status, body = _request(
                 MAM_URL,
-                headers={
-                    "Cookie": f"mam_id={MAM_ID}",
-                    "User-Agent": USER_AGENT,
-                },
-                timeout=30,
+                headers={"Cookie": f"mam_id={MAM_ID}", "User-Agent": USER_AGENT},
             )
-            d = json.loads(body) if body else {}
-            return status, d, body
         except urllib.error.HTTPError as e:
             # urllib raises on 4xx/5xx; capture the response body so we can
             # see MAM's actual error message (often a useful JSON payload).
@@ -75,13 +79,34 @@ data:
                 body = e.read().decode()
             except Exception:
                 body = ""
-            return e.code, {}, body
+            status = e.code
         except Exception as e:
             return 0, {}, f"exception: {e}"
+        try:
+            d = json.loads(body) if body else {}
+        except Exception:
+            d = {}
+        return status, d, body
+
+    def gluetun_reroll():
+        """Ask Gluetun to disconnect+reconnect; it'll re-pick a server."""
+        try:
+            for payload in (b'{"status":"stopped"}', b'{"status":"running"}'):
+                _request(
+                    f"{GLUETUN}/v1/vpn/status",
+                    method="PUT", data=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=15,
+                )
+                time.sleep(2)
+            return True
+        except Exception as e:
+            print(f"[mousehole] gluetun reroll failed: {e}", flush=True)
+            return False
 
     last_ip = None
     last_update = 0.0
-    print(f"[mousehole] starting (check={CHECK}s, min_update={MIN_UPDATE}s)", flush=True)
+    print(f"[mousehole] starting (check={CHECK}s, min_update={MIN_UPDATE}s, allowed_asns={ALLOWED_ASNS or 'any'})", flush=True)
     while not stop:
         ip = public_ip()
         if ip is None:
@@ -98,11 +123,38 @@ data:
             print(f"[mousehole] OK: {d.get('msg', body[:120])}", flush=True)
             last_ip = ip
             last_update = now
-        else:
-            # Common transient: {"Success":false,"msg":"Last change too recent"}
-            print(f"[mousehole] update did NOT succeed (HTTP {status}): {body[:300]}", flush=True)
-            if "too recent" in body.lower():
-                # MAM rate-limited us; treat as cooldown so we don't hammer.
-                last_update = now
+            time.sleep(CHECK); continue
+        print(f"[mousehole] update did NOT succeed (HTTP {status}): {body[:300]}", flush=True)
+        msg = (d.get("msg") or "").lower()
+        asn = d.get("ASN")
+        if ALLOWED_ASNS and "asn mismatch" in msg and asn not in ALLOWED_ASNS:
+            attempts = 0
+            while not stop and attempts < REROLL_MAX:
+                attempts += 1
+                print(f"[mousehole] ASN {asn} not in {ALLOWED_ASNS}; rerolling gluetun ({attempts}/{REROLL_MAX})", flush=True)
+                if not gluetun_reroll():
+                    break
+                time.sleep(REROLL_WAIT)
+                new_ip = public_ip()
+                if not new_ip:
+                    continue
+                print(f"[mousehole] post-reroll ip={new_ip}, retrying MAM", flush=True)
+                status, d, body = tell_mam()
+                if status == 200 and d.get("Success"):
+                    print(f"[mousehole] OK: {d.get('msg', body[:120])}", flush=True)
+                    last_ip = new_ip
+                    last_update = time.time()
+                    break
+                msg = (d.get("msg") or "").lower()
+                asn = d.get("ASN")
+                print(f"[mousehole] still no good (HTTP {status}): {body[:200]}", flush=True)
+                if "asn mismatch" not in msg or asn in ALLOWED_ASNS:
+                    # Either we're now in the right ASN (but MAM failed for some
+                    # other reason — rate limit, server-side hiccup), or the
+                    # error has changed. Either way, more rerolling won't help.
+                    break
+        elif "too recent" in msg:
+            # MAM rate-limited us; treat as cooldown so we don't hammer.
+            last_update = now
         time.sleep(CHECK)
     print("[mousehole] exiting", flush=True)
