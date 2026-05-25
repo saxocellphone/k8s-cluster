@@ -96,15 +96,13 @@ spec:
             secretKeyRef:
               key: WIREGUARD_ADDRESSES
               name: protonvpn-wireguard
+        # US-only keeps us on ProtonVPN's owned ASN 199218 in practice; the
+        # MAM session is ASN-locked to 199218, so any partner-server exit
+        # in a different ASN would break dynamicSeedbox updates. Gluetun
+        # doesn't expose an OWNED_ONLY filter for Proton, so we rely on
+        # country + mousehole logs to catch drift.
         - name: SERVER_COUNTRIES
           value: "United States"
-        # Restrict to ProtonVPN-owned infrastructure (ASN 199218, Proton AG)
-        # rather than partner-operated exits. Required by the MAM session,
-        # which is ASN-locked to 199218 — a partner-server exit would land
-        # in a different ASN and MAM would reject the dynamicSeedbox update
-        # with "Invalid session - ASN mismatch".
-        - name: OWNED_ONLY
-          value: "yes"
         - name: TZ
           value: America/Los_Angeles
         - name: FIREWALL_VPN_INPUT_PORTS
