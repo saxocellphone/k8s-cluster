@@ -98,6 +98,13 @@ spec:
               name: protonvpn-wireguard
         - name: SERVER_COUNTRIES
           value: "United States"
+        # Restrict to ProtonVPN-owned infrastructure (ASN 199218, Proton AG)
+        # rather than partner-operated exits. Required by the MAM session,
+        # which is ASN-locked to 199218 — a partner-server exit would land
+        # in a different ASN and MAM would reject the dynamicSeedbox update
+        # with "Invalid session - ASN mismatch".
+        - name: OWNED_ONLY
+          value: "yes"
         - name: TZ
           value: America/Los_Angeles
         - name: FIREWALL_VPN_INPUT_PORTS
