@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gluetun-auth-config
+  namespace: torrenting
+data:
+  # Gluetun's control server (127.0.0.1:8000) defaults to denying state-
+  # changing routes without an API token. mousehole — sharing this pod's
+  # network namespace — needs to PUT /v1/vpn/status to force Gluetun to
+  # reconnect when ProtonVPN dropped us on a partner ASN. Loopback-only
+  # access from co-resident containers is a sufficient trust boundary
+  # for this homelab, so we widen the no-auth role rather than provision
+  # and rotate a token.
+  config.toml: |
+    [[roles]]
+    name = "any"
+    routes = [
+      "GET /v1/version",
+      "GET /v1/publicip/ip",
+      "GET /v1/openvpn/portforwarded",
+      "PUT /v1/vpn/status",
+    ]
+    auth = "none"
