@@ -68,11 +68,6 @@ spec:
             secretKeyRef:
               name: mam-credentials
               key: MAM_ID
-        # MAM session is locked to ProtonVPN's owned ASN (199218, Proton AG).
-        # When Gluetun lands us on a partner ASN, mousehole asks Gluetun to
-        # reconnect via its control server until we end up in an allowed ASN.
-        - name: MAM_ALLOWED_ASNS
-          value: "199218"
         volumeMounts:
         - name: mousehole-scripts
           mountPath: /scripts
@@ -87,8 +82,13 @@ spec:
             add:
             - NET_ADMIN
         env:
+        # VPN_SERVICE_PROVIDER=custom (rather than protonvpn) is required
+        # for Gluetun to honor the VPN_ENDPOINT_IP/PORT overrides below.
+        # In provider mode Gluetun picks from its bundled server list and
+        # ignores the endpoint env. We're effectively BYO-WireGuard, with
+        # ProtonVPN as the operator behind the peer keys.
         - name: VPN_SERVICE_PROVIDER
-          value: protonvpn
+          value: custom
         - name: VPN_TYPE
           value: wireguard
         - name: WIREGUARD_PRIVATE_KEY
@@ -101,13 +101,28 @@ spec:
             secretKeyRef:
               key: WIREGUARD_ADDRESSES
               name: protonvpn-wireguard
-        # US-only keeps us on ProtonVPN's owned ASN 199218 in practice; the
-        # MAM session is ASN-locked to 199218, so any partner-server exit
-        # in a different ASN would break dynamicSeedbox updates. Gluetun
-        # doesn't expose an OWNED_ONLY filter for Proton, so we rely on
-        # country + mousehole logs to catch drift.
-        - name: SERVER_COUNTRIES
-          value: "United States"
+        # Pin Gluetun to one specific ProtonVPN WG server (US-CA#841,
+        # 79.127.185.162). When PUBLIC_KEY + ENDPOINT_IP + ENDPOINT_PORT
+        # are all set, Gluetun bypasses provider server selection and
+        # connects only to this endpoint — so the exit IP is fixed and
+        # the MAM session can be IP-locked. Tradeoff: zero failover if
+        # this single server goes down; pick a new server in Proton's
+        # portal and rotate these three fields to recover.
+        - name: WIREGUARD_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              key: WIREGUARD_PUBLIC_KEY
+              name: protonvpn-wireguard
+        - name: VPN_ENDPOINT_IP
+          valueFrom:
+            secretKeyRef:
+              key: WIREGUARD_ENDPOINT_IP
+              name: protonvpn-wireguard
+        - name: VPN_ENDPOINT_PORT
+          valueFrom:
+            secretKeyRef:
+              key: WIREGUARD_ENDPOINT_PORT
+              name: protonvpn-wireguard
         - name: TZ
           value: America/Los_Angeles
         - name: FIREWALL_VPN_INPUT_PORTS
