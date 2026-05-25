@@ -84,7 +84,10 @@ data:
         body = text[start:end]
         key_re = re.compile(rf'^{re.escape(key)}=.*$', re.M)
         if key_re.search(body):
-            body = key_re.sub(f'{key}={value}', body)
+            # Lambda replacement bypasses re.sub's backslash interpretation —
+            # qBit config keys like `WebUI\Username` contain backslashes that
+            # would otherwise be parsed as escape sequences (\U, \P, \D, ...).
+            body = key_re.sub(lambda _: f'{key}={value}', body)
         else:
             if body and not body.endswith('\n'):
                 body += '\n'
