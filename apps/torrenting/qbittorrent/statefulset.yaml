@@ -161,20 +161,14 @@ spec:
           name: qbit-config
         - mountPath: /data
           name: torrents
-        # No livenessProbe: qBit's WebUI thread becomes unresponsive during
-        # heavy disk operations (full rechecks of large torrents over NFS in
-        # particular). Killing the container mid-recheck just restarts the
-        # recheck, looping forever. Readiness alone is sufficient — it removes
-        # the pod from the Service so nginx returns 503 instead of hanging,
-        # without ending the process.
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 8080
-          initialDelaySeconds: 150
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 5
+        # No liveness or readiness probe. The WebUI thread becomes
+        # unresponsive during heavy disk operations (full rechecks of
+        # large torrents over NFS especially), and a failing readiness
+        # probe yanks the pod from the Service so nginx returns 503 for
+        # every UI request — including when the rest of qBit is fine.
+        # Letting requests reach the container surfaces the actual state
+        # (sometimes slow, occasionally hung) rather than masking it
+        # behind 503s.
         resources:
           limits:
             cpu: "1"
