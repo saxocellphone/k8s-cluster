@@ -119,8 +119,14 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
     sockets = 1
     type    = "host"
   }
+  # Bumped from 9000 MiB after sustained 95%+ memory pressure: Longhorn
+  # instance-manager alone uses ~5.8 GiB on this node (it owns replicas
+  # for prometheus TSDB + platform-postgres-2 + qbit-config + audiobookshelf
+  # PVCs), leaving almost no headroom for prometheus, postgres, and the
+  # rest of the workload. 16 GiB matches the user's mental model and
+  # gives ~6 GiB of slack after Longhorn.
   memory {
-    dedicated = 9000
+    dedicated = 16384
   }
   network_device {
     bridge      = "vmbr0"
