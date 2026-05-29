@@ -263,7 +263,23 @@ data:
 
     # ---------- prowlarr: indexers from indexers.json ----------
 
-    failed_indexers=0
+    # Fetch a Prowlarr endpoint into a file and confirm the body parses as
+    # JSON. Returns non-zero (without tripping set -e at the call site,
+    # because callers use it in an `if`) on a transient empty/garbled body.
+    # This is the same capture-then-validate discipline wire_qbit_paths uses;
+    # the raw `curl | python3` pipelines this replaces would raise inside
+    # json.load on an empty body and kill the whole job under set -e.
+    prowlarr_get_json() {
+      # Args: url, outfile, [max-time]
+      curl -sS --max-time "${3:-30}" -H "X-Api-Key: $PROWLARR_API_KEY" "$1" -o "$2" || return 1
+      python3 -c "import json,sys; json.load(open('$2'))" 2>/dev/null || return 1
+    }
+
+    # The entire indexer loop is wrapped in `|| echo ...` like every other
+    # top-level step: a transient blip should log + retry next */30, never
+    # fail the Job (which is what turns into an Argo Degraded / KubeJobFailed
+    # alert). Per-indexer parse steps additionally `continue` on failure so a
+    # single bad response doesn't skip the remaining indexers this cycle.
     python3 -c "
     import json
     items = json.load(open('/scripts/indexers.json'))
@@ -272,15 +288,21 @@ data:
     " | while IFS='|' read def_name use_flare; do
       [ -z "$def_name" ] && continue
       echo "[prowlarr] indexer: $def_name (flaresolverr=$use_flare)"
-      # Resolve the user-facing name (e.g. nyaasi -> 'Nyaa.si').
-      indexer_name=$(curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
-        | python3 -c "import json,sys; ms=[s for s in json.load(sys.stdin) if s.get('definitionName')=='$def_name']; print(ms[0]['name'] if ms else '')")
-      if [ -z "$indexer_name" ]; then
-        echo "  ERROR: definitionName '$def_name' not in Prowlarr schema list"
-        failed_indexers=$((failed_indexers+1)); continue
+      # Fetch the schema once; reused for both the name lookup and the payload
+      # build below (one fewer network call = one fewer transient failure point).
+      if ! prowlarr_get_json "$PROWLARR_BASE/api/v1/indexer/schema" /tmp/schema.json; then
+        echo "  schema unavailable (transient) — retry next cycle"; continue
       fi
-      existing=$(curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer" | json_count name "$indexer_name")
-      if [ "$existing" -gt 0 ]; then
+      # Resolve the user-facing name (e.g. nyaasi -> 'Nyaa.si').
+      indexer_name=$(python3 -c "import json; ms=[s for s in json.load(open('/tmp/schema.json')) if s.get('definitionName')=='$def_name']; print(ms[0]['name'] if ms else '')" 2>/dev/null || echo "")
+      if [ -z "$indexer_name" ]; then
+        echo "  ERROR: definitionName '$def_name' not in Prowlarr schema list — retry next cycle"; continue
+      fi
+      if ! prowlarr_get_json "$PROWLARR_BASE/api/v1/indexer" /tmp/idxlist.json; then
+        echo "  indexer list unavailable (transient) — retry next cycle"; continue
+      fi
+      existing=$(python3 -c "import json; xs=json.load(open('/tmp/idxlist.json')); print(sum(1 for x in xs if x.get('name')=='$indexer_name'))" 2>/dev/null || echo 0)
+      if [ "${existing:-0}" -gt 0 ]; then
         echo "  $indexer_name already configured"; continue
       fi
       tags="[]"; tmo=30
@@ -292,21 +314,28 @@ data:
       # there crashes the entire wire job under set -e. POSTing with
       # enable=False skips the test (Prowlarr only tests enabled
       # indexers); PUT with forceSave=true bypasses the re-test.
-      curl -sS --max-time 30 -H "X-Api-Key: $PROWLARR_API_KEY" "$PROWLARR_BASE/api/v1/indexer/schema" \
-        | python3 -c "
-    import json,sys
-    m = next(s for s in json.load(sys.stdin) if s.get('definitionName')=='$def_name')
+      if ! python3 -c "
+    import json
+    m = next((s for s in json.load(open('/tmp/schema.json')) if s.get('definitionName')=='$def_name'), None)
+    assert m is not None
     m.update(enable=False, appProfileId=1, priority=25, tags=$tags)
-    print(json.dumps(m))
-    " > /tmp/idx.json
+    json.dump(m, open('/tmp/idx.json','w'))
+    " 2>/dev/null; then
+        echo "  failed to build payload for $def_name (transient) — retry next cycle"; continue
+      fi
       # `|| echo 000` swallows curl timeouts so set -e doesn't kill the whole loop.
       code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' --max-time $tmo \
         -X POST -H "X-Api-Key: $PROWLARR_API_KEY" -H "Content-Type: application/json" \
         --data @/tmp/idx.json "$PROWLARR_BASE/api/v1/indexer" || echo 000)
       if [ "$code" = "201" ]; then
-        # Now enable it.
-        id=$(python3 -c "import json; print(json.load(open('/tmp/resp.json'))['id'])")
-        python3 -c "import json; m=json.load(open('/tmp/resp.json')); m['enable']=True; json.dump(m,open('/tmp/idx2.json','w'))"
+        # Now enable it. Guard the parse: a malformed 201 body shouldn't abort.
+        id=$(python3 -c "import json; print(json.load(open('/tmp/resp.json'))['id'])" 2>/dev/null || echo "")
+        if [ -z "$id" ]; then
+          echo "  WARNING: created $indexer_name but couldn't read its id to enable it. Enable manually in Prowlarr UI."; continue
+        fi
+        if ! python3 -c "import json; m=json.load(open('/tmp/resp.json')); m['enable']=True; json.dump(m,open('/tmp/idx2.json','w'))" 2>/dev/null; then
+          echo "  WARNING: created $indexer_name (id=$id) but couldn't prep the enable PUT. Enable manually in Prowlarr UI."; continue
+        fi
         code2=$(curl -sS -o /tmp/resp2.json -w '%{http_code}' --max-time $tmo \
           -X PUT -H "X-Api-Key: $PROWLARR_API_KEY" -H "Content-Type: application/json" \
           --data @/tmp/idx2.json "$PROWLARR_BASE/api/v1/indexer/$id?forceSave=true" || echo 000)
@@ -324,7 +353,7 @@ data:
         echo "  FAILED $indexer_name (HTTP $code) — will retry next cycle:"
         head -c 300 /tmp/resp.json; echo
       fi
-    done
+    done || echo "[prowlarr] indexer wiring incomplete this cycle (transient) — retry next */30"
 
     echo "ALL DONE"
 ---
