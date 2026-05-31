@@ -7,4 +7,15 @@ terraform {
       version = "~> 0.66"
     }
   }
+
+  # State lives in-cluster as Secret/terraform-state/tfstate-default-proxmox.
+  # Locking uses a Lease in the same namespace, so multiple operators on
+  # different machines can collaborate safely.
+  # Override the kubeconfig location via KUBE_CONFIG_PATH if running from a
+  # different working directory.
+  backend "kubernetes" {
+    secret_suffix = "proxmox"
+    namespace     = "terraform-state"
+    config_path   = "../../kubeconfig"
+  }
 }
