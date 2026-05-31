@@ -23,29 +23,29 @@ In each Proxmox UI:
 4. **Uncheck** "Privilege Separation" (so the token inherits root's perms)
 5. Click Add → copy the displayed `Secret` (UUID, shown once)
 
-### 2. Set Terraform variables in your shell (don't commit these)
+### 2. Load Proxmox API tokens from the cluster
 
-Fish:
+Tokens are stored as a SOPS-encrypted Secret at `terraform-state/proxmox-tokens`
+(see `apps/terraform-state/`). On any machine with `./kubeconfig` in place:
+
 ```fish
-set -gx TF_VAR_pve1_endpoint  'https://192.168.8.191:8006/'
-set -gx TF_VAR_pve1_api_token 'root@pam!terraform=AAA-...'
-set -gx TF_VAR_pve2_endpoint  'https://192.168.8.226:8006/'
-set -gx TF_VAR_pve2_api_token 'root@pam!terraform=BBB-...'
+source ../../scripts/tf-env.fish
 ```
 
-Bash/zsh:
+That pulls the four `TF_VAR_pve{1,2}_{endpoint,api_token}` values from the
+in-cluster Secret and exports them into the current fish session.
+
+To rotate a token: edit the Secret in place, then `git push` — Argo CD syncs:
+
 ```bash
-export TF_VAR_pve1_endpoint='https://192.168.8.191:8006/'
-export TF_VAR_pve1_api_token='root@pam!terraform=AAA-...'
-export TF_VAR_pve2_endpoint='https://192.168.8.226:8006/'
-export TF_VAR_pve2_api_token='root@pam!terraform=BBB-...'
+SOPS_AGE_KEY_FILE=../../key.txt sops ../../apps/terraform-state/proxmox-tokens-secret.yaml
 ```
 
 ### 3. Initialize + plan
 
 ```bash
 cd terraform/proxmox
-terraform init
+terraform init     # connects to the kubernetes backend
 terraform plan
 terraform apply
 ```
@@ -75,8 +75,17 @@ To create a new VM: add a new resource block, then `terraform apply`.
 
 ## State
 
-Local `terraform.tfstate` (gitignored). Fine for single operator. Switch to
-remote backend (S3-compatible or `kubernetes` Secret backend) for CI/CD.
+Remote, in-cluster. State lives as `Secret/terraform-state/tfstate-default-proxmox`;
+locking uses `Lease/terraform-state/lock-tfstate-default-proxmox` so multiple
+operator machines can collaborate without clobbering each other. Configured in
+`versions.tf` via the `kubernetes` backend with `config_path = "../../kubeconfig"`.
+
+To onboard a new operator machine: clone the repo, drop in `key.txt`,
+`talosconfig`, and a working `kubeconfig` at the repo root, then
+`source scripts/tf-env.fish && cd terraform/proxmox && terraform init`.
+
+Override the kubeconfig location with `KUBE_CONFIG_PATH` if running from a
+different working directory.
 
 ## What this does NOT do
 
