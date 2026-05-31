@@ -10,6 +10,13 @@ server:
 configs:
   cm:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    # Auth is disabled: anyone reaching argocd-server is treated as the
+    # anonymous user, which is granted admin via policy.default below.
+    # LAN-only exposure (argocd.k8s.home) is the security boundary --
+    # don't expose this Ingress publicly without restoring auth.
+    users.anonymous.enabled: "true"
+  rbac:
+    policy.default: role:admin
   params:
     server.insecure: true
 
