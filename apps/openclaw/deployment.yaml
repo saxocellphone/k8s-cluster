@@ -129,8 +129,12 @@ spec:
           c.agents.defaults.sandbox.browser = c.agents.defaults.sandbox.browser || {};
           c.agents.defaults.sandbox.browser.allowHostControl = true;
           // Pin default model to Grok 4.3 via xAI provider. Auth comes from
-          // XAI_API_KEY env var on the gateway container.
-          c.agents.defaults.model = "xai/grok-4.3";
+          // XAI_API_KEY env var on the gateway container. Use the object form
+          // with an empty `fallbacks` list to DISABLE the built-in model
+          // failover: otherwise a transient grok stall fails over to the
+          // default openai model, which (no OpenAI key) reuses the xAI key
+          // against platform.openai.com and 401s, killing the run.
+          c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
           // The morning briefing does substantial web research and then writes
           // to Notion, which exceeds the default agent-turn / stuck-session
           // watchdog (~520s) and gets aborted mid-run. Give it generous
