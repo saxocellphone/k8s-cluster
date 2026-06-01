@@ -85,6 +85,26 @@ resource "cloudflare_dns_record" "qbit" {
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
 }
 
+# Notion-writer webhook receiver (created by Terraform, not imported).
+resource "cloudflare_dns_record" "writer" {
+  comment         = "openclaw cron --webhook target (notion-writer)"
+  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
+  data            = null
+  name            = "writer.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
+}
+
 # __generated__ by Terraform from "45bbfa2da6b4eac2713d440e0f4e5f8d/cf65ccee5d593c1ea3c162dd6225f130"
 resource "cloudflare_dns_record" "openclaw" {
   comment         = null
@@ -280,6 +300,17 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         origin_request = null
         path           = null
         service        = "http://openclaw.openclaw.svc.cluster.local:18789"
+      },
+      {
+        # Public ingress for the deterministic Notion writer. OpenClaw's cron
+        # --webhook refuses to POST to private/cluster IPs (SSRF guard), so the
+        # writer is reached via this public hostname instead. Protected by the
+        # WEBHOOK_TOKEN bearer the writer enforces (no CF Access app, since the
+        # caller is OpenClaw's server-side POST, not a browser login).
+        hostname       = "writer.victornazzaro.com"
+        origin_request = null
+        path           = null
+        service        = "http://notion-writer.openclaw.svc.cluster.local:80"
       },
       {
         hostname       = null
