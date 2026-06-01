@@ -1,12 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# Local nginx ingress (openclaw.k8s.home) + its TLS secret were removed: the
+# Control UI is exposed only via the Cloudflare Tunnel behind CF Access, and
+# the gateway uses trusted-proxy auth keyed on the CF Access identity header.
+# Keeping a header-less LAN ingress would be an auth-spoofing bypass.
 resources:
   - deployment.yaml
   - service.yaml
-  - ingress.yaml
   - chromium-browser.yaml
 
 generators:
   - secret-generator.yaml
-  - tls-secret-generator.yaml
