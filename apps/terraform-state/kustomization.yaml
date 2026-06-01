@@ -3,3 +3,4 @@ kind: Kustomization
 
 generators:
   - proxmox-tokens-secret-generator.yaml
+  - cloudflare-token-secret-generator.yaml
