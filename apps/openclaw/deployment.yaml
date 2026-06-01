@@ -190,14 +190,27 @@ spec:
               }
             };
           }
+          // Cron webhook auth: the morning job delivers via --webhook to the
+          // in-cluster notion-writer. OpenClaw sends `Authorization: Bearer
+          // <cron.webhookToken>`; set it from the WEBHOOK_TOKEN secret so the
+          // writer can authenticate the request.
+          if (process.env.WEBHOOK_TOKEN) {
+            c.cron = c.cron || {};
+            c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
+          }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped"));
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: NOTION_TOKEN
           valueFrom:
             secretKeyRef:
               name: openclaw-secrets
               key: NOTION_TOKEN
+        - name: WEBHOOK_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: WEBHOOK_TOKEN
         volumeMounts:
         - name: openclaw-data
           mountPath: /home/node/.openclaw

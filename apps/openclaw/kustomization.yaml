@@ -9,6 +9,15 @@ resources:
   - deployment.yaml
   - service.yaml
   - chromium-browser.yaml
+  - notion-writer.yaml
+
+# Deterministic Notion writer: the morning cron job POSTs its finished briefing
+# here (via --webhook); this service converts the markdown to Notion blocks and
+# writes the page in code, so the agent never has to call Notion tools itself.
+configMapGenerator:
+  - name: notion-writer-src
+    files:
+      - notion-writer/server.py
 
 generators:
   - secret-generator.yaml
