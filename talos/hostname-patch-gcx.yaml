@@ -1,0 +1,12 @@
+# Per-node hostname for the pve226 Talos worker (IP 192.168.8.125).
+# Without an explicit hostname the shared worker.yaml leaves
+# machine.network.hostname unset, so Talos generated the random stable
+# default "talos-gcx-zwd". Pin it to match the Proxmox VM name so the
+# Kubernetes node name lines up with the Terraform-managed VM.
+#
+# Apply (non-disruptive; kubelet re-registers under the new name):
+#   talosctl --talosconfig=./talosconfig -n 192.168.8.125 patch mc \
+#     --patch @talos/hostname-patch-gcx.yaml
+machine:
+  network:
+    hostname: talos-worker-pve226-01
