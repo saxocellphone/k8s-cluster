@@ -1,0 +1,18 @@
+# Per-node hostname for the pve226 Talos control plane (IP 192.168.8.227).
+# Without an explicit hostname the shared controlplane.yaml left
+# machine.network.hostname unset, so Talos generated the random stable
+# default "talos-mru-smr". Pin it to match the Proxmox VM name
+# (talos-cp-pve226-01) so the Kubernetes node name lines up with the
+# Terraform-managed VM.
+#
+# NOTE: applying this and rebooting the (single) control plane causes a
+# brief kube-apiserver outage and CoreDNS disruption. The kubeconfig/endpoint
+# uses the IP 192.168.8.227, which stays valid (IP remains an apiserver
+# cert SAN), so cluster access recovers once the node is back.
+#
+# Apply:
+#   talosctl --talosconfig=./talosconfig -n 192.168.8.227 patch mc \
+#     --patch @talos/hostname-patch-cp.yaml
+machine:
+  network:
+    hostname: talos-cp-pve226-01
