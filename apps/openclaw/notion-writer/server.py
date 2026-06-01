@@ -232,6 +232,23 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass  # quiet default access logs
 
+    def _log_payload_shape(self, payload):
+        """Log the structure + string-field lengths to find the full-text field."""
+        rows = []
+
+        def walk(node, path):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    walk(v, path + "." + k if path else k)
+            elif isinstance(node, list):
+                for i, x in enumerate(node[:3]):
+                    walk(x, "%s[%d]" % (path, i))
+            elif isinstance(node, str):
+                rows.append((len(node), path))
+        walk(payload, "")
+        rows.sort(reverse=True)
+        log("payload string fields (len, path):", rows[:12])
+
     def do_GET(self):
         if self.path in ("/healthz", "/health"):
             return self._send(200, {"ok": True})
@@ -250,6 +267,7 @@ class Handler(BaseHTTPRequestHandler):
                 payload = json.loads(raw.decode("utf-8")) if raw else {}
             except Exception:
                 payload = raw.decode("utf-8", "replace")
+            self._log_payload_shape(payload)
             md = (extract_briefing(payload) or "").strip()
             if len(md) < 40:
                 log("payload had no usable briefing text; keys:",
