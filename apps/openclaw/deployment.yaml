@@ -140,6 +140,13 @@ spec:
           c.diagnostics = c.diagnostics || {};
           c.diagnostics.stuckSessionWarnMs = 300000;
           c.diagnostics.stuckSessionAbortMs = 1200000;
+          // The xAI provider aborts a single LLM request after a 120s idle
+          // (no-output) timeout. Generating the large Notion content payload in
+          // one response can exceed that; raise the per-request ceiling to 5m.
+          c.models = c.models || {};
+          c.models.providers = c.models.providers || {};
+          c.models.providers.xai = c.models.providers.xai || {};
+          c.models.providers.xai.timeoutSeconds = 300;
           // Normalize channels.telegram.streaming: schema now requires an object.
           // Older versions persisted it as a boolean which causes a startup-time
           // validation error ("must be object"). Drop the field entirely so the
