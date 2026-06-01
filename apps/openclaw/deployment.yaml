@@ -141,8 +141,34 @@ spec:
               delete c.channels.telegram.streaming;
             }
           }
+          // Notion MCP server: gives the agent Notion tools (create/read
+          // pages) for the morning investment briefing. The integration token
+          // is injected from the NOTION_TOKEN env (sourced from the
+          // openclaw-secrets Secret) into the per-server OPENAPI_MCP_HEADERS
+          // so it is not hard-coded in Git. Spawned by the gateway via npx at
+          // runtime. Only configured when the token is present.
+          if (process.env.NOTION_TOKEN) {
+            c.mcp = c.mcp || {};
+            c.mcp.servers = c.mcp.servers || {};
+            c.mcp.servers.notion = {
+              command: "npx",
+              args: ["-y", "@notionhq/notion-mcp-server"],
+              env: {
+                OPENAPI_MCP_HEADERS: JSON.stringify({
+                  Authorization: "Bearer " + process.env.NOTION_TOKEN,
+                  "Notion-Version": "2022-06-28"
+                })
+              }
+            };
+          }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3");
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped"));
+        env:
+        - name: NOTION_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: NOTION_TOKEN
         volumeMounts:
         - name: openclaw-data
           mountPath: /home/node/.openclaw
