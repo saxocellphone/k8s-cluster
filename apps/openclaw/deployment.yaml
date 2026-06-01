@@ -152,9 +152,12 @@ spec:
           // payload doesn't abort mid-response.
           c.models = c.models || {};
           c.models.providers = c.models.providers || {};
+          // Only baseUrl + timeoutSeconds. The API key auto-resolves from the
+          // XAI_API_KEY env var (do NOT set apiKey here: the env-ref form
+          // expects a configured *secret provider*, not a model provider, and
+          // an invalid ref makes the gateway refuse to start).
           c.models.providers.xai = {
             baseUrl: "https://api.x.ai/v1",
-            apiKey: { source: "env", provider: "xai", id: "XAI_API_KEY" },
             timeoutSeconds: 300
           };
           // Normalize channels.telegram.streaming: schema now requires an object.
