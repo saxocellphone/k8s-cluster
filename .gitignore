@@ -23,3 +23,5 @@ _out/talosconfig
 *.tfplan
 .terraformrc
 clara-kubeconfig.yaml
+__pycache__/
+*.pyc
