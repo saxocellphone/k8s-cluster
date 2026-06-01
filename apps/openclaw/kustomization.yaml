@@ -18,6 +18,11 @@ configMapGenerator:
   - name: notion-writer-src
     files:
       - notion-writer/server.py
+# Stable ConfigMap name (no hash) so the Deployment's volume reference resolves;
+# the hash-name reference rewrite doesn't propagate through the KSOPS generator
+# pipeline here. On server.py changes, restart the writer Deployment manually.
+generatorOptions:
+  disableNameSuffixHash: true
 
 generators:
   - secret-generator.yaml
