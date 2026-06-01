@@ -144,13 +144,19 @@ spec:
           c.diagnostics = c.diagnostics || {};
           c.diagnostics.stuckSessionWarnMs = 300000;
           c.diagnostics.stuckSessionAbortMs = 1200000;
-          // The xAI provider aborts a single LLM request after a 120s idle
-          // (no-output) timeout. Generating the large Notion content payload in
-          // one response can exceed that; raise the per-request ceiling to 5m.
+          // xAI provider. Defining this entry shadows OpenClaw's built-in xai
+          // provider, so baseUrl + apiKey MUST be set explicitly — otherwise
+          // the openai-responses transport defaults to api.openai.com and the
+          // xAI key is rejected with a 401. timeoutSeconds raises the per-
+          // request idle ceiling (default 120s) so generating the large Notion
+          // payload doesn't abort mid-response.
           c.models = c.models || {};
           c.models.providers = c.models.providers || {};
-          c.models.providers.xai = c.models.providers.xai || {};
-          c.models.providers.xai.timeoutSeconds = 300;
+          c.models.providers.xai = {
+            baseUrl: "https://api.x.ai/v1",
+            apiKey: { source: "env", provider: "xai", id: "XAI_API_KEY" },
+            timeoutSeconds: 300
+          };
           // Normalize channels.telegram.streaming: schema now requires an object.
           // Older versions persisted it as a boolean which causes a startup-time
           // validation error ("must be object"). Drop the field entirely so the
