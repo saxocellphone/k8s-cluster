@@ -131,6 +131,15 @@ spec:
           // Pin default model to Grok 4.3 via xAI provider. Auth comes from
           // XAI_API_KEY env var on the gateway container.
           c.agents.defaults.model = "xai/grok-4.3";
+          // The morning briefing does substantial web research and then writes
+          // to Notion, which exceeds the default agent-turn / stuck-session
+          // watchdog (~520s) and gets aborted mid-run. Give it generous
+          // headroom: 20 min per turn, warn at 5 min, abort only after 20 min
+          // of no progress. Acceptable for a once-daily isolated cron.
+          c.agents.defaults.timeoutSeconds = 1200;
+          c.diagnostics = c.diagnostics || {};
+          c.diagnostics.stuckSessionWarnMs = 300000;
+          c.diagnostics.stuckSessionAbortMs = 1200000;
           // Normalize channels.telegram.streaming: schema now requires an object.
           // Older versions persisted it as a boolean which causes a startup-time
           // validation error ("must be object"). Drop the field entirely so the
