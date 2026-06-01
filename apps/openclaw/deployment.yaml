@@ -87,16 +87,31 @@ spec:
           c.gateway.mode = "local";
           c.gateway.controlUi = c.gateway.controlUi || {};
           c.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
-          // Control UI is reached via two reverse-proxy origins: the local
-          // nginx ingress (openclaw.k8s.home) and the Cloudflare Tunnel
+          // The Control UI is reached only via the Cloudflare Tunnel
           // (openclaw.victornazzaro.com, behind CF Access). The gateway
           // rejects any browser origin not in this list with "origin not
-          // allowed", so both must be enumerated (no wildcards supported).
+          // allowed" (no wildcards supported).
           c.gateway.controlUi.allowedOrigins = [
-            "https://openclaw.victornazzaro.com",
-            "https://openclaw.k8s.home"
+            "https://openclaw.victornazzaro.com"
           ];
-          delete c.gateway.auth;
+          // Auth is delegated to Cloudflare Access (trusted-proxy mode):
+          // cloudflared injects Cf-Access-Authenticated-User-Email after a
+          // successful CF Access login, so the browser never needs a gateway
+          // token. `auth=none` is refused on a lan bind, hence trusted-proxy.
+          // trustedProxies is scoped to the pod network (only in-cluster
+          // proxies — cloudflared — can present identity headers); the local
+          // nginx ingress was removed so there is no unauthenticated path that
+          // could spoof the identity header. requiredHeaders forces the CF
+          // Access JWT to be present, and allowUsers pins the single operator.
+          c.gateway.trustedProxies = ["10.244.0.0/16"];
+          c.gateway.auth = {
+            mode: "trusted-proxy",
+            trustedProxy: {
+              userHeader: "Cf-Access-Authenticated-User-Email",
+              requiredHeaders: ["Cf-Access-Jwt-Assertion"],
+              allowUsers: ["nazzav923@gmail.com"]
+            }
+          };
           delete c.gateway.tailscale;
           c.browser = c.browser || {};
           c.browser.enabled = true;
@@ -155,11 +170,9 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: TELEGRAM_BOT_TOKEN
-        - name: OPENCLAW_GATEWAY_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: openclaw-secrets
-              key: OPENCLAW_GATEWAY_TOKEN
+        # OPENCLAW_GATEWAY_TOKEN intentionally omitted: the gateway uses
+        # trusted-proxy auth (Cloudflare Access), and a configured token
+        # alongside trusted-proxy mode is rejected at startup.
         - name: BRAVE_API_KEY
           valueFrom:
             secretKeyRef:
