@@ -21,17 +21,12 @@ spec:
         kubernetes.io/ingress-bandwidth: "100M"
         kubernetes.io/egress-bandwidth: "50M"
     spec:
+      # Restricted to Longhorn-capable workers via the iscsi-tools label only.
+      # Do NOT pin to a specific hostname: the qbit-config Longhorn volume has
+      # 2 replicas and is network-accessible, so any labeled worker can run it.
+      # A hardcoded hostname here previously broke scheduling on node rename.
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/hostname
-                operator: In
-                values:
-                - talos-gcx-zwd
       initContainers:
       - name: seed-config
         image: python:3.13-alpine

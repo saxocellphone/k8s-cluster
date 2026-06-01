@@ -119,14 +119,15 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
     sockets = 1
     type    = "host"
   }
-  # Bumped from 9000 MiB after sustained 95%+ memory pressure: Longhorn
-  # instance-manager alone uses ~5.8 GiB on this node (it owns replicas
-  # for prometheus TSDB + platform-postgres-2 + qbit-config + audiobookshelf
-  # PVCs), leaving almost no headroom for prometheus, postgres, and the
-  # rest of the workload. 16 GiB matches the user's mental model and
-  # gives ~6 GiB of slack after Longhorn.
+  # The EQ14 host has only ~15.4 GiB physical RAM. The previous 16384 MiB,
+  # plus 4096 MiB for the control-plane VM on the same host, over-committed
+  # the box by ~33% and only "fit" because the host silently ballooned this
+  # guest down (runtime was ~10.7 GiB, never the configured 16). Set to a
+  # value that actually fits: 10240 + cp's 4096 = 14336 MiB, leaving ~1.4 GiB
+  # for the hypervisor. Longhorn instance-manager (~5.8 GiB) still leaves
+  # ~4.4 GiB for prometheus/postgres/the rest — honest, no overcommit.
   memory {
-    dedicated = 16384
+    dedicated = 10240
   }
   network_device {
     bridge      = "vmbr0"
@@ -163,7 +164,7 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_pve191" {
   name      = "talos-worker-pve191-01"
 
   bios            = "seabios"
-  boot_order      = ["ide2", "scsi0", "net0"] # CDROM first for initial install
+  boot_order      = ["scsi0", "net0"] # Boot installed Talos from disk; install is long done
   scsi_hardware   = "virtio-scsi-single"
   on_boot         = true
   started         = true
@@ -178,8 +179,11 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_pve191" {
     sockets = 1
     type    = "host"
   }
+  # pve1 had ~3.6 GiB physical RAM sitting idle while this worker ran pinned
+  # at its 8000 MiB ceiling. Raise to 10240 MiB (apollo1's 4096 + 10240 =
+  # 14336, ~1.4 GiB hypervisor headroom) to match the pve2 worker.
   memory {
-    dedicated = 8000
+    dedicated = 10240
   }
   network_device {
     bridge      = "vmbr0"
@@ -203,11 +207,13 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_pve191" {
     iothread     = true
     size         = 128
   }
-  # Talos installer ISO
+  # Empty CDROM drive. The Talos installer ISO that used to live here is
+  # removed (install is long done). bpg defaults an undeclared cdrom to a
+  # physical host passthrough (ide3=cdrom), which fails to start on a host
+  # with no optical drive — so pin an explicitly empty drive instead.
   cdrom {
-    enabled   = true
-    file_id   = "local:iso/metal-amd64.iso"
-    interface = "ide2"
+    file_id   = "none"
+    interface = "ide3"
   }
   operating_system {
     type = "l26"
