@@ -114,6 +114,12 @@ def markdown_to_blocks(md):
         s = line.strip()
         if not s:
             continue
+        # Agents often wrap whole-line headings in bold (e.g. "**## Title**").
+        # Strip a surrounding ** so the heading prefix is detected below.
+        if s.startswith("**") and s.endswith("**") and len(s) > 4:
+            inner = s[2:-2].strip()
+            if inner.startswith("#"):
+                s = inner
         if s in ("---", "***", "___"):
             blocks.append({"object": "block", "type": "divider", "divider": {}})
         elif s.startswith("### "):
