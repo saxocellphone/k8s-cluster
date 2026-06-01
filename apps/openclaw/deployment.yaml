@@ -87,6 +87,15 @@ spec:
           c.gateway.mode = "local";
           c.gateway.controlUi = c.gateway.controlUi || {};
           c.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
+          // Control UI is reached via two reverse-proxy origins: the local
+          // nginx ingress (openclaw.k8s.home) and the Cloudflare Tunnel
+          // (openclaw.victornazzaro.com, behind CF Access). The gateway
+          // rejects any browser origin not in this list with "origin not
+          // allowed", so both must be enumerated (no wildcards supported).
+          c.gateway.controlUi.allowedOrigins = [
+            "https://openclaw.victornazzaro.com",
+            "https://openclaw.k8s.home"
+          ];
           delete c.gateway.auth;
           delete c.gateway.tailscale;
           c.browser = c.browser || {};
