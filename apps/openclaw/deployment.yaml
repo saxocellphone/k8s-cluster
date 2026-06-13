@@ -156,7 +156,12 @@ spec:
           // ai-inference app on the Corsair AI Workstation 300 GPU node.
           c.models.providers.local = {
             baseUrl: "http://llm.ai-inference.svc.cluster.local:8080/v1",
-            timeoutSeconds: 600
+            timeoutSeconds: 600,
+            models: {
+              "qwen3-235b-a22b-instruct": {
+                id: "qwen3-235b-a22b-instruct"
+              }
+            }
           };
           // Only baseUrl + timeoutSeconds. The API key auto-resolves from the
           // XAI_API_KEY env var (do NOT set apiKey here: the env-ref form
