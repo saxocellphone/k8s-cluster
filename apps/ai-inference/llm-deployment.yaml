@@ -64,6 +64,7 @@ spec:
             - "1"
             - --cont-batching
             - --flash-attn
+            - "on"
             - --chat-template
             - qwen3
             - --alias

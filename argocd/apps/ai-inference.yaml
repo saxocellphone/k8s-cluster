@@ -12,9 +12,23 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: ai-inference
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: llm
+      namespace: ai-inference
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: Deployment
+      name: comfyui
+      namespace: ai-inference
+      jsonPointers:
+        - /spec/replicas
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
