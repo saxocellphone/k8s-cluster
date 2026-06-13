@@ -9,3 +9,4 @@ resources:
   - comfyui-pvc.yaml
   - comfyui-deployment.yaml
   - comfyui-service.yaml
+  - ingress.yaml
