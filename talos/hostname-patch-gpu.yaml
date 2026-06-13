@@ -1,0 +1,11 @@
+# Per-node hostname + labels for the bare-metal Corsair AI Workstation 300
+# (AMD Ryzen AI Max+ 395, Strix Halo iGPU, dual-boot with Windows on nvme0n1).
+#
+# Apply (non-disruptive once installed; kubelet re-registers under the new name):
+#   talosctl --talosconfig=./talosconfig -n 192.168.8.178 patch mc \
+#     --patch @talos/hostname-patch-gpu.yaml
+machine:
+  network:
+    hostname: talos-gpu-01
+  nodeLabels:
+    accelerator: amd-strix-halo

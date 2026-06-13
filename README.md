@@ -4,12 +4,13 @@ GitOps repository for a homelab Kubernetes cluster managed by [Argo CD](https://
 
 ## Cluster Overview
 
-| Node | Role | OS | IP |
-|---|---|---|---|
-| talos-mru-smr | Control plane | Talos v1.11.5 | 192.168.8.227 |
-| talos-gcx-zwd | Worker | Talos v1.11.5 | 192.168.8.126 |
-| talos-pik-q76 | Worker | Talos v1.11.5 | 192.168.8.165 |
-| carbon-node | Worker | Linux Mint 22.2 | 192.168.8.140 |
+| Node | Role | OS | IP | Host |
+|---|---|---|---|---|
+| talos-mru-smr | Control plane | Talos v1.11.5 | 192.168.8.227 | Proxmox `pve226` (VM 100) |
+| talos-gcx-zwd | Worker (Longhorn) | Talos v1.11.5 | 192.168.8.125 | Proxmox `pve226` (VM 101) |
+| talos-worker-pve191-01 | Worker (Longhorn) | Talos v1.11.5 | 192.168.8.194 | Proxmox `pve191` (VM 101) |
+| carbon-node | Worker | Linux Mint 22.2 | 192.168.8.140 | Bare metal |
+| talos-gpu-01 | Worker (Longhorn, GPU) | Talos v1.13.4 | 192.168.8.178 | Bare metal (Corsair AI Workstation 300 — AMD Strix Halo) |
 
 All nodes are amd64 architecture.
 
