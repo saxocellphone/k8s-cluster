@@ -41,10 +41,10 @@ spec:
           resources:
             requests:
               cpu: "2"
-              memory: 2Gi
+              memory: 4Gi
             limits:
               cpu: "8"
-              memory: 8Gi
+              memory: 24Gi
       containers:
         - name: llama-server
           image: ghcr.io/ggml-org/llama.cpp:server-vulkan
