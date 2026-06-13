@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mode-switcher
+  namespace: ai-inference
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mode-switcher
+  namespace: ai-inference
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    resourceNames: ["llm", "comfyui"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mode-switcher
+  namespace: ai-inference
+subjects:
+  - kind: ServiceAccount
+    name: mode-switcher
+    namespace: ai-inference
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mode-switcher
