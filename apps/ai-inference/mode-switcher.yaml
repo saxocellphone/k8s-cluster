@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mode-switcher
+  namespace: ai-inference
+  labels:
+    app: mode-switcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mode-switcher
+  template:
+    metadata:
+      labels:
+        app: mode-switcher
+    spec:
+      serviceAccountName: mode-switcher
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mode-switcher
+          image: python:3.12-slim
+          command: ["python", "/app/server.py"]
+          env:
+            - name: NAMESPACE
+              value: ai-inference
+            - name: PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: src
+              mountPath: /app
+      volumes:
+        - name: src
+          configMap:
+            name: mode-switcher-src
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mode-switcher
+  namespace: ai-inference
+spec:
+  selector:
+    app: mode-switcher
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

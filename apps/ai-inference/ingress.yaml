@@ -9,6 +9,16 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
+    - host: ai.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mode-switcher
+                port:
+                  number: 8080
     - host: llm.k8s.home
       http:
         paths:

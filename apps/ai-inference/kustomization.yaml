@@ -3,6 +3,8 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
+  - mode-switcher-rbac.yaml
+  - mode-switcher.yaml
   - llm-pvc.yaml
   - llm-deployment.yaml
   - llm-service.yaml
@@ -10,3 +12,11 @@ resources:
   - comfyui-deployment.yaml
   - comfyui-service.yaml
   - ingress.yaml
+
+configMapGenerator:
+  - name: mode-switcher-src
+    files:
+      - server.py=mode-switcher.py
+
+generatorOptions:
+  disableNameSuffixHash: true
