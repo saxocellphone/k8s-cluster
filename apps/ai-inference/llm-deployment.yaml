@@ -67,8 +67,7 @@ spec:
             - --flash-attn
             - "on"
             - --no-mmap
-            - --chat-template
-            - qwen3
+            - --jinja
             - --alias
             - qwen3-235b-a22b-instruct
           env:
