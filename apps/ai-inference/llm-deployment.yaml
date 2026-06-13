@@ -26,12 +26,12 @@ spec:
           args:
             - |
               set -eu
-              pip install --no-cache-dir huggingface_hub[hf_transfer]
-              huggingface-cli download unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF \
+              pip install --no-cache-dir huggingface_hub[hf_xet]
+              hf download unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF \
                 --include 'UD-Q2_K_XL/*' \
                 --local-dir /models/Qwen3-235B-A22B-Instruct-2507-GGUF
           env:
-            - name: HF_HUB_ENABLE_HF_TRANSFER
+            - name: HF_XET_HIGH_PERFORMANCE
               value: "1"
             - name: HF_HOME
               value: /models/.hf
