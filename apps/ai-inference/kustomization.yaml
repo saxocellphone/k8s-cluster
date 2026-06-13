@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - llm-pvc.yaml
+  - llm-deployment.yaml
+  - llm-service.yaml
+  - comfyui-pvc.yaml
+  - comfyui-deployment.yaml
+  - comfyui-service.yaml

@@ -134,7 +134,7 @@ spec:
           // failover: otherwise a transient grok stall fails over to the
           // default openai model, which (no OpenAI key) reuses the xAI key
           // against platform.openai.com and 401s, killing the run.
-          c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
+          c.agents.defaults.model = { primary: "local/qwen3-235b-a22b-instruct", fallbacks: ["xai/grok-4.3"] };
           // The morning briefing does substantial web research and then writes
           // to Notion, which exceeds the default agent-turn / stuck-session
           // watchdog (~520s) and gets aborted mid-run. Give it generous
@@ -152,6 +152,12 @@ spec:
           // payload doesn't abort mid-response.
           c.models = c.models || {};
           c.models.providers = c.models.providers || {};
+          // Local OpenAI-compatible inference backend, served by the shared
+          // ai-inference app on the Corsair AI Workstation 300 GPU node.
+          c.models.providers.local = {
+            baseUrl: "http://llm.ai-inference.svc.cluster.local:8080/v1",
+            timeoutSeconds: 600
+          };
           // Only baseUrl + timeoutSeconds. The API key auto-resolves from the
           // XAI_API_KEY env var (do NOT set apiKey here: the env-ref form
           // expects a configured *secret provider*, not a model provider, and
@@ -199,7 +205,7 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=local/qwen3-235b-a22b-instruct fallback=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: NOTION_TOKEN
           valueFrom:
