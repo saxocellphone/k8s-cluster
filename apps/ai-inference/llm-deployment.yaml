@@ -47,8 +47,9 @@ spec:
               memory: 24Gi
       containers:
         - name: llama-server
-          image: ghcr.io/ggml-org/llama.cpp:server-vulkan
+          image: kyuz0/amd-strix-halo-toolboxes:vulkan-radv
           imagePullPolicy: IfNotPresent
+          command: ["llama-server"]
           args:
             - --model
             - /models/Qwen3-235B-A22B-Instruct-2507-GGUF/UD-Q2_K_XL/Qwen3-235B-A22B-Instruct-2507-UD-Q2_K_XL-00001-of-00002.gguf
@@ -65,13 +66,14 @@ spec:
             - --cont-batching
             - --flash-attn
             - "on"
+            - --no-mmap
             - --chat-template
             - qwen3
             - --alias
             - qwen3-235b-a22b-instruct
           env:
-            - name: VK_ICD_FILENAMES
-              value: /usr/share/vulkan/icd.d/radeon_icd.json
+            - name: AMD_VULKAN_ICD
+              value: RADV
             - name: LLAMA_CACHE
               value: /models/.cache/llama.cpp
             - name: HF_HOME
