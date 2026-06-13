@@ -70,6 +70,8 @@ spec:
             - --alias
             - qwen3-235b-a22b-instruct
           env:
+            - name: VK_ICD_FILENAMES
+              value: /usr/share/vulkan/icd.d/radeon_icd.x86_64.json
             - name: LLAMA_CACHE
               value: /models/.cache/llama.cpp
             - name: HF_HOME
@@ -109,7 +111,12 @@ spec:
           volumeMounts:
             - name: llm-models
               mountPath: /models
+            - name: dri
+              mountPath: /dev/dri
       volumes:
+        - name: dri
+          hostPath:
+            path: /dev/dri
         - name: llm-models
           persistentVolumeClaim:
             claimName: llm-models
