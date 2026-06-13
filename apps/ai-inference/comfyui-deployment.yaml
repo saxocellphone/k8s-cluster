@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comfyui
+  namespace: ai-inference
+  labels:
+    app: comfyui
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: comfyui
+  template:
+    metadata:
+      labels:
+        app: comfyui
+    spec:
+      nodeSelector:
+        accelerator: amd-strix-halo
+      containers:
+        - name: comfyui
+          image: ignatberesnev/comfyui-gfx1151:v0.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HSA_OVERRIDE_GFX_VERSION
+              value: "11.5.1"
+            - name: HIP_VISIBLE_DEVICES
+              value: "0"
+            - name: TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8188
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "4"
+              memory: 12Gi
+              amd.com/gpu: 1
+            limits:
+              cpu: "16"
+              amd.com/gpu: 1
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: comfyui-models
+              mountPath: /ComfyUI/models
+            - name: comfyui-output
+              mountPath: /ComfyUI/output
+      volumes:
+        - name: comfyui-models
+          persistentVolumeClaim:
+            claimName: comfyui-models
+        - name: comfyui-output
+          persistentVolumeClaim:
+            claimName: comfyui-output

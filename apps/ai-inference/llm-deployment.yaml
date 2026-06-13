@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm
+  namespace: ai-inference
+  labels:
+    app: llm
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: llm
+  template:
+    metadata:
+      labels:
+        app: llm
+    spec:
+      nodeSelector:
+        accelerator: amd-strix-halo
+      initContainers:
+        - name: download-model
+          image: python:3.12-slim
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              pip install --no-cache-dir huggingface_hub[hf_transfer]
+              huggingface-cli download unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF \
+                --include 'UD-Q2_K_XL/*' \
+                --local-dir /models/Qwen3-235B-A22B-Instruct-2507-GGUF
+          env:
+            - name: HF_HUB_ENABLE_HF_TRANSFER
+              value: "1"
+            - name: HF_HOME
+              value: /models/.hf
+          volumeMounts:
+            - name: llm-models
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "2"
+              memory: 2Gi
+            limits:
+              cpu: "8"
+              memory: 8Gi
+      containers:
+        - name: llama-server
+          image: ghcr.io/ggml-org/llama.cpp:server-vulkan
+          imagePullPolicy: IfNotPresent
+          args:
+            - --model
+            - /models/Qwen3-235B-A22B-Instruct-2507-GGUF/UD-Q2_K_XL/Qwen3-235B-A22B-Instruct-2507-UD-Q2_K_XL-00001-of-00002.gguf
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8080"
+            - --ctx-size
+            - "8192"
+            - --n-gpu-layers
+            - "999"
+            - --parallel
+            - "1"
+            - --cont-batching
+            - --flash-attn
+            - --chat-template
+            - qwen3
+            - --alias
+            - qwen3-235b-a22b-instruct
+          env:
+            - name: LLAMA_CACHE
+              value: /models/.cache/llama.cpp
+            - name: HF_HOME
+              value: /models/.hf
+            - name: HF_HUB_CACHE
+              value: /models/.hf/hub
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "8"
+              memory: 16Gi
+              amd.com/gpu: 1
+            limits:
+              cpu: "24"
+              amd.com/gpu: 1
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 180
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: llm-models
+              mountPath: /models
+      volumes:
+        - name: llm-models
+          persistentVolumeClaim:
+            claimName: llm-models
