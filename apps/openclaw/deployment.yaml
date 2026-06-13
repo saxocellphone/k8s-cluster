@@ -156,7 +156,7 @@ spec:
           // ai-inference app on the Corsair AI Workstation 300 GPU node.
           c.models.providers.local = {
             baseUrl: "http://llm.ai-inference.svc.cluster.local:8080/v1",
-            api: "openai-chat",
+            api: "openai-completions",
             apiKey: "local",
             timeoutSeconds: 600,
             models: [
