@@ -71,7 +71,7 @@ spec:
             - qwen3-235b-a22b-instruct
           env:
             - name: VK_ICD_FILENAMES
-              value: /usr/share/vulkan/icd.d/radeon_icd.x86_64.json
+              value: /usr/share/vulkan/icd.d/radeon_icd.json
             - name: LLAMA_CACHE
               value: /models/.cache/llama.cpp
             - name: HF_HOME
