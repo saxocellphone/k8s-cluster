@@ -51,7 +51,7 @@ SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
 ## Storage — pick the right class
 
 - **`nfs-client`** (default) — NFS at 192.168.8.246. Use for config volumes and shared data. Avoid for write-heavy workloads (Prometheus TSDB/WAL, Postgres) — latency and locking semantics will bite.
-- **`longhorn`** — distributed block storage, **only** scheduled on Talos workers labeled `extensions.talos.dev/iscsi-tools: v0.2.0` (currently `talos-gcx-zwd`, `talos-pik-q76`). Workloads using Longhorn must carry a matching `nodeSelector`. Use for databases, Prometheus, anything stateful and write-heavy.
+- **`longhorn`** — distributed block storage, **only** scheduled on Talos workers labeled `extensions.talos.dev/iscsi-tools: v0.2.0` (currently `talos-gcx-zwd`, `talos-worker-pve191-01`, `talos-gpu-01`). Workloads using Longhorn must carry a matching `nodeSelector`. Use for databases, Prometheus, anything stateful and write-heavy.
 - **`local-storage`** — node-pinned hostPath. **Do not use on Talos nodes** — the immutable rootfs means arbitrary host paths may not exist after a reboot and the mount fails. OK on `carbon-node` (Linux Mint) only.
 - **PVCs are immutable.** Changing `storageClassName` in a Helm value or StatefulSet will not migrate an existing PVC. Procedure: scale workload to 0 → `kubectl delete pvc` (mind the `pvc-protection` finalizer — it clears once no pod references the PVC) → re-sync → operator recreates on the new class. Back data up first.
 

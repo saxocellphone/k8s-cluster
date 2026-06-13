@@ -1,0 +1,57 @@
+# Bare-metal Longhorn-capable install patch for talos-gpu-01 (Corsair AI
+# Workstation 300, AMD Ryzen AI Max+ 395 / Strix Halo).
+#
+# Critical: pins the install disk to nvme1n1 BY SERIAL so Talos can never
+# accidentally land on nvme0n1 (the Windows boot drive) even if NVMe
+# enumeration flips after a BIOS update.
+#
+# Schematic includes amd-ucode (CPU microcode), iscsi-tools (Longhorn) and
+# util-linux-tools. Skips qemu-guest-agent (bare metal, no hypervisor).
+#
+# Talos installs and EPHEMERAL fills nvme1n1. The userVolume document below
+# carves a ~1.5–1.7 TB Longhorn partition out of the install disk and mounts
+# it at /var/mnt/longhorn — matches the pattern used by gcx/pve191, just on a
+# partition of the same NVMe instead of a dedicated second disk.
+machine:
+  install:
+    image: factory.talos.dev/installer/c8ba0e519b1d1fa77faf5a3225ec0023bf08831cb0cd376562ff5742866bcd41:v1.13.4
+    diskSelector:
+      serial: "511250718154000388"
+    wipe: true
+  # amdgpu isn't auto-loaded by Talos. Without this the Strix Halo iGPU
+  # never gets a /dev/dri/renderD* or /dev/kfd, and the ROCm device plugin
+  # can't expose amd.com/gpu. The matching firmware ships in the
+  # amdgpu-firmware system extension baked into the schematic above.
+  # (iscsi_tcp is already added by longhorn-worker-patch.yaml; arrays
+  # concatenate rather than dedup, so don't list it here.)
+  kernel:
+    modules:
+      - name: amdgpu
+# NOTE: worker.yaml carries `install.disk: /dev/sda` as a default. Strategic
+# merge can't remove that key, and JSON6902 patches don't combine with the
+# UserVolumeConfig multi-doc below. Render with `talosctl machineconfig
+# patch` and then strip the line by hand before applying, e.g.:
+#   sed -i '' '/^        disk: \/dev\/sda$/d' /tmp/talos-gpu-01-rendered.yaml
+# Without this step Talos would target /dev/sda (the USB installer) and
+# ignore the selector.
+---
+# Cap EPHEMERAL so the userVolume below has room. Without this, EPHEMERAL
+# expands to fill the whole install disk and userVolume allocation fails
+# with "not enough space" — xfs can't shrink after the fact, so this MUST
+# be set at install time, not added later.
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  maxSize: 400GiB
+---
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: longhorn
+provisioning:
+  diskSelector:
+    match: system_disk
+  minSize: 1500GB
+  maxSize: 1700GB
+filesystem:
+  type: xfs
