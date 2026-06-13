@@ -156,12 +156,19 @@ spec:
           // ai-inference app on the Corsair AI Workstation 300 GPU node.
           c.models.providers.local = {
             baseUrl: "http://llm.ai-inference.svc.cluster.local:8080/v1",
+            api: "openai-chat",
+            apiKey: "local",
             timeoutSeconds: 600,
-            models: {
-              "qwen3-235b-a22b-instruct": {
-                id: "qwen3-235b-a22b-instruct"
+            models: [
+              {
+                id: "qwen3-235b-a22b-instruct",
+                name: "Qwen3 235B A22B Instruct (local)",
+                contextWindow: 8192,
+                maxTokens: 4096,
+                input: ["text"],
+                cost: { input: 0, output: 0 }
               }
-            }
+            ]
           };
           // Only baseUrl + timeoutSeconds. The API key auto-resolves from the
           // XAI_API_KEY env var (do NOT set apiKey here: the env-ref form
