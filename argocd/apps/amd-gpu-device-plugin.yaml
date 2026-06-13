@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: amd-gpu-device-plugin
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/saxocellphone/k8s-cluster.git
+    targetRevision: main
+    path: apps/amd-gpu-device-plugin
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: amd-gpu-device-plugin
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

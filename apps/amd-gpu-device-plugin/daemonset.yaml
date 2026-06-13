@@ -1,0 +1,50 @@
+# ROCm Kubernetes device plugin. Enumerates GPUs the kernel exposes via
+# /dev/kfd and advertises them to the kubelet as `amd.com/gpu`. Pods that
+# request `resources.limits."amd.com/gpu": 1` get scheduled here and the
+# kubelet injects /dev/kfd + /dev/dri/renderD* into the container.
+#
+# Strix Halo (gfx1151) workloads also need a ROCm 6.4+ container image at
+# the WORKLOAD side — the device plugin itself is GPU-arch agnostic.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: amdgpu-device-plugin
+  namespace: amd-gpu-device-plugin
+  labels:
+    app.kubernetes.io/name: amdgpu-device-plugin
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: amdgpu-device-plugin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: amdgpu-device-plugin
+    spec:
+      # Only land on nodes with an AMD GPU. Right now that's just talos-gpu-01.
+      nodeSelector:
+        accelerator: amd-strix-halo
+      priorityClassName: system-node-critical
+      # Tolerate any taint a GPU node might carry (none today, but future-proof).
+      tolerations:
+        - operator: Exists
+      hostNetwork: true
+      containers:
+        - name: amdgpu-device-plugin
+          image: rocm/k8s-device-plugin:1.31.0.0
+          securityContext:
+            # Needs unrestricted access to /sys and the kubelet device-plugin
+            # socket dir. Privileged is the standard upstream pattern.
+            privileged: true
+          volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: sys
+              mountPath: /sys
+      volumes:
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: sys
+          hostPath:
+            path: /sys
