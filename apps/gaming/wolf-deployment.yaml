@@ -53,6 +53,8 @@ spec:
               mountPath: /etc/wolf
             - name: wolf-runtime
               mountPath: /run/user/wolf
+            - name: docker-shm
+              mountPath: /dev/shm
             - name: dev-dri
               mountPath: /dev/dri
             - name: dev-kfd
@@ -174,6 +176,10 @@ spec:
           emptyDir: {}
         - name: wolf-runtime
           emptyDir: {}
+        - name: docker-shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
         - name: dev-dri
           hostPath:
             path: /dev/dri
