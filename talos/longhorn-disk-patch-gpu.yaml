@@ -22,11 +22,17 @@ machine:
   # never gets a /dev/dri/renderD* or /dev/kfd, and the ROCm device plugin
   # can't expose amd.com/gpu. The matching firmware ships in the
   # amdgpu-firmware system extension baked into the schematic above.
+  #
+  # Wolf/Moonlight controller forwarding uses virtual input/HID devices. Load
+  # uinput and uhid so /dev/uinput and /dev/uhid exist for the gaming pod.
+  #
   # (iscsi_tcp is already added by longhorn-worker-patch.yaml; arrays
   # concatenate rather than dedup, so don't list it here.)
   kernel:
     modules:
       - name: amdgpu
+      - name: uinput
+      - name: uhid
 # NOTE: worker.yaml carries `install.disk: /dev/sda` as a default. Strategic
 # merge can't remove that key, and JSON6902 patches don't combine with the
 # UserVolumeConfig multi-doc below. Render with `talosctl machineconfig

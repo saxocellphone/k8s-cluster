@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wolf
+  namespace: gaming
+  labels:
+    app: wolf
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: wolf
+  template:
+    metadata:
+      labels:
+        app: wolf
+    spec:
+      # Moonlight/GameStream needs direct LAN ports, but nested Docker should not
+      # mutate the node network namespace. Use hostPorts instead of hostNetwork.
+      nodeSelector:
+        accelerator: amd-strix-halo
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: dind
+          image: docker:29-dind
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          args:
+            - --host=unix:///var/run/docker.sock
+            - --data-root=/var/lib/docker
+            - --exec-root=/var/run/docker/execroot
+            - --pidfile=/var/run/docker.pid
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run
+            - name: wolf-docker
+              mountPath: /var/lib/docker
+            - name: wolf-state
+              mountPath: /etc/wolf
+            - name: wolf-runtime
+              mountPath: /run/user/wolf
+            - name: dev
+              mountPath: /dev
+            - name: run-udev
+              mountPath: /run/udev
+        - name: wolf
+          image: ghcr.io/games-on-whales/wolf:stable
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          env:
+            - name: WOLF_DOCKER_SOCKET
+              value: /var/run/docker.sock
+            - name: HOST_APPS_STATE_FOLDER
+              value: /etc/wolf
+            - name: XDG_RUNTIME_DIR
+              value: /run/user/wolf
+            - name: WOLF_RENDER_NODE
+              value: /dev/dri/renderD128
+            - name: WOLF_ENCODER_NODE
+              value: /dev/dri/renderD128
+            - name: WOLF_STOP_CONTAINER_ON_EXIT
+              value: "TRUE"
+            - name: WOLF_USE_RTSP_FAKE_IP
+              value: "FALSE"
+            - name: WOLF_INTERNAL_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: WOLF_DEFAULT_RUN_UID
+              value: "1000"
+            - name: WOLF_DEFAULT_RUN_GID
+              value: "1000"
+          ports:
+            - name: https
+              containerPort: 47984
+              hostPort: 47984
+              protocol: TCP
+            - name: http
+              containerPort: 47989
+              hostPort: 47989
+              protocol: TCP
+            - name: control
+              containerPort: 47999
+              hostPort: 47999
+              protocol: UDP
+            - name: rtsp
+              containerPort: 48010
+              hostPort: 48010
+              protocol: TCP
+            - name: video
+              containerPort: 48100
+              hostPort: 48100
+              protocol: UDP
+            - name: audio
+              containerPort: 48200
+              hostPort: 48200
+              protocol: UDP
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+              amd.com/gpu: 1
+            limits:
+              cpu: "12"
+              memory: 24Gi
+              amd.com/gpu: 1
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: wolf-state
+              mountPath: /etc/wolf
+            - name: wolf-runtime
+              mountPath: /run/user/wolf
+            - name: docker-socket
+              mountPath: /var/run
+            - name: dev
+              mountPath: /dev
+            - name: run-udev
+              mountPath: /run/udev
+      volumes:
+        - name: wolf-state
+          persistentVolumeClaim:
+            claimName: wolf-state
+        - name: wolf-docker
+          persistentVolumeClaim:
+            claimName: wolf-docker
+        - name: docker-socket
+          emptyDir: {}
+        - name: wolf-runtime
+          emptyDir: {}
+        - name: dev
+          hostPath:
+            path: /dev
+        - name: run-udev
+          hostPath:
+            path: /run/udev
+            type: Directory
