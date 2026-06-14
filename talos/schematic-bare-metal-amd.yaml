@@ -4,4 +4,6 @@ customization:
       - siderolabs/amd-ucode
       - siderolabs/amdgpu-firmware
       - siderolabs/iscsi-tools
+      - siderolabs/uhid
+      - siderolabs/uinput
       - siderolabs/util-linux-tools
