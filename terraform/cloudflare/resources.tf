@@ -531,36 +531,6 @@ resource "cloudflare_zero_trust_access_application" "homelab" {
       uri           = "tesla-grafana.victornazzaro.com"
       vnet_id       = null
     },
-    {
-      cidr          = null
-      hostname      = null
-      l4_protocol   = null
-      mcp_server_id = null
-      port_range    = null
-      type          = "public"
-      uri           = "ai.victornazzaro.com"
-      vnet_id       = null
-    },
-    {
-      cidr          = null
-      hostname      = null
-      l4_protocol   = null
-      mcp_server_id = null
-      port_range    = null
-      type          = "public"
-      uri           = "llm.victornazzaro.com"
-      vnet_id       = null
-    },
-    {
-      cidr          = null
-      hostname      = null
-      l4_protocol   = null
-      mcp_server_id = null
-      port_range    = null
-      type          = "public"
-      uri           = "comfyui.victornazzaro.com"
-      vnet_id       = null
-    },
   ]
   domain                     = "sonarr.victornazzaro.com"
   enable_binding_cookie      = false
@@ -596,6 +566,96 @@ resource "cloudflare_zero_trust_access_application" "homelab" {
       name             = null
       precedence       = 2
       require          = null
+    },
+  ]
+  read_service_tokens_from_header = null
+  saas_app                        = null
+  same_site_cookie_attribute      = null
+  scim_config                     = null
+  service_auth_401_redirect       = null
+  session_duration                = "24h"
+  skip_interstitial               = null
+  tags                            = null
+  target_criteria                 = null
+  type                            = "self_hosted"
+  zone_id                         = null
+}
+
+resource "cloudflare_zero_trust_access_application" "ai" {
+  account_id                   = "e34e1aabbaa8c7a5ca6a7a229dea2ae7"
+  allow_authenticate_via_warp  = null
+  allow_iframe                 = null
+  allowed_idps                 = null
+  app_launcher_logo_url        = null
+  app_launcher_visible         = true
+  auto_redirect_to_identity    = false
+  bg_color                     = null
+  cors_headers                 = null
+  custom_deny_message          = null
+  custom_deny_url              = null
+  custom_non_identity_deny_url = null
+  custom_pages                 = null
+  destinations = [
+    {
+      cidr          = null
+      hostname      = null
+      l4_protocol   = null
+      mcp_server_id = null
+      port_range    = null
+      type          = "public"
+      uri           = "ai.victornazzaro.com"
+      vnet_id       = null
+    },
+    {
+      cidr          = null
+      hostname      = null
+      l4_protocol   = null
+      mcp_server_id = null
+      port_range    = null
+      type          = "public"
+      uri           = "llm.victornazzaro.com"
+      vnet_id       = null
+    },
+    {
+      cidr          = null
+      hostname      = null
+      l4_protocol   = null
+      mcp_server_id = null
+      port_range    = null
+      type          = "public"
+      uri           = "comfyui.victornazzaro.com"
+      vnet_id       = null
+    },
+  ]
+  domain                     = "ai.victornazzaro.com"
+  enable_binding_cookie      = false
+  footer_links               = null
+  header_bg_color            = null
+  http_only_cookie_attribute = true
+  landing_page_design        = null
+  logo_url                   = null
+  mfa_config                 = null
+  name                       = "AI Services"
+  oauth_configuration        = null
+  options_preflight_bypass   = false
+  path_cookie_attribute      = null
+  policies = [
+    {
+      connection_rules = null
+      decision         = "allow"
+      exclude          = null
+      id               = null
+      include = [
+        {
+          email = {
+            email = "nazzav923@gmail.com"
+          }
+        }
+      ]
+      mfa_config = null
+      name       = "Operator email allow-list"
+      precedence = 1
+      require    = null
     },
   ]
   read_service_tokens_from_header = null
