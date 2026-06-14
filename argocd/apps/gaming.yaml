@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gaming
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/saxocellphone/k8s-cluster.git
+    targetRevision: main
+    path: apps/gaming
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gaming
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: wolf
+      namespace: gaming
+      jsonPointers:
+        - /spec/replicas
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true

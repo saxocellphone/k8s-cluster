@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gaming
+  labels:
+    # Wolf needs host devices for GPU encoding and virtual controller input.
+    # Cluster default PodSecurity is baseline, which forbids those mounts.
+    pod-security.kubernetes.io/enforce: privileged
