@@ -31,6 +31,7 @@ spec:
           env:
             - name: DOCKER_TLS_CERTDIR
               value: ""
+          command: ["dockerd"]
           args:
             - --host=unix:///var/run/docker.sock
             - --data-root=/var/lib/docker
