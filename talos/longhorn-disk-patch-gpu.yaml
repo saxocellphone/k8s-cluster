@@ -5,7 +5,8 @@
 # accidentally land on nvme0n1 (the Windows boot drive) even if NVMe
 # enumeration flips after a BIOS update.
 #
-# Schematic includes amd-ucode (CPU microcode), iscsi-tools (Longhorn) and
+# Schematic includes amd-ucode (CPU microcode), amdgpu-firmware, iscsi-tools
+# (Longhorn), uhid/uinput (Moonlight controller forwarding), and
 # util-linux-tools. Skips qemu-guest-agent (bare metal, no hypervisor).
 #
 # Talos installs and EPHEMERAL fills nvme1n1. The userVolume document below
@@ -14,7 +15,7 @@
 # partition of the same NVMe instead of a dedicated second disk.
 machine:
   install:
-    image: factory.talos.dev/installer/c8ba0e519b1d1fa77faf5a3225ec0023bf08831cb0cd376562ff5742866bcd41:v1.13.4
+    image: factory.talos.dev/installer/05a9a25de4f5b8363405c76a8d156012b29f03dcb7bc8d802daddca954550f52:v1.13.4
     diskSelector:
       serial: "511250718154000388"
     wipe: true
@@ -23,8 +24,9 @@ machine:
   # can't expose amd.com/gpu. The matching firmware ships in the
   # amdgpu-firmware system extension baked into the schematic above.
   #
-  # Wolf/Moonlight controller forwarding uses virtual input/HID devices. Load
-  # uinput and uhid so /dev/uinput and /dev/uhid exist for the gaming pod.
+  # Wolf/Moonlight controller forwarding uses virtual input/HID devices. uinput
+  # and uhid come from system extensions in schematic-bare-metal-amd.yaml; list
+  # them here so Talos loads them after booting that image.
   #
   # (iscsi_tcp is already added by longhorn-worker-patch.yaml; arrays
   # concatenate rather than dedup, so don't list it here.)
