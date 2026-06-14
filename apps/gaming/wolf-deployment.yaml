@@ -85,6 +85,8 @@ spec:
               value: "TRUE"
             - name: WOLF_USE_RTSP_FAKE_IP
               value: "FALSE"
+            - name: WOLF_USE_ZERO_COPY
+              value: "FALSE"
             - name: WOLF_INTERNAL_IP
               valueFrom:
                 fieldRef:
