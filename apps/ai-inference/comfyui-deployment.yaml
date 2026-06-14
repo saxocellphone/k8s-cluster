@@ -61,14 +61,9 @@ spec:
             periodSeconds: 30
             failureThreshold: 3
           volumeMounts:
-            - name: comfyui-models
-              mountPath: /ComfyUI/models
-            - name: comfyui-output
-              mountPath: /ComfyUI/output
+            - name: comfyui-data
+              mountPath: /opt/ComfyUI
       volumes:
-        - name: comfyui-models
+        - name: comfyui-data
           persistentVolumeClaim:
             claimName: comfyui-models
-        - name: comfyui-output
-          persistentVolumeClaim:
-            claimName: comfyui-output
