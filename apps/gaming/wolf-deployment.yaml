@@ -52,8 +52,16 @@ spec:
               mountPath: /etc/wolf
             - name: wolf-runtime
               mountPath: /run/user/wolf
-            - name: dev
-              mountPath: /dev
+            - name: dev-dri
+              mountPath: /dev/dri
+            - name: dev-kfd
+              mountPath: /dev/kfd
+            - name: dev-uinput
+              mountPath: /dev/uinput
+            - name: dev-uhid
+              mountPath: /dev/uhid
+            - name: dev-input
+              mountPath: /dev/input
             - name: run-udev
               mountPath: /run/udev
         - name: wolf
@@ -140,8 +148,16 @@ spec:
               mountPath: /run/user/wolf
             - name: docker-socket
               mountPath: /var/run
-            - name: dev
-              mountPath: /dev
+            - name: dev-dri
+              mountPath: /dev/dri
+            - name: dev-kfd
+              mountPath: /dev/kfd
+            - name: dev-uinput
+              mountPath: /dev/uinput
+            - name: dev-uhid
+              mountPath: /dev/uhid
+            - name: dev-input
+              mountPath: /dev/input
             - name: run-udev
               mountPath: /run/udev
       volumes:
@@ -155,9 +171,26 @@ spec:
           emptyDir: {}
         - name: wolf-runtime
           emptyDir: {}
-        - name: dev
+        - name: dev-dri
           hostPath:
-            path: /dev
+            path: /dev/dri
+            type: Directory
+        - name: dev-kfd
+          hostPath:
+            path: /dev/kfd
+            type: CharDevice
+        - name: dev-uinput
+          hostPath:
+            path: /dev/uinput
+            type: CharDevice
+        - name: dev-uhid
+          hostPath:
+            path: /dev/uhid
+            type: CharDevice
+        - name: dev-input
+          hostPath:
+            path: /dev/input
+            type: Directory
         - name: run-udev
           hostPath:
             path: /run/udev
