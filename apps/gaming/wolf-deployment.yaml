@@ -37,6 +37,7 @@ spec:
             - --data-root=/var/lib/docker
             - --exec-root=/var/run/docker/execroot
             - --pidfile=/var/run/docker.pid
+            - --mtu=1450
           resources:
             requests:
               cpu: 500m
