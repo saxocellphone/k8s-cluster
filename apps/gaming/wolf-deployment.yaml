@@ -37,6 +37,9 @@ spec:
             - --data-root=/var/lib/docker
             - --exec-root=/var/run/docker/execroot
             - --pidfile=/var/run/docker.pid
+            # Match flannel/pod MTU; Docker's 1500 default causes PMTU issues
+            # for nested Steam containers on the pod network.
+            - --mtu=1450
           resources:
             requests:
               cpu: 500m
