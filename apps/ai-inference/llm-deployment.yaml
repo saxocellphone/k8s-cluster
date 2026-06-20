@@ -44,6 +44,8 @@ spec:
             - qwen3
             - --language-model-only
             - --enforce-eager
+            - --gdn-prefill-backend
+            - flashinfer
             - --trust-remote-code
           env:
             - name: HF_HOME
