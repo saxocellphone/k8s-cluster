@@ -56,11 +56,13 @@ spec:
           command: ["/bin/bash", "/scripts/strix-sglang-serve.sh"]
           env:
             - name: SGLANG_MODEL
-              value: Qwen/Qwen3.5-4B
+              value: sakamakismile/Qwen3.6-27B-Text-NVFP4-MTP
             - name: SGLANG_CONTEXT_LENGTH
-              value: "2048"
+              value: "8192"
             - name: SGLANG_MEM_FRACTION_STATIC
-              value: "0.5"
+              value: "0.85"
+            - name: SGLANG_MAX_RUNNING_REQUESTS
+              value: "2"
           ports:
             - name: http
               containerPort: 8080
