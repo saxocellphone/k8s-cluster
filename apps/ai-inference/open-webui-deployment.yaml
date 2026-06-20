@@ -17,6 +17,17 @@ spec:
       labels:
         app: open-webui
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: accelerator
+                    operator: DoesNotExist
+                  - key: extensions.talos.dev/iscsi-tools
+                    operator: In
+                    values:
+                      - v0.2.0
       containers:
         - name: open-webui
           image: ghcr.io/open-webui/open-webui:main
