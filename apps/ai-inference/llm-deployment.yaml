@@ -80,19 +80,19 @@ spec:
               amd.com/gpu: 1
           startupProbe:
             httpGet:
-              path: /health
+              path: /v1/models
               port: http
             periodSeconds: 20
             failureThreshold: 180
           readinessProbe:
             httpGet:
-              path: /health
+              path: /v1/models
               port: http
             periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /health
+              path: /v1/models
               port: http
             periodSeconds: 30
             failureThreshold: 3
