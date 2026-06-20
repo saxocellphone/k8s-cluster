@@ -89,12 +89,12 @@ PY
 cp "$REPO_DIR/patches/awq_moe_rocm_repack.py" \
   "$SGLANG_DIR/python/sglang/srt/layers/quantization/awq/schemes/awq_moe_rocm_repack.py"
 
+cd "$SGLANG_DIR/sgl-kernel"
+AMDGPU_TARGET=gfx1151 python3 setup_rocm.py develop
+
 python3 -m venv --system-site-packages "$VENV_DIR"
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
-
-cd "$SGLANG_DIR/sgl-kernel"
-AMDGPU_TARGET=gfx1151 python3 setup_rocm.py develop
 
 cd "$SGLANG_DIR"
 cp python/pyproject_other.toml python/pyproject.toml
