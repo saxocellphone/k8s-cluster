@@ -39,4 +39,4 @@ exec "$PYTHON" -m sglang.launch_server \
   --context-length "${SGLANG_CONTEXT_LENGTH:-2048}" \
   --mem-fraction-static "${SGLANG_MEM_FRACTION_STATIC:-0.5}" \
   --attention-backend triton \
-  --cuda-graph-max-bs "${SGLANG_CUDA_GRAPH_MAX_BS:-8}"
+  --disable-cuda-graph
