@@ -42,6 +42,7 @@ spec:
             - float16
             - --reasoning-parser
             - qwen3
+            - --language-model-only
             - --trust-remote-code
           env:
             - name: HF_HOME
