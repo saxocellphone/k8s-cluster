@@ -25,9 +25,9 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - --model
-            - Qwen/Qwen3.5-4B
+            - Qwen/Qwen2.5-1.5B-Instruct
             - --served-model-name
-            - qwen3.5-4b
+            - qwen2.5-1.5b-instruct
             - --host
             - 0.0.0.0
             - --port
@@ -35,17 +35,11 @@ spec:
             - --download-dir
             - /models/huggingface
             - --max-model-len
-            - "2048"
+            - "4096"
             - --gpu-memory-utilization
-            - "0.45"
+            - "0.60"
             - --dtype
             - float16
-            - --reasoning-parser
-            - qwen3
-            - --language-model-only
-            - --enforce-eager
-            - --gdn-prefill-backend
-            - flashinfer
             - --trust-remote-code
           env:
             - name: HF_HOME
