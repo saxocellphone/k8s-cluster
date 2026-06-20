@@ -29,6 +29,16 @@ spec:
                 name: llm
                 port:
                   number: 8080
+    - host: chat.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: open-webui
+                port:
+                  number: 8080
     - host: comfyui.k8s.home
       http:
         paths:
