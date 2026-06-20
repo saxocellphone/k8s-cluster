@@ -19,41 +19,50 @@ spec:
     spec:
       nodeSelector:
         accelerator: amd-strix-halo
-      containers:
-        - name: vllm
-          image: vllm/vllm-openai-rocm:latest
+      initContainers:
+        - name: build-strix-sglang
+          image: kyuz0/vllm-therock-gfx1151:stable
           imagePullPolicy: IfNotPresent
-          args:
-            - --model
-            - Qwen/Qwen2.5-1.5B-Instruct
-            - --served-model-name
-            - qwen2.5-1.5b-instruct
-            - --host
-            - 0.0.0.0
-            - --port
-            - "8080"
-            - --download-dir
-            - /models/huggingface
-            - --max-model-len
-            - "4096"
-            - --gpu-memory-utilization
-            - "0.60"
-            - --dtype
-            - float16
-            - --trust-remote-code
+          command: ["/bin/bash", "/scripts/strix-sglang-build.sh"]
           env:
-            - name: HF_HOME
-              value: /models/huggingface
-            - name: HF_HUB_CACHE
-              value: /models/huggingface/hub
             - name: HIP_VISIBLE_DEVICES
               value: "0"
             - name: HSA_OVERRIDE_GFX_VERSION
               value: "11.5.1"
             - name: HSA_ENABLE_SDMA
               value: "0"
-            - name: PYTORCH_HIP_ALLOC_CONF
-              value: expandable_segments:True
+          resources:
+            requests:
+              cpu: "8"
+              memory: 24Gi
+              amd.com/gpu: 1
+            limits:
+              cpu: "32"
+              memory: 96Gi
+              amd.com/gpu: 1
+          volumeMounts:
+            - name: llm-models
+              mountPath: /models
+            - name: dri
+              mountPath: /dev/dri
+            - name: kfd
+              mountPath: /dev/kfd
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: sglang
+          image: kyuz0/vllm-therock-gfx1151:stable
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/scripts/strix-sglang-serve.sh"]
+          env:
+            - name: SGLANG_MODEL
+              value: Qwen/Qwen3.5-4B
+            - name: SGLANG_CONTEXT_LENGTH
+              value: "2048"
+            - name: SGLANG_MEM_FRACTION_STATIC
+              value: "0.5"
+            - name: SGLANG_CUDA_GRAPH_MAX_BS
+              value: "8"
           ports:
             - name: http
               containerPort: 8080
@@ -61,16 +70,12 @@ spec:
           resources:
             requests:
               cpu: "4"
-              memory: 12Gi
+              memory: 16Gi
               amd.com/gpu: 1
             limits:
-              cpu: "24"
-              memory: 64Gi
+              cpu: "32"
+              memory: 96Gi
               amd.com/gpu: 1
-          securityContext:
-            capabilities:
-              add:
-                - SYS_PTRACE
           startupProbe:
             httpGet:
               path: /health
@@ -96,7 +101,13 @@ spec:
               mountPath: /dev/dri
             - name: kfd
               mountPath: /dev/kfd
+            - name: scripts
+              mountPath: /scripts
       volumes:
+        - name: scripts
+          configMap:
+            name: strix-sglang-scripts
+            defaultMode: 0755
         - name: dri
           hostPath:
             path: /dev/dri
