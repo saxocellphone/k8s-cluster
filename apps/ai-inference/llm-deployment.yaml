@@ -19,78 +19,60 @@ spec:
     spec:
       nodeSelector:
         accelerator: amd-strix-halo
-      initContainers:
-        - name: download-model
-          image: python:3.12-slim
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              set -eu
-              pip install --no-cache-dir huggingface_hub[hf_xet]
-              hf download unsloth/Qwen3-235B-A22B-Instruct-2507-GGUF \
-                --include 'UD-Q2_K_XL/*' \
-                --local-dir /models/Qwen3-235B-A22B-Instruct-2507-GGUF
-          env:
-            - name: HF_XET_HIGH_PERFORMANCE
-              value: "1"
-            - name: HF_HOME
-              value: /models/.hf
-          volumeMounts:
-            - name: llm-models
-              mountPath: /models
-          resources:
-            requests:
-              cpu: "2"
-              memory: 4Gi
-            limits:
-              cpu: "8"
-              memory: 24Gi
       containers:
-        - name: llama-server
-          image: kyuz0/amd-strix-halo-toolboxes:vulkan-radv
+        - name: vllm
+          image: vllm/vllm-openai-rocm:latest
           imagePullPolicy: IfNotPresent
-          command: ["llama-server"]
           args:
             - --model
-            - /models/Qwen3-235B-A22B-Instruct-2507-GGUF/UD-Q2_K_XL/Qwen3-235B-A22B-Instruct-2507-UD-Q2_K_XL-00001-of-00002.gguf
+            - Qwen/Qwen2.5-1.5B-Instruct
+            - --served-model-name
+            - qwen2.5-1.5b-instruct
             - --host
             - 0.0.0.0
             - --port
             - "8080"
-            - --ctx-size
-            - "8192"
-            - --n-gpu-layers
-            - "999"
-            - --parallel
-            - "1"
-            - --cont-batching
-            - --flash-attn
-            - "on"
-            - --no-mmap
-            - --jinja
-            - --alias
-            - qwen3-235b-a22b-instruct
+            - --download-dir
+            - /models/huggingface
+            - --max-model-len
+            - "4096"
+            - --gpu-memory-utilization
+            - "0.60"
+            - --dtype
+            - float16
+            - --trust-remote-code
           env:
-            - name: AMD_VULKAN_ICD
-              value: RADV
-            - name: LLAMA_CACHE
-              value: /models/.cache/llama.cpp
             - name: HF_HOME
-              value: /models/.hf
+              value: /models/huggingface
             - name: HF_HUB_CACHE
-              value: /models/.hf/hub
+              value: /models/huggingface/hub
+            - name: HIP_VISIBLE_DEVICES
+              value: "0"
+            - name: HSA_OVERRIDE_GFX_VERSION
+              value: "11.5.1"
+            - name: HSA_ENABLE_SDMA
+              value: "0"
+            - name: PYTORCH_HIP_ALLOC_CONF
+              value: expandable_segments:True
+            - name: VLLM_USE_V1_ENGINE
+              value: "0"
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
           resources:
             requests:
-              cpu: "8"
-              memory: 16Gi
+              cpu: "4"
+              memory: 12Gi
               amd.com/gpu: 1
             limits:
               cpu: "24"
+              memory: 64Gi
               amd.com/gpu: 1
+          securityContext:
+            capabilities:
+              add:
+                - SYS_PTRACE
           startupProbe:
             httpGet:
               path: /health
@@ -114,10 +96,16 @@ spec:
               mountPath: /models
             - name: dri
               mountPath: /dev/dri
+            - name: kfd
+              mountPath: /dev/kfd
       volumes:
         - name: dri
           hostPath:
             path: /dev/dri
+        - name: kfd
+          hostPath:
+            path: /dev/kfd
+            type: CharDevice
         - name: llm-models
           persistentVolumeClaim:
             claimName: llm-models
