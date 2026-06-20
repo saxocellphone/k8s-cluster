@@ -41,5 +41,6 @@ exec "$PYTHON" -m sglang.launch_server \
   --max-total-tokens "${SGLANG_MAX_TOTAL_TOKENS:-8192}" \
   --max-mamba-cache-size "${SGLANG_MAX_MAMBA_CACHE_SIZE:-16}" \
   --reasoning-parser qwen3 \
+  --default-chat-template-kwargs '{"enable_thinking": false}' \
   --attention-backend triton \
   --disable-cuda-graph
