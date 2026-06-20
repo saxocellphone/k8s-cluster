@@ -51,6 +51,16 @@ spec:
               value: "true"
             - name: ANONYMIZED_TELEMETRY
               value: "false"
+            - name: OFFLINE_MODE
+              value: "true"
+            - name: HF_HUB_OFFLINE
+              value: "1"
+            - name: RAG_EMBEDDING_MODEL_AUTO_UPDATE
+              value: "false"
+            - name: RAG_RERANKING_MODEL_AUTO_UPDATE
+              value: "false"
+            - name: WHISPER_MODEL_AUTO_UPDATE
+              value: "false"
           ports:
             - name: http
               containerPort: 8080
