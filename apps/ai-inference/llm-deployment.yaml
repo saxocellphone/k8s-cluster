@@ -35,14 +35,15 @@ spec:
             - --download-dir
             - /models/huggingface
             - --max-model-len
-            - "4096"
+            - "2048"
             - --gpu-memory-utilization
-            - "0.60"
+            - "0.45"
             - --dtype
             - float16
             - --reasoning-parser
             - qwen3
             - --language-model-only
+            - --enforce-eager
             - --trust-remote-code
           env:
             - name: HF_HOME
