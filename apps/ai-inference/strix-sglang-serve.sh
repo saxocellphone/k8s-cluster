@@ -24,10 +24,13 @@ if [[ ! -f "$READY_MARKER" ]]; then
 fi
 
 mkdir -p /models/tunableop
-# shellcheck disable=SC1091
-source "$VENV_DIR/bin/activate"
+PYTHON="$VENV_DIR/bin/python3"
+if [[ ! -x "$PYTHON" ]]; then
+  echo "SGLang Python runtime missing at $PYTHON" >&2
+  exit 1
+fi
 cd "$SGLANG_DIR"
-exec python3 -m sglang.launch_server \
+exec "$PYTHON" -m sglang.launch_server \
   --model-path "${SGLANG_MODEL:-Qwen/Qwen3.5-4B}" \
   --host 0.0.0.0 \
   --port "${SGLANG_PORT:-8080}" \
