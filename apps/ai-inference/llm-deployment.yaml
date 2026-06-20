@@ -61,8 +61,6 @@ spec:
               value: "2048"
             - name: SGLANG_MEM_FRACTION_STATIC
               value: "0.5"
-            - name: SGLANG_CUDA_GRAPH_MAX_BS
-              value: "8"
           ports:
             - name: http
               containerPort: 8080
