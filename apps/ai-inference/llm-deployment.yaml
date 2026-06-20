@@ -54,8 +54,6 @@ spec:
               value: "0"
             - name: PYTORCH_HIP_ALLOC_CONF
               value: expandable_segments:True
-            - name: VLLM_USE_V1_ENGINE
-              value: "0"
           ports:
             - name: http
               containerPort: 8080
