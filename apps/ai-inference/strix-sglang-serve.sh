@@ -31,13 +31,15 @@ if [[ ! -x "$PYTHON" ]]; then
 fi
 cd "$SGLANG_DIR"
 exec "$PYTHON" -m sglang.launch_server \
-  --model-path "${SGLANG_MODEL:-Qwen/Qwen3.5-4B}" \
+  --model-path "${SGLANG_MODEL:-Qwen/Qwen3.6-27B}" \
   --host 0.0.0.0 \
   --port "${SGLANG_PORT:-8080}" \
   --tp-size 1 \
   --trust-remote-code \
   --context-length "${SGLANG_CONTEXT_LENGTH:-8192}" \
-  --mem-fraction-static "${SGLANG_MEM_FRACTION_STATIC:-0.5}" \
+  --mem-fraction-static "${SGLANG_MEM_FRACTION_STATIC:-0.96}" \
+  --max-total-tokens "${SGLANG_MAX_TOTAL_TOKENS:-8192}" \
+  --max-mamba-cache-size "${SGLANG_MAX_MAMBA_CACHE_SIZE:-16}" \
   --reasoning-parser qwen3 \
   --attention-backend triton \
   --disable-cuda-graph
