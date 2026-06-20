@@ -92,17 +92,17 @@ cp "$REPO_DIR/patches/awq_moe_rocm_repack.py" \
 cd "$SGLANG_DIR/sgl-kernel"
 AMDGPU_TARGET=gfx1151 python3 setup_rocm.py develop
 
-python3 -m venv --system-site-packages "$VENV_DIR"
-# shellcheck disable=SC1091
-source "$VENV_DIR/bin/activate"
+cp -a /opt/venv "$VENV_DIR"
+PYTHON="$VENV_DIR/bin/python3"
+PIP="$PYTHON -m pip"
 
 cd "$SGLANG_DIR"
 cp python/pyproject_other.toml python/pyproject.toml
 sed -i 's/compressed-tensors==0.15.0/compressed-tensors>=0.16.0/' python/pyproject.toml
-python3 -c "import torch, torchvision; open('$CONSTRAINTS','w').write(f'torch=={torch.__version__}\ntorchvision=={torchvision.__version__}\n')"
-PIP_CONSTRAINT="$CONSTRAINTS" pip install -e 'python[srt_hip]' --no-build-isolation
+"$PYTHON" -c "import torch, torchvision; open('$CONSTRAINTS','w').write(f'torch=={torch.__version__}\ntorchvision=={torchvision.__version__}\n')"
+PIP_CONSTRAINT="$CONSTRAINTS" $PIP install -e 'python[srt_hip]' --no-build-isolation
 
-python3 - <<'PY'
+"$PYTHON" - <<'PY'
 import torch
 import sgl_kernel
 ops = [name for name in torch._C._dispatch_get_all_op_names() if name.startswith('sgl_kernel')]
