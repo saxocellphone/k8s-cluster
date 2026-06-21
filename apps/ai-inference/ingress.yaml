@@ -4,6 +4,7 @@ metadata:
   name: ai-inference
   namespace: ai-inference
   annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
