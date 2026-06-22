@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hipfire
+  namespace: ai-inference
+  labels:
+    app: hipfire
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hipfire
+  template:
+    metadata:
+      labels:
+        app: hipfire
+    spec:
+      nodeSelector:
+        accelerator: amd-strix-halo
+      containers:
+        - name: hipfire
+          image: ghcr.io/saxocellphone/hipfire-gfx1151:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HIPFIRE_MODEL
+              value: qwen3.6:27b
+          ports:
+            - name: http
+              containerPort: 11435
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "4"
+              memory: 8Gi
+              amd.com/gpu: 1
+            limits:
+              cpu: "24"
+              memory: 64Gi
+              amd.com/gpu: 1
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 180
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: llm-models
+              mountPath: /models
+            - name: dri
+              mountPath: /dev/dri
+            - name: kfd
+              mountPath: /dev/kfd
+      volumes:
+        - name: dri
+          hostPath:
+            path: /dev/dri
+        - name: kfd
+          hostPath:
+            path: /dev/kfd
+            type: CharDevice
+        - name: llm-models
+          persistentVolumeClaim:
+            claimName: llm-models

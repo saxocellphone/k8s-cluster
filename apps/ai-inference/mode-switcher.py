@@ -18,6 +18,7 @@ API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
 
 WORKLOADS = {
     "llm": {"namespace": AI_NAMESPACE, "deployment": "llm", "label_selector": "app=llm"},
+    "hipfire": {"namespace": AI_NAMESPACE, "deployment": "hipfire", "label_selector": "app=hipfire"},
     "comfyui": {"namespace": AI_NAMESPACE, "deployment": "comfyui", "label_selector": "app=comfyui"},
     "wolf": {"namespace": GAMING_NAMESPACE, "deployment": GAMING_DEPLOYMENT, "label_selector": f"app={GAMING_DEPLOYMENT}"},
 }
@@ -111,6 +112,8 @@ def status():
     mode = "off"
     if active == ["llm"]:
         mode = "llm"
+    elif active == ["hipfire"]:
+        mode = "hipfire"
     elif active == ["comfyui"]:
         mode = "image"
     elif active == ["wolf"]:
@@ -123,19 +126,28 @@ def status():
 
 def set_mode(mode):
     if mode == "llm":
+        scale("hipfire", 0)
         scale("comfyui", 0)
         scale("wolf", 0)
         scale("llm", 1)
+    elif mode == "hipfire":
+        scale("llm", 0)
+        scale("comfyui", 0)
+        scale("wolf", 0)
+        scale("hipfire", 1)
     elif mode == "image":
         scale("llm", 0)
+        scale("hipfire", 0)
         scale("wolf", 0)
         scale("comfyui", 1)
     elif mode == "gaming":
         scale("llm", 0)
+        scale("hipfire", 0)
         scale("comfyui", 0)
         scale("wolf", 1)
     elif mode == "off":
         scale("llm", 0)
+        scale("hipfire", 0)
         scale("comfyui", 0)
         scale("wolf", 0)
     else:
@@ -176,14 +188,16 @@ def html():
 <body>
   <h1>AI Mode Switcher</h1>
   <p>Current mode: <span class="mode">{s['mode']}</span></p>
-  <form method="post" action="/mode/llm"><button class="primary">LLM mode</button></form>
+  <form method="post" action="/mode/llm"><button class="primary">SGLang LLM mode</button></form>
+  <form method="post" action="/mode/hipfire"><button class="primary">HIPFire LLM mode</button></form>
   <form method="post" action="/mode/image"><button class="primary">Image mode</button></form>
   <form method="post" action="/mode/gaming"><button class="primary">Gaming mode</button></form>
   <form method="post" action="/mode/off"><button>Off</button></form>
   <form method="get" action="/"><button>Refresh</button></form>
   <div class="warn">
-    This node has one schedulable GPU. LLM mode uses <code>llm.k8s.home</code>.
-    Image mode uses <code>comfyui.k8s.home</code>. Gaming mode starts Wolf for Moonlight.
+    This node has one schedulable GPU. SGLang LLM mode uses <code>llm.k8s.home</code>.
+    HIPFire mode uses <code>hipfire.k8s.home</code>. Image mode uses <code>comfyui.k8s.home</code>.
+    Gaming mode starts Wolf for Moonlight.
   </div>
   <h2>Deployments</h2>
   <table><thead><tr><th>Namespace</th><th>Name</th><th>Deployment</th><th>Desired</th><th>Ready</th><th>Available</th><th>Updated</th></tr></thead><tbody>{deploy_rows}</tbody></table>
