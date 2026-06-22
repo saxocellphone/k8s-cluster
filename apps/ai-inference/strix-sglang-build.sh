@@ -14,7 +14,7 @@ ROOT=/models/strix-halo-sglang
 REPO_DIR="$ROOT/strix-halo-sglang"
 SGLANG_DIR="$ROOT/sglang"
 VENV_DIR="$ROOT/venv"
-READY_MARKER="$ROOT/.ready-b0b8436f1c031caba61c4cadb10d22ba097cd960"
+READY_MARKER="$ROOT/.ready-b0b8436f1c031caba61c4cadb10d22ba097cd960-strix-hip-graph-v1"
 CONSTRAINTS=/tmp/rocm-constraints.txt
 
 if [[ -f "$READY_MARKER" ]]; then
@@ -84,6 +84,49 @@ text = path.read_text()
 if old not in text:
     raise RuntimeError('layernorm hip block not found; upstream layout changed')
 path.write_text(text.replace(old, new))
+PY
+
+python3 - <<'PY'
+from pathlib import Path
+
+path = Path('/models/strix-halo-sglang/sglang/python/sglang/srt/models/qwen3_next.py')
+text = path.read_text()
+
+if 'import os\n' not in text:
+    text = text.replace('import enum\n', 'import enum\nimport os\n', 1)
+
+old_qk = 'if self.alt_stream is not None and get_is_capture_mode():'
+new_qk = '''if (
+            self.alt_stream is not None
+            and get_is_capture_mode()
+            and not (
+                _is_hip
+                and os.environ.get("SGLANG_HIP_CAPTURE_SINGLE_STREAM", "1") == "1"
+            )
+        ):'''
+if old_qk not in text:
+    raise RuntimeError('qwen3_next q/k norm capture branch not found; upstream layout changed')
+text = text.replace(old_qk, new_qk, 1)
+
+old_gdn = '''if (
+            self.alt_stream is not None
+            and get_is_capture_mode()
+            and seq_len < DUAL_STREAM_TOKEN_THRESHOLD
+        ):'''
+new_gdn = '''if (
+            self.alt_stream is not None
+            and get_is_capture_mode()
+            and not (
+                _is_hip
+                and os.environ.get("SGLANG_HIP_CAPTURE_SINGLE_STREAM", "1") == "1"
+            )
+            and seq_len < DUAL_STREAM_TOKEN_THRESHOLD
+        ):'''
+if old_gdn not in text:
+    raise RuntimeError('qwen3_next GDN capture branch not found; upstream layout changed')
+text = text.replace(old_gdn, new_gdn, 1)
+
+path.write_text(text)
 PY
 
 cp "$REPO_DIR/patches/awq_moe_rocm_repack.py" \
