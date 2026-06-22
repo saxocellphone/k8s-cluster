@@ -67,7 +67,7 @@ done
 if [[ ! -e "$HOME/.hipfire/cli/index.ts" ]]; then
   cp -R /opt/hipfire/cli/. "$HOME/.hipfire/cli/"
 fi
-exec /root/.bun/bin/bun run "$HOME/.hipfire/cli/index.ts" "$@"
+exec "$HOME/.bun/bin/bun" run "$HOME/.hipfire/cli/index.ts" "$@"
 EOF
 RUN chmod +x /usr/local/bin/hipfire
 
