@@ -24,7 +24,7 @@ spec:
       containers:
         - name: hipfire
           image: ghcr.io/saxocellphone/hipfire-gfx1151:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: HIPFIRE_MODEL
               value: qwen3.6:27b
