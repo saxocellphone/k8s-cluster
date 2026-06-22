@@ -21,6 +21,12 @@ spec:
         - /spec/replicas
     - group: apps
       kind: Deployment
+      name: hipfire
+      namespace: ai-inference
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: Deployment
       name: comfyui
       namespace: ai-inference
       jsonPointers:
