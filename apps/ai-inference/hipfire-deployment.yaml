@@ -17,6 +17,8 @@ spec:
       labels:
         app: hipfire
     spec:
+      imagePullSecrets:
+        - name: ghcr-saxocellphone
       nodeSelector:
         accelerator: amd-strix-halo
       containers:
