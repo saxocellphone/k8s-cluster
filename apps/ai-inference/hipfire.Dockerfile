@@ -37,6 +37,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN curl -fsSL https://bun.sh/install | bash
 
+RUN mkdir -p /opt/bun/bin && cp /models/hipfire-home/.bun/bin/bun /opt/bun/bin/bun && ln -sf /opt/bun/bin/bun /opt/bun/bin/bunx
+
 COPY --from=builder /src/target/release/examples/daemon /opt/hipfire/bin/daemon
 COPY --from=builder /src/target/release/examples/infer /opt/hipfire/bin/infer
 COPY --from=builder /src/target/release/examples/infer_hfq /opt/hipfire/bin/infer_hfq
@@ -67,7 +69,7 @@ done
 if [[ ! -e "$HOME/.hipfire/cli/index.ts" ]]; then
   cp -R /opt/hipfire/cli/. "$HOME/.hipfire/cli/"
 fi
-exec "$HOME/.bun/bin/bun" run "$HOME/.hipfire/cli/index.ts" "$@"
+exec /opt/bun/bin/bun run "$HOME/.hipfire/cli/index.ts" "$@"
 EOF
 RUN chmod +x /usr/local/bin/hipfire
 
