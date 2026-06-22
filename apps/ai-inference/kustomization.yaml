@@ -8,6 +8,8 @@ resources:
   - llm-pvc.yaml
   - llm-deployment.yaml
   - llm-service.yaml
+  - hipfire-deployment.yaml
+  - hipfire-service.yaml
   - open-webui-pvc.yaml
   - open-webui-deployment.yaml
   - open-webui-service.yaml

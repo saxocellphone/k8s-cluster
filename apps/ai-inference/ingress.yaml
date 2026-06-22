@@ -30,6 +30,16 @@ spec:
                 name: llm
                 port:
                   number: 8080
+    - host: hipfire.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hipfire
+                port:
+                  number: 11435
     - host: chat.k8s.home
       http:
         paths:
