@@ -3,17 +3,32 @@ import json
 import os
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-NAMESPACE = os.environ.get("NAMESPACE", "ai-inference")
+AI_NAMESPACE = os.environ.get("AI_NAMESPACE", os.environ.get("NAMESPACE", "ai-inference"))
+GAMING_NAMESPACE = os.environ.get("GAMING_NAMESPACE", "gaming")
+GAMING_DEPLOYMENT = os.environ.get("GAMING_DEPLOYMENT", "wolf")
 PORT = int(os.environ.get("PORT", "8080"))
 TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 API_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
 API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
-API_BASE = f"https://{API_HOST}:{API_PORT}/apis/apps/v1/namespaces/{NAMESPACE}"
-CORE_BASE = f"https://{API_HOST}:{API_PORT}/api/v1/namespaces/{NAMESPACE}"
+
+WORKLOADS = {
+    "llm": {"namespace": AI_NAMESPACE, "deployment": "llm", "label_selector": "app=llm"},
+    "comfyui": {"namespace": AI_NAMESPACE, "deployment": "comfyui", "label_selector": "app=comfyui"},
+    "wolf": {"namespace": GAMING_NAMESPACE, "deployment": GAMING_DEPLOYMENT, "label_selector": f"app={GAMING_DEPLOYMENT}"},
+}
+
+
+def apps_base(namespace):
+    return f"https://{API_HOST}:{API_PORT}/apis/apps/v1/namespaces/{namespace}"
+
+
+def core_base(namespace):
+    return f"https://{API_HOST}:{API_PORT}/api/v1/namespaces/{namespace}"
 
 
 def token():
@@ -38,63 +53,91 @@ def request_json(method, url, body=None):
 
 
 def scale(name, replicas):
+    workload = WORKLOADS[name]
     return request_json(
         "PATCH",
-        f"{API_BASE}/deployments/{name}/scale",
+        f"{apps_base(workload['namespace'])}/deployments/{workload['deployment']}/scale",
         {"spec": {"replicas": replicas}},
     )
 
 
 def deployment(name):
-    return request_json("GET", f"{API_BASE}/deployments/{name}")
+    workload = WORKLOADS[name]
+    return request_json(
+        "GET",
+        f"{apps_base(workload['namespace'])}/deployments/{workload['deployment']}",
+    )
 
 
-def pods():
-    return request_json("GET", f"{CORE_BASE}/pods?labelSelector=app%20in%20(llm,comfyui)")
+def pods(name):
+    workload = WORKLOADS[name]
+    query = urllib.parse.urlencode({"labelSelector": workload["label_selector"]})
+    return request_json("GET", f"{core_base(workload['namespace'])}/pods?{query}")
+
+
+def deployment_status(name):
+    workload = WORKLOADS[name]
+    d = deployment(name)
+    return {
+        "namespace": workload["namespace"],
+        "deployment": workload["deployment"],
+        "replicas": d.get("spec", {}).get("replicas", 0),
+        "ready": d.get("status", {}).get("readyReplicas", 0),
+        "available": d.get("status", {}).get("availableReplicas", 0),
+        "updated": d.get("status", {}).get("updatedReplicas", 0),
+    }
 
 
 def status():
-    deployments = {}
-    for name in ("llm", "comfyui"):
-        d = deployment(name)
-        deployments[name] = {
-            "replicas": d.get("spec", {}).get("replicas", 0),
-            "ready": d.get("status", {}).get("readyReplicas", 0),
-            "available": d.get("status", {}).get("availableReplicas", 0),
-            "updated": d.get("status", {}).get("updatedReplicas", 0),
-        }
+    deployments = {name: deployment_status(name) for name in WORKLOADS}
     pod_rows = []
-    for pod in pods().get("items", []):
-        statuses = pod.get("status", {}).get("containerStatuses", [])
-        init_statuses = pod.get("status", {}).get("initContainerStatuses", [])
-        restarts = sum(s.get("restartCount", 0) for s in statuses + init_statuses)
-        pod_rows.append({
-            "name": pod.get("metadata", {}).get("name"),
-            "app": pod.get("metadata", {}).get("labels", {}).get("app"),
-            "phase": pod.get("status", {}).get("phase"),
-            "ready": sum(1 for s in statuses if s.get("ready")),
-            "containers": len(statuses),
-            "restarts": restarts,
-            "node": pod.get("spec", {}).get("nodeName", ""),
-        })
+    for name in WORKLOADS:
+        for pod in pods(name).get("items", []):
+            statuses = pod.get("status", {}).get("containerStatuses", [])
+            init_statuses = pod.get("status", {}).get("initContainerStatuses", [])
+            restarts = sum(s.get("restartCount", 0) for s in statuses + init_statuses)
+            pod_rows.append({
+                "namespace": pod.get("metadata", {}).get("namespace"),
+                "name": pod.get("metadata", {}).get("name"),
+                "app": pod.get("metadata", {}).get("labels", {}).get("app"),
+                "phase": pod.get("status", {}).get("phase"),
+                "ready": sum(1 for s in statuses if s.get("ready")),
+                "containers": len(statuses),
+                "restarts": restarts,
+                "node": pod.get("spec", {}).get("nodeName", ""),
+            })
+
+    active = [name for name, d in deployments.items() if d["replicas"] > 0]
     mode = "off"
-    if deployments["llm"]["replicas"] > 0:
+    if active == ["llm"]:
         mode = "llm"
-    if deployments["comfyui"]["replicas"] > 0:
-        mode = "image" if mode == "off" else "mixed"
+    elif active == ["comfyui"]:
+        mode = "image"
+    elif active == ["wolf"]:
+        mode = "gaming"
+    elif active:
+        mode = "mixed"
+
     return {"mode": mode, "deployments": deployments, "pods": pod_rows}
 
 
 def set_mode(mode):
     if mode == "llm":
-        scale("llm", 1)
         scale("comfyui", 0)
+        scale("wolf", 0)
+        scale("llm", 1)
     elif mode == "image":
         scale("llm", 0)
+        scale("wolf", 0)
         scale("comfyui", 1)
+    elif mode == "gaming":
+        scale("llm", 0)
+        scale("comfyui", 0)
+        scale("wolf", 1)
     elif mode == "off":
         scale("llm", 0)
         scale("comfyui", 0)
+        scale("wolf", 0)
     else:
         raise ValueError(f"unknown mode: {mode}")
     return status()
@@ -103,13 +146,13 @@ def set_mode(mode):
 def html():
     s = status()
     rows = "".join(
-        f"<tr><td>{p['name']}</td><td>{p['app']}</td><td>{p['phase']}</td>"
+        f"<tr><td>{p['namespace']}</td><td>{p['name']}</td><td>{p['app']}</td><td>{p['phase']}</td>"
         f"<td>{p['ready']}/{p['containers']}</td><td>{p['restarts']}</td><td>{p['node']}</td></tr>"
         for p in s["pods"]
-    ) or '<tr><td colspan="6">No AI backend pods running.</td></tr>'
+    ) or '<tr><td colspan="7">No GPU workload pods running.</td></tr>'
     deploy_rows = "".join(
-        f"<tr><td>{name}</td><td>{d['replicas']}</td><td>{d['ready']}</td>"
-        f"<td>{d['available']}</td><td>{d['updated']}</td></tr>"
+        f"<tr><td>{d['namespace']}</td><td>{name}</td><td>{d['deployment']}</td><td>{d['replicas']}</td>"
+        f"<td>{d['ready']}</td><td>{d['available']}</td><td>{d['updated']}</td></tr>"
         for name, d in s["deployments"].items()
     )
     return f"""<!doctype html>
@@ -119,7 +162,7 @@ def html():
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI Mode Switcher</title>
   <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 2rem; max-width: 960px; }}
+    body {{ font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 2rem; max-width: 1040px; }}
     .mode {{ display: inline-block; padding: .25rem .6rem; border-radius: 999px; background: #eef; font-weight: 700; }}
     form {{ display: inline-block; margin: .4rem .4rem .4rem 0; }}
     button {{ font-size: 1rem; padding: .7rem 1rem; border-radius: .5rem; border: 1px solid #999; cursor: pointer; }}
@@ -135,16 +178,17 @@ def html():
   <p>Current mode: <span class="mode">{s['mode']}</span></p>
   <form method="post" action="/mode/llm"><button class="primary">LLM mode</button></form>
   <form method="post" action="/mode/image"><button class="primary">Image mode</button></form>
+  <form method="post" action="/mode/gaming"><button class="primary">Gaming mode</button></form>
   <form method="post" action="/mode/off"><button>Off</button></form>
   <form method="get" action="/"><button>Refresh</button></form>
   <div class="warn">
     This node has one schedulable GPU. LLM mode uses <code>llm.k8s.home</code>.
-    Image mode uses <code>comfyui.k8s.home</code>.
+    Image mode uses <code>comfyui.k8s.home</code>. Gaming mode starts Wolf for Moonlight.
   </div>
   <h2>Deployments</h2>
-  <table><thead><tr><th>Name</th><th>Desired</th><th>Ready</th><th>Available</th><th>Updated</th></tr></thead><tbody>{deploy_rows}</tbody></table>
+  <table><thead><tr><th>Namespace</th><th>Name</th><th>Deployment</th><th>Desired</th><th>Ready</th><th>Available</th><th>Updated</th></tr></thead><tbody>{deploy_rows}</tbody></table>
   <h2>Pods</h2>
-  <table><thead><tr><th>Name</th><th>App</th><th>Phase</th><th>Ready</th><th>Restarts</th><th>Node</th></tr></thead><tbody>{rows}</tbody></table>
+  <table><thead><tr><th>Namespace</th><th>Name</th><th>App</th><th>Phase</th><th>Ready</th><th>Restarts</th><th>Node</th></tr></thead><tbody>{rows}</tbody></table>
 </body>
 </html>""".encode("utf-8")
 

@@ -31,3 +31,31 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: mode-switcher
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-mode-switcher-gaming
+  namespace: gaming
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    resourceNames: ["wolf"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-mode-switcher-gaming
+  namespace: gaming
+subjects:
+  - kind: ServiceAccount
+    name: mode-switcher
+    namespace: ai-inference
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ai-mode-switcher-gaming
