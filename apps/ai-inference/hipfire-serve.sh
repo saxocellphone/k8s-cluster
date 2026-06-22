@@ -23,6 +23,9 @@ fi
 hipfire config set host 0.0.0.0
 hipfire config set port 11435
 hipfire config set default_model "$MODEL"
+hipfire config set thinking off
+hipfire config set max_think_tokens 0
+hipfire config set max_tokens 256
 
 if ! hipfire list | grep -F "$MODEL" >/dev/null 2>&1; then
   hipfire pull "$MODEL"
