@@ -68,9 +68,11 @@ spec:
               mountPath: /dev/input
             - name: run-udev
               mountPath: /run/udev
+            - name: dev
+              mountPath: /dev
         - name: wolf
           image: ghcr.io/games-on-whales/wolf:stable
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             privileged: true
           env:
@@ -84,6 +86,16 @@ spec:
               value: /dev/dri/renderD128
             - name: WOLF_ENCODER_NODE
               value: /dev/dri/renderD128
+            # Wolf advertises AV1 to Moonlight only after GStreamer finds a
+            # non-software encoder. Prefer AMD's Mesa VAAPI path on Strix Halo.
+            - name: LIBVA_DRIVER_NAME
+              value: radeonsi
+            - name: GST_VAAPI_ALL_DRIVERS
+              value: "1"
+            - name: WOLF_LOG_LEVEL
+              value: DEBUG
+            - name: GST_DEBUG
+              value: "2"
             - name: WOLF_STOP_CONTAINER_ON_EXIT
               value: "TRUE"
             - name: WOLF_USE_ZERO_COPY
@@ -160,6 +172,8 @@ spec:
               mountPath: /dev/input
             - name: run-udev
               mountPath: /run/udev
+            - name: dev
+              mountPath: /dev
       volumes:
         - name: wolf-state
           persistentVolumeClaim:
@@ -190,6 +204,10 @@ spec:
         - name: dev-input
           hostPath:
             path: /dev/input
+            type: Directory
+        - name: dev
+          hostPath:
+            path: /dev
             type: Directory
         - name: run-udev
           hostPath:
