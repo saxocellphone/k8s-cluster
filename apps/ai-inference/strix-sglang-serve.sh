@@ -17,7 +17,7 @@ export SGLANG_HIP_CAPTURE_SINGLE_STREAM="${SGLANG_HIP_CAPTURE_SINGLE_STREAM:-1}"
 ROOT=/models/strix-halo-sglang
 VENV_DIR="$ROOT/venv"
 SGLANG_DIR="$ROOT/sglang"
-READY_MARKER="$ROOT/.ready-b0b8436f1c031caba61c4cadb10d22ba097cd960-strix-awq-v1"
+READY_MARKER="$ROOT/.ready-b0b8436f1c031caba61c4cadb10d22ba097cd960-strix-hip-graph-v1"
 
 if [[ ! -f "$READY_MARKER" ]]; then
   echo "SGLang runtime is not built. Missing $READY_MARKER" >&2
@@ -46,13 +46,6 @@ BASE_ARGS=(
   --reasoning-parser qwen3
   --attention-backend triton
 )
-
-if [[ -n "${SGLANG_QUANTIZATION:-}" ]]; then
-  BASE_ARGS+=(--quantization "$SGLANG_QUANTIZATION")
-fi
-if [[ -n "${SGLANG_KV_CACHE_DTYPE:-}" ]]; then
-  BASE_ARGS+=(--kv-cache-dtype "$SGLANG_KV_CACHE_DTYPE")
-fi
 
 graph_args() {
   case "${SGLANG_CUDA_GRAPH_MODE:-decode}" in

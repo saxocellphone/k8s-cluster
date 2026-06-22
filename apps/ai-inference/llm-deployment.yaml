@@ -58,7 +58,7 @@ spec:
           command: ["/bin/bash", "/scripts/strix-sglang-serve.sh"]
           env:
             - name: SGLANG_MODEL
-              value: mattbucci/Qwen3.6-27B-AWQ
+              value: Qwen/Qwen3.6-27B
             - name: SGLANG_CONTEXT_LENGTH
               value: "8192"
             - name: SGLANG_MEM_FRACTION_STATIC
@@ -67,10 +67,6 @@ spec:
               value: "8192"
             - name: SGLANG_MAX_MAMBA_CACHE_SIZE
               value: "16"
-            - name: SGLANG_QUANTIZATION
-              value: awq
-            - name: SGLANG_KV_CACHE_DTYPE
-              value: bfloat16
             - name: SGLANG_HIP_CAPTURE_SINGLE_STREAM
               value: "1"
             - name: SGLANG_CUDA_GRAPH_MODE

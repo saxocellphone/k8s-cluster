@@ -14,7 +14,7 @@ ROOT=/models/strix-halo-sglang
 REPO_DIR="$ROOT/strix-halo-sglang"
 SGLANG_DIR="$ROOT/sglang"
 VENV_DIR="$ROOT/venv"
-READY_MARKER="$ROOT/.ready-b0b8436f1c031caba61c4cadb10d22ba097cd960-strix-awq-v1"
+READY_MARKER="$ROOT/.ready-b0b8436f1c031caba61c4cadb10d22ba097cd960-strix-hip-graph-v1"
 CONSTRAINTS=/tmp/rocm-constraints.txt
 
 if [[ -f "$READY_MARKER" ]]; then
@@ -127,24 +127,6 @@ if old_gdn not in text:
 text = text.replace(old_gdn, new_gdn, 1)
 
 path.write_text(text)
-PY
-
-python3 - <<'PY'
-from pathlib import Path
-
-path = Path('/models/strix-halo-sglang/sglang/python/sglang/srt/layers/quantization/awq/awq.py')
-text = path.read_text()
-old = '''        modules_to_not_convert = cls.get_from_keys_or(
-            config, ["modules_to_not_convert"], None
-        )
-        return cls(weight_bits, group_size, zero_point, modules_to_not_convert)'''
-new = '''        modules_to_not_convert = cls.get_from_keys_or(
-            config, ["modules_to_not_convert", "ignore"], None
-        )
-        return cls(weight_bits, group_size, zero_point, modules_to_not_convert)'''
-if old not in text:
-    raise RuntimeError('AWQConfig modules_to_not_convert parser block not found; upstream layout changed')
-path.write_text(text.replace(old, new, 1))
 PY
 
 cp "$REPO_DIR/patches/awq_moe_rocm_repack.py" \
