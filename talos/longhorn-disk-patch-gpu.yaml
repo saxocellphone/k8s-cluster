@@ -35,9 +35,6 @@ machine:
       - name: amdgpu
       - name: uinput
       - name: uhid
-  # Steam's current Linux client requires unprivileged user namespaces.
-  sysctls:
-    user.max_user_namespaces: "15000"
 # NOTE: worker.yaml carries `install.disk: /dev/sda` as a default. Strategic
 # merge can't remove that key, and JSON6902 patches don't combine with the
 # UserVolumeConfig multi-doc below. Render with `talosctl machineconfig
