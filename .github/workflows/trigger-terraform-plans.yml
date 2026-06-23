@@ -1,0 +1,47 @@
+name: Trigger Terraform Plans
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - terraform/**
+      - .github/workflows/trigger-terraform-plans.yml
+  workflow_dispatch:
+    inputs:
+      module:
+        description: Terraform module to plan
+        required: true
+        type: choice
+        options:
+          - all
+          - proxmox
+          - cloudflare
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch private Terraform plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine module
+        id: module
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            printf 'module=%s\n' "${{ inputs.module }}" >> "$GITHUB_OUTPUT"
+          else
+            printf 'module=all\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger private ops workflow
+        env:
+          GH_TOKEN: ${{ secrets.OPS_REPO_DISPATCH_TOKEN }}
+          MODULE: ${{ steps.module.outputs.module }}
+          REF: ${{ github.sha }}
+        run: |
+          gh api repos/saxocellphone/k8s-cluster-ops/dispatches \
+            --method POST \
+            -f event_type=terraform-plan \
+            -f client_payload[module]="$MODULE" \
+            -f client_payload[ref]="$REF"
