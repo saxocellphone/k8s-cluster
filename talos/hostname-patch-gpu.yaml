@@ -9,3 +9,5 @@ machine:
     hostname: talos-gpu-01
   nodeLabels:
     accelerator: amd-strix-halo
+  nodeTaints:
+    accelerator: amd-strix-halo:NoSchedule
