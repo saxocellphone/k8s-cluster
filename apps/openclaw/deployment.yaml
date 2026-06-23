@@ -159,13 +159,15 @@ spec:
           c.agents.defaults.sandbox = c.agents.defaults.sandbox || {};
           c.agents.defaults.sandbox.browser = c.agents.defaults.sandbox.browser || {};
           c.agents.defaults.sandbox.browser.allowHostControl = true;
-          // Pin default model to Grok 4.3 via xAI provider. Auth comes from
-          // XAI_API_KEY env var on the gateway container. Use the object form
-          // with an empty `fallbacks` list to DISABLE the built-in model
-          // failover: otherwise a transient grok stall fails over to the
-          // default openai model, which (no OpenAI key) reuses the xAI key
-          // against platform.openai.com and 401s, killing the run.
-          c.agents.defaults.model = { primary: "local/qwen3-235b-a22b-instruct", fallbacks: ["xai/grok-4.3"] };
+          // Agent model: Grok 4.3 via the xAI provider (auth from XAI_API_KEY).
+          // The local qwen3-235b only serves an 8k context window — too small for
+          // this agent's MCP tool schemas + conversation, so OpenClaw's auto-
+          // compaction runs out of room ("could not recover this turn"). Grok's
+          // large context handles the cluster-ops workload. Empty `fallbacks`
+          // DISABLES failover: a transient stall must not fall back to the openai
+          // default (no key -> reuses the xAI key against platform.openai.com and
+          // 401s) nor to the context-limited local model.
+          c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
           // The morning briefing does substantial web research and then writes
           // to Notion, which exceeds the default agent-turn / stuck-session
           // watchdog (~520s) and gets aborted mid-run. Give it generous
@@ -278,7 +280,7 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=local/qwen3-235b-a22b-instruct fallback=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: NOTION_TOKEN
           valueFrom:
