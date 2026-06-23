@@ -1,0 +1,90 @@
+rules:
+  - id: python-subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: Avoid subprocess calls with shell=True; they can allow command injection.
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.$FUNC(..., shell=True, ...)
+          - pattern: subprocess.$FUNC(..., shell=$TRUE, ...)
+      - metavariable-pattern:
+          metavariable: $TRUE
+          pattern: "True"
+    metadata:
+      category: security
+      cwe: "CWE-78: OS Command Injection"
+      confidence: high
+
+  - id: python-requests-disable-tls-verification
+    languages: [python]
+    severity: WARNING
+    message: Do not disable TLS certificate verification in HTTP clients.
+    pattern-either:
+      - pattern: requests.$METHOD(..., verify=False, ...)
+      - pattern: httpx.$METHOD(..., verify=False, ...)
+    metadata:
+      category: security
+      cwe: "CWE-295: Improper Certificate Validation"
+      confidence: high
+
+  - id: kubernetes-plaintext-secret
+    languages: [yaml]
+    severity: ERROR
+    message: Kubernetes Secret data/stringData must be SOPS-encrypted before commit.
+    patterns:
+      - pattern-inside: |
+          kind: Secret
+          ...
+      - pattern-either:
+          - pattern: |
+              data:
+                $KEY: $VALUE
+          - pattern: |
+              stringData:
+                $KEY: $VALUE
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: '^(?!ENC\[AES256_GCM,).+'
+    paths:
+      include:
+        - "**/*secret*.yaml"
+    metadata:
+      category: security
+      cwe: "CWE-312: Cleartext Storage of Sensitive Information"
+      confidence: high
+
+  - id: kubernetes-privileged-container
+    languages: [yaml]
+    severity: WARNING
+    message: Privileged containers should be limited to namespaces that intentionally opt into privileged PodSecurity.
+    pattern: |
+      privileged: true
+    metadata:
+      category: security
+      confidence: medium
+
+  - id: kubernetes-hostpath-volume
+    languages: [yaml]
+    severity: WARNING
+    message: hostPath volumes expose node filesystems; verify this is intentional and namespace PodSecurity is privileged.
+    pattern: |
+      hostPath:
+        ...
+    metadata:
+      category: security
+      confidence: medium
+
+  - id: github-actions-pull-request-target
+    languages: [yaml]
+    severity: ERROR
+    message: pull_request_target can expose repository secrets to untrusted PR code. Use pull_request unless this is intentional.
+    pattern: |
+      pull_request_target:
+    paths:
+      include:
+        - "/.github/workflows/*.yml"
+        - "/.github/workflows/*.yaml"
+    metadata:
+      category: security
+      cwe: "CWE-829: Inclusion of Functionality from Untrusted Control Sphere"
+      confidence: high

@@ -2,14 +2,26 @@
 key.txt
 *.dec.yaml
 *.conf
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
 
 # Kubeconfig and Talos config
 kubeconfig
 talosconfig
+*_kubeconfig.yaml
+*-kubeconfig.yaml
 _out/talosconfig
 
 # Argo CD API token
 .argocd-token
+.argocd-token.*
 
 # Local notes (kept out of the repo)
 notes/
@@ -23,8 +35,11 @@ notes/
 *.tfstate
 *.tfstate.*
 *.tfvars
+*.tfvars.json
 *.tfplan
 .terraformrc
+crash.log
+crash.*.log
 clara-kubeconfig.yaml
 __pycache__/
 *.pyc
