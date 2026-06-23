@@ -5,6 +5,13 @@ metadata:
   namespace: actions-runner
   labels:
     app: homelab-infra-runner
+  annotations:
+    checkov.io/skip1: CKV_K8S_35=The runner registration token is required by config.sh/run.sh as an environment variable and is masked by GitHub Actions.
+    checkov.io/skip2: CKV_K8S_8=Long-running GitHub runner and rootless Docker sidecar do not expose a useful HTTP health endpoint.
+    checkov.io/skip3: CKV_K8S_9=Long-running GitHub runner and rootless Docker sidecar do not expose a useful HTTP readiness endpoint.
+    checkov.io/skip4: CKV_K8S_22=Runner and rootless Docker need writable work, home, and runtime filesystems.
+    checkov.io/skip5: CKV_K8S_43=Runner/Docker images are version-pinned; digest pinning is tracked separately to keep upgrades manageable.
+    checkov.io/skip6: CKV_K8S_40=actions-runner and docker rootless images require their built-in users.
 spec:
   replicas: 1
   strategy:
@@ -39,7 +46,7 @@ spec:
       initContainers:
         - name: configure-runner
           image: ghcr.io/actions/actions-runner:2.330.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command:
             - /bin/bash
             - -ceu
@@ -68,6 +75,13 @@ spec:
                 secretKeyRef:
                   name: actions-runner-token
                   key: token
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           volumeMounts:
             - name: runner-home
               mountPath: /runner-home
@@ -83,7 +97,7 @@ spec:
       containers:
         - name: docker
           image: docker:29-dind-rootless
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: DOCKER_TLS_CERTDIR
               value: ""
@@ -104,9 +118,11 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
         - name: runner
           image: ghcr.io/actions/actions-runner:2.330.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command:
             - /bin/bash
             - -ceu
