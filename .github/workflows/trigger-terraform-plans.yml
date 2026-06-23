@@ -1,4 +1,4 @@
-name: Trigger Terraform Plans
+name: Trigger Terraform Apply
 
 on:
   push:
@@ -12,11 +12,11 @@ permissions:
 
 jobs:
   dispatch:
-    name: Dispatch private Terraform plan
+    name: Dispatch private Terraform apply
     runs-on: ubuntu-latest
     env:
       MODULE: all
-      REF: ${{ github.sha }}
+      REF: main
     steps:
       - name: Trigger private ops workflow
         env:
@@ -24,6 +24,6 @@ jobs:
         run: |
           gh api repos/saxocellphone/k8s-cluster-ops/dispatches \
             --method POST \
-            -f event_type=terraform-plan \
+            -f event_type=terraform-apply \
             -f client_payload[module]="$MODULE" \
             -f client_payload[ref]="$REF"
