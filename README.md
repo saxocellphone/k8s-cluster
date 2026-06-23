@@ -1,5 +1,7 @@
 # k8s-cluster
 
+# Test PR from Aoi 🐸
+
 GitOps repository for a homelab Kubernetes cluster managed by [Argo CD](https://argo-cd.readthedocs.io/).
 
 ## Cluster Overview
@@ -50,6 +52,12 @@ k8s-cluster/
 │   ├── bootstrap-argocd.sh     #   Initial Argo CD installation
 │   └── backup-postgres.sh      #   PostgreSQL backup
 ├── talos/                      # Talos machine configs (reference only, not Argo-managed)
+│   ├── controlplane.yaml
+│   ├── worker.yaml
+│   ├── longhorn-worker-patch.yaml
+│   ├── longhorn-disk-patch-gcx.yaml
+│   ├── longhorn-disk-patch-pik.yaml
+│   └── longhorn-schematic.yaml
 ├── .sops.yaml                  # SOPS encryption rules
 └── key.txt                     # Age private key (NEVER committed, in .gitignore)
 ```
