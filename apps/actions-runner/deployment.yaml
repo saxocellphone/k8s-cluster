@@ -1,0 +1,181 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homelab-infra-runner
+  namespace: actions-runner
+  labels:
+    app: homelab-infra-runner
+  annotations:
+    checkov.io/skip1: CKV_K8S_35=The runner registration token is required by config.sh/run.sh as an environment variable and is masked by GitHub Actions.
+    checkov.io/skip2: CKV_K8S_8=Long-running GitHub runner and rootless Docker sidecar do not expose a useful HTTP health endpoint.
+    checkov.io/skip3: CKV_K8S_9=Long-running GitHub runner and rootless Docker sidecar do not expose a useful HTTP readiness endpoint.
+    checkov.io/skip4: CKV_K8S_22=Runner and rootless Docker need writable work, home, and runtime filesystems.
+    checkov.io/skip5: CKV_K8S_43=Runner/Docker images are version-pinned; digest pinning is tracked separately to keep upgrades manageable.
+    checkov.io/skip6: CKV_K8S_40=actions-runner and docker rootless images require their built-in users.
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: homelab-infra-runner
+  template:
+    metadata:
+      labels:
+        app: homelab-infra-runner
+    spec:
+      serviceAccountName: default
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: carbon-node
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: runner-home
+          emptyDir: {}
+        - name: runner-work
+          emptyDir: {}
+        - name: docker-run
+          emptyDir: {}
+        - name: kubeconfig
+          secret:
+            secretName: terraform-runner-kubeconfig
+            defaultMode: 0400
+      initContainers:
+        - name: configure-runner
+          image: ghcr.io/actions/actions-runner:2.330.0
+          imagePullPolicy: Always
+          command:
+            - /bin/bash
+            - -ceu
+            - |
+              cp -a /home/runner/. /runner-home/
+              cd /runner-home
+              ./config.sh \
+                --unattended \
+                --replace \
+                --url "${RUNNER_REPO_URL}" \
+                --token "${RUNNER_TOKEN}" \
+                --name "${RUNNER_NAME}" \
+                --labels "${RUNNER_LABELS}" \
+                --work /runner-work
+          env:
+            - name: RUNNER_REPO_URL
+              value: https://github.com/saxocellphone/k8s-cluster-ops
+            - name: RUNNER_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: RUNNER_LABELS
+              value: homelab-infra
+            - name: RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: actions-runner-token
+                  key: token
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: runner-home
+              mountPath: /runner-home
+            - name: runner-work
+              mountPath: /runner-work
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: docker
+          image: docker:29-dind-rootless
+          imagePullPolicy: Always
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: docker-run
+              mountPath: /run/user/1000
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+        - name: runner
+          image: ghcr.io/actions/actions-runner:2.330.0
+          imagePullPolicy: Always
+          command:
+            - /bin/bash
+            - -ceu
+            - |
+              export PATH="$PATH:/home/runner/.local/bin"
+              mkdir -p /home/runner/.local/bin
+              curl -fsSL -o /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+              python3 -m zipfile -e /tmp/terraform.zip /home/runner/.local/bin
+              chmod +x /home/runner/.local/bin/terraform
+              curl -fsSL -o /home/runner/.local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+              chmod +x /home/runner/.local/bin/kubectl
+              until docker info >/dev/null 2>&1; do sleep 1; done
+              cd /runner-home
+              trap './config.sh remove --unattended --token "${RUNNER_TOKEN}" || true' EXIT
+              ./run.sh
+          env:
+            - name: TERRAFORM_VERSION
+              value: 1.14.2
+            - name: KUBECTL_VERSION
+              value: v1.34.2
+            - name: KUBE_CONFIG_PATH
+              value: /opt/k8s-cluster-secrets/kubeconfig
+            - name: DOCKER_HOST
+              value: unix:///run/user/1000/docker.sock
+            - name: RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: actions-runner-token
+                  key: token
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: runner-home
+              mountPath: /runner-home
+            - name: runner-work
+              mountPath: /runner-work
+            - name: docker-run
+              mountPath: /run/user/1000
+            - name: kubeconfig
+              mountPath: /opt/k8s-cluster-secrets/kubeconfig
+              subPath: kubeconfig
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
