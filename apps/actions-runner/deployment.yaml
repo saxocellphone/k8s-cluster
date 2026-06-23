@@ -51,7 +51,7 @@ spec:
             - /bin/bash
             - -ceu
             - |
-              cp -a /home/runner/. /runner-home/
+              cp -r /home/runner/. /runner-home/
               cd /runner-home
               ./config.sh \
                 --unattended \
