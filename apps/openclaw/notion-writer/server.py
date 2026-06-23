@@ -63,7 +63,6 @@ def notion(method, path, body=None):
 
 # ---- Markdown -> Notion blocks ---------------------------------------------
 
-_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
 _BOLD = re.compile(r"\*\*([^*]+)\*\*")
 
 
@@ -75,16 +74,39 @@ def rich_text(text):
     """Build Notion rich_text from a line, handling [label](url) and **bold**."""
     out = []
     pos = 0
-    # Handle links first; bold inside non-link spans.
-    for m in _LINK.finditer(text):
-        if m.start() > pos:
-            out += _plain_or_bold(text[pos:m.start()])
-        for piece in _chunk(m.group(1)):
-            out.append({"type": "text", "text": {"content": piece, "link": {"url": m.group(2)}}})
-        pos = m.end()
+    for start, end, label, url in _iter_links(text):
+        if start > pos:
+            out += _plain_or_bold(text[pos:start])
+        for piece in _chunk(label):
+            out.append({"type": "text", "text": {"content": piece, "link": {"url": url}}})
+        pos = end
     if pos < len(text):
         out += _plain_or_bold(text[pos:])
     return out[:100] or [{"type": "text", "text": {"content": ""}}]
+
+
+def _iter_links(text):
+    pos = 0
+    while True:
+        start = text.find("[", pos)
+        if start == -1:
+            return
+        close_label = text.find("](", start + 1)
+        if close_label == -1:
+            return
+        url_start = close_label + 2
+        if not (text.startswith("http://", url_start) or text.startswith("https://", url_start)):
+            pos = start + 1
+            continue
+        close_url = text.find(")", url_start)
+        if close_url == -1:
+            return
+        url = text[url_start:close_url]
+        if any(c.isspace() for c in url):
+            pos = start + 1
+            continue
+        yield start, close_url + 1, text[start + 1:close_label], url
+        pos = close_url + 1
 
 
 def _plain_or_bold(text):
