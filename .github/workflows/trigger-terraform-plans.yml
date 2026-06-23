@@ -1,0 +1,29 @@
+name: Trigger Terraform Plans
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - terraform/**
+      - .github/workflows/trigger-terraform-plans.yml
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch private Terraform plan
+    runs-on: ubuntu-latest
+    env:
+      MODULE: all
+      REF: ${{ github.sha }}
+    steps:
+      - name: Trigger private ops workflow
+        env:
+          GH_TOKEN: ${{ secrets.OPS_REPO_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/saxocellphone/k8s-cluster-ops/dispatches \
+            --method POST \
+            -f event_type=terraform-plan \
+            -f client_payload[module]="$MODULE" \
+            -f client_payload[ref]="$REF"
