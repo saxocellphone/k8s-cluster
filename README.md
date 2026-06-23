@@ -4,13 +4,13 @@ GitOps repository for a homelab Kubernetes cluster managed by [Argo CD](https://
 
 ## Cluster Overview
 
-| Node | Role | OS | IP | Host |
-|---|---|---|---|---|
-| talos-mru-smr | Control plane | Talos v1.11.5 | 192.168.8.227 | Proxmox `pve226` (VM 100) |
-| talos-gcx-zwd | Worker (Longhorn) | Talos v1.11.5 | 192.168.8.125 | Proxmox `pve226` (VM 101) |
-| talos-worker-pve191-01 | Worker (Longhorn) | Talos v1.11.5 | 192.168.8.194 | Proxmox `pve191` (VM 101) |
-| carbon-node | Worker | Linux Mint 22.2 | 192.168.8.140 | Bare metal |
-| talos-gpu-01 | Worker (Longhorn, GPU) | Talos v1.13.4 | 192.168.8.178 | Bare metal (Corsair AI Workstation 300 — AMD Strix Halo) |
+| Node | Role | OS | Host |
+|---|---|---|---|
+| talos-mru-smr | Control plane | Talos v1.11.5 | Proxmox `pve226` (VM 100) |
+| talos-gcx-zwd | Worker (Longhorn) | Talos v1.11.5 | Proxmox `pve226` (VM 101) |
+| talos-worker-pve191-01 | Worker (Longhorn) | Talos v1.11.5 | Proxmox `pve191` (VM 101) |
+| carbon-node | Worker | Linux Mint 22.2 | Bare metal |
+| talos-gpu-01 | Worker (Longhorn, GPU) | Talos v1.13.4 | Bare metal (Corsair AI Workstation 300 — AMD Strix Halo) |
 
 All nodes are amd64 architecture.
 
@@ -178,7 +178,7 @@ Internal services are reachable at `*.k8s.home`; a subset is exposed externally 
 
 ## Storage
 
-- **nfs-client** (default StorageClass) -- NFS volumes on 192.168.8.246
+- **nfs-client** (default StorageClass) -- NFS volumes on the LAN NFS server
 - **longhorn** -- Distributed block storage on iSCSI-enabled Talos workers (talos-gcx-zwd, talos-worker-pve191-01, talos-gpu-01)
 - **local-storage** -- Node-pinned local volumes
 
