@@ -30,6 +30,8 @@ spec:
         kubernetes.io/hostname: carbon-node
       terminationGracePeriodSeconds: 30
       securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       volumes:
@@ -40,7 +42,7 @@ spec:
         - name: kubeconfig
           secret:
             secretName: terraform-runner-kubeconfig
-            defaultMode: 0400
+            defaultMode: 0440
       initContainers:
         - name: configure-runner
           image: ghcr.io/actions/actions-runner:2.330.0
