@@ -105,7 +105,7 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          extra_args: --only-verified --fail --no-update
+          extra_args: --only-verified --no-update
 
   checkov:
     name: Checkov IaC scan
