@@ -1,0 +1,41 @@
+title = "k8s-cluster secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Repository-specific placeholders and encrypted SOPS payloads"
+regexes = [
+  '''ENC\[AES256_GCM,data:[^\]]+\]''',
+  '''age1[0-9a-z]{58}''',
+  '''\$\{[A-Z0-9_]+\}''',
+  '''apiKey: "local"''',
+  '''name: git-hook''',
+  '''LS0tIEVYQU1QTEUgS0VZIC0tLQ==''',
+  '''LS0tIEVYQU1QTEUgQ0VSVElGSUNBVEUgLS0t''',
+  '''z01mye6j16bspJYtTB/5SFX8j7Ph4JXxM2Xuu4vsBPM=''',
+]
+paths = [
+  '''(^|/)README\.md$''',
+  '''(^|/)CLAUDE\.md$''',
+  '''(^|/)\.semgrep/security\.yml$''',
+]
+
+[[rules]]
+id = "talos-age-private-key"
+description = "Talos/SOPS age private key"
+regex = '''AGE-SECRET-KEY-1[0-9A-Z]+'''
+tags = ["age", "private-key"]
+
+[[rules]]
+id = "kubeconfig-client-key-data"
+description = "Kubeconfig client private key data"
+regex = '''client-key-data:\s*[A-Za-z0-9+/=]{40,}'''
+tags = ["kubernetes", "private-key"]
+
+[[rules]]
+id = "talosconfig-sensitive-key"
+description = "Talos config private key or token material"
+regex = '''(?i)(key|token):\s*[A-Za-z0-9+/=]{40,}'''
+path = '''(^|/)talosconfig$|(^|/)talos/.*\.yaml$'''
+tags = ["talos", "private-key", "token"]
