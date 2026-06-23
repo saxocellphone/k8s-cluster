@@ -1,0 +1,54 @@
+# Read-only cluster access for the OpenClaw agent's Kubernetes MCP server.
+#
+# This is the HARD guardrail behind the "observe live cluster, change via PR"
+# split (see SOUL.md seeded into the agent workspace). The kubernetes-mcp-server
+# subprocess that OpenClaw spawns inherits this ServiceAccount's in-cluster
+# token, so even though the MCP server is also started with `--read-only`, the
+# token itself cannot perform writes — a confused or jailbroken model gets 403
+# on any create/update/delete. The ONLY write path to the cluster is a GitHub
+# PR you merge (GitOps), never a direct API call (which selfHeal would revert).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openclaw
+  namespace: openclaw
+---
+# Bind to the built-in `view` ClusterRole: cluster-wide read on core/apps/etc.
+# Crucially `view` EXCLUDES Secrets, so the agent can inspect pods, deployments,
+# events and logs to diagnose issues but cannot read live secret material.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openclaw-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: openclaw
+    namespace: openclaw
+---
+# `view` does not cover Argo CD CRDs. Grant read on Applications/ApplicationSets
+# so the agent can answer "is anything OutOfSync / Degraded and why?".
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openclaw-argocd-read
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openclaw-argocd-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openclaw-argocd-read
+subjects:
+  - kind: ServiceAccount
+    name: openclaw
+    namespace: openclaw

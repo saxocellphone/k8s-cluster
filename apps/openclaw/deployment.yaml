@@ -49,6 +49,11 @@ spec:
       labels:
         app: openclaw
     spec:
+      # Read-only cluster access for the Kubernetes MCP server (see rbac.yaml).
+      # The npx-spawned MCP subprocess inherits this SA's in-cluster token, which
+      # is bound only to `view` (+ Argo read) — so the agent can observe but not
+      # mutate the live cluster.
+      serviceAccountName: openclaw
       nodeSelector:
         extensions.talos.dev/iscsi-tools: "v0.2.0"
       initContainers:
@@ -68,6 +73,32 @@ spec:
         volumeMounts:
         - name: openclaw-data
           mountPath: /home/node/.openclaw
+      # Seed the agent workspace with the Cluster Operator persona + GitOps
+      # guardrails. OpenClaw injects workspace SOUL.md into the system prompt on
+      # the first turn of a session. We overwrite it every start so the
+      # version-controlled operator guidance is always authoritative (SOUL.md is
+      # persona/boundaries, not the agent's mutable MEMORY.md — that is left
+      # untouched). Default workspace is ~/.openclaw/workspace, on the PVC.
+      - name: seed-workspace
+        image: ghcr.io/openclaw/openclaw:latest
+        command: ["node", "-e"]
+        args:
+        - |
+          const fs = require("fs");
+          const { execSync } = require("child_process");
+          const ws = "/home/node/.openclaw/workspace";
+          fs.mkdirSync(ws, { recursive: true });
+          const soul = fs.readFileSync("/seed/SOUL.md", "utf8");
+          fs.writeFileSync(ws + "/SOUL.md", soul);
+          try { execSync("chown -R 1000:1000 " + ws); } catch(e) { console.log("chown failed:", e.message); }
+          console.log("Seeded workspace SOUL.md (" + soul.length + " bytes)");
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: openclaw-data
+          mountPath: /home/node/.openclaw
+        - name: workspace-seed
+          mountPath: /seed
       - name: config-patch
         image: ghcr.io/openclaw/openclaw:latest
         command: ["node", "-e"]
@@ -208,6 +239,36 @@ spec:
               }
             };
           }
+          // Kubernetes MCP (READ-ONLY cluster diagnostics). Native Go server
+          // (kubernetes-mcp-server) — no kubectl/helm binary needed, and it
+          // auto-detects the pod's in-cluster ServiceAccount token. Started with
+          // --read-only so writes are blocked at the tool layer; the SA itself
+          // is bound only to `view` (+ Argo read) so writes 403 regardless. The
+          // agent observes the live cluster here but NEVER changes it directly —
+          // all changes go out as GitHub PRs (below). selfHeal would revert any
+          // direct edit anyway.
+          c.mcp = c.mcp || {};
+          c.mcp.servers = c.mcp.servers || {};
+          c.mcp.servers.kubernetes = {
+            command: "npx",
+            args: ["-y", "kubernetes-mcp-server@latest", "--read-only"]
+          };
+          // GitHub MCP: the ONLY write path to the cluster. A separate
+          // github-app-mcp sidecar authenticates as a GitHub App and refreshes
+          // installation tokens internally — we just connect to it over
+          // Streamable HTTP (no token in this container). The agent edits
+          // manifests on a branch and opens a PR against saxocellphone/k8s-cluster;
+          // the operator reviews + merges, then Argo reconciles. The App identity
+          // cannot push to / merge `main` (enforced by a branch ruleset), so a PR
+          // is the only possible outcome. X-MCP-Token (substituted from the
+          // gateway's GITHUB_MCP_TOKEN env at connect time) authenticates us to
+          // the sidecar. Minimal toolset (read_file/list_dir/open_pr/...) keeps
+          // the tool count tiny for the local model's 8192-token context window.
+          c.mcp.servers.github = {
+            url: "http://github-app-mcp.openclaw.svc.cluster.local/mcp",
+            transport: "streamable-http",
+            headers: { "X-MCP-Token": "${GITHUB_MCP_TOKEN}" }
+          };
           // Cron webhook auth: the morning job delivers via --webhook to the
           // in-cluster notion-writer. OpenClaw sends `Authorization: Bearer
           // <cron.webhookToken>`; set it from the WEBHOOK_TOKEN secret so the
@@ -217,7 +278,7 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=local/qwen3-235b-a22b-instruct fallback=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=local/qwen3-235b-a22b-instruct fallback=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: NOTION_TOKEN
           valueFrom:
@@ -264,6 +325,14 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: BRAVE_API_KEY
+        # Shared secret the gateway sends as X-MCP-Token to the github-app-mcp
+        # sidecar (substituted into the mcp.servers.github headers at connect
+        # time). Must match the sidecar's MCP_SHARED_TOKEN.
+        - name: GITHUB_MCP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: GITHUB_MCP_TOKEN
         - name: TZ
           value: "America/Los_Angeles"
         resources:
@@ -280,3 +349,8 @@ spec:
       - name: openclaw-data
         persistentVolumeClaim:
           claimName: openclaw-data
+      # Operator persona/guardrails (SOUL.md) generated from
+      # cluster-operator-soul.md; copied into the workspace by seed-workspace.
+      - name: workspace-seed
+        configMap:
+          name: openclaw-workspace-seed
