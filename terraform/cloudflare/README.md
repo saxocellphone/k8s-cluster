@@ -15,8 +15,8 @@ relies on: which hostnames route where, the DNS records, and who can log in.
 | Resource | Name(s) |
 |---|---|
 | `cloudflare_zero_trust_tunnel_cloudflared_config` | `homelab` (all ingress rules) |
-| `cloudflare_dns_record` | `audiobooks`, `c2c`, `openclaw`, `paste`, `qbit`, `radarr`, `rancher`, `sonarr`, `ssh` (orange-clouded CNAMEs → tunnel) |
-| `cloudflare_zero_trust_access_application` | `openclaw`, `homelab`, `ssh_bastion` |
+| `cloudflare_dns_record` | `ai`, `audiobooks`, `c2c`, `chat`, `comfyui`, `llm`, `openclaw`, `paste`, `qbit`, `radarr`, `rancher`, `sonarr`, `ssh`, `writer` (orange-clouded CNAMEs → tunnel) |
+| `cloudflare_zero_trust_access_application` | `ai`, `openclaw`, `homelab`, `ssh_bastion` |
 | `cloudflare_zero_trust_access_service_token` | `nzb360` |
 
 ### Note on Access policies

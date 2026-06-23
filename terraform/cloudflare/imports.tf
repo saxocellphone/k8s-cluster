@@ -47,6 +47,10 @@ import {
   to = cloudflare_dns_record.ssh
   id = "45bbfa2da6b4eac2713d440e0f4e5f8d/b8190572c86a2ebb58bdb19f70fd31dc"
 }
+import {
+  to = cloudflare_dns_record.chat
+  id = "45bbfa2da6b4eac2713d440e0f4e5f8d/31525df843ff7c8ab697f6dca483780d"
+}
 
 # ---- Access applications ---------------------------------------------------
 import {
@@ -60,6 +64,10 @@ import {
 import {
   to = cloudflare_zero_trust_access_application.ssh_bastion
   id = "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/379c4b6c-ec66-4b37-85fd-c19da0788378"
+}
+import {
+  to = cloudflare_zero_trust_access_application.ai
+  id = "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/c24b2229-9145-4656-9168-3d7fb6e17736"
 }
 
 # NOTE: The Access policies (operator email allow-list, nzb360 service token)
