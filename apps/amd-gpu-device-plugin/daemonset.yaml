@@ -25,9 +25,11 @@ spec:
       nodeSelector:
         accelerator: amd-strix-halo
       priorityClassName: system-node-critical
-      # Tolerate any taint a GPU node might carry (none today, but future-proof).
       tolerations:
-        - operator: Exists
+        - key: accelerator
+          operator: Equal
+          value: amd-strix-halo
+          effect: NoSchedule
       hostNetwork: true
       containers:
         - name: amdgpu-device-plugin

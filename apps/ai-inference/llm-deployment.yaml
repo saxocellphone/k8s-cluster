@@ -19,6 +19,11 @@ spec:
     spec:
       nodeSelector:
         accelerator: amd-strix-halo
+      tolerations:
+        - key: accelerator
+          operator: Equal
+          value: amd-strix-halo
+          effect: NoSchedule
       initContainers:
         - name: build-strix-sglang
           image: kyuz0/vllm-therock-gfx1151:stable

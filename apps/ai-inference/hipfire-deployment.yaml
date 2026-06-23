@@ -21,6 +21,11 @@ spec:
         - name: ghcr-saxocellphone
       nodeSelector:
         accelerator: amd-strix-halo
+      tolerations:
+        - key: accelerator
+          operator: Equal
+          value: amd-strix-halo
+          effect: NoSchedule
       containers:
         - name: hipfire
           image: ghcr.io/saxocellphone/hipfire-gfx1151:latest

@@ -21,6 +21,11 @@ spec:
       # mutate the node network namespace. Use hostPorts instead of hostNetwork.
       nodeSelector:
         accelerator: amd-strix-halo
+      tolerations:
+        - key: accelerator
+          operator: Equal
+          value: amd-strix-halo
+          effect: NoSchedule
       terminationGracePeriodSeconds: 60
       containers:
         - name: dind
