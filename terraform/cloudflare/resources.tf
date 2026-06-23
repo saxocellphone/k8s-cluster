@@ -123,6 +123,25 @@ resource "cloudflare_dns_record" "llm" {
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
 }
 
+resource "cloudflare_dns_record" "chat" {
+  comment         = "Open WebUI chat frontend"
+  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
+  data            = null
+  name            = "chat.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
+}
+
 resource "cloudflare_dns_record" "comfyui" {
   comment         = "ComfyUI image backend"
   content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
@@ -369,6 +388,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         origin_request = null
         path           = null
         service        = "http://llm.ai-inference.svc.cluster.local:8080"
+      },
+      {
+        hostname       = "chat.victornazzaro.com"
+        origin_request = null
+        path           = null
+        service        = "http://open-webui.ai-inference.svc.cluster.local:8080"
       },
       {
         hostname       = "comfyui.victornazzaro.com"
