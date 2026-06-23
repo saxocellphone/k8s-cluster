@@ -11,6 +11,9 @@ _out/talosconfig
 # Argo CD API token
 .argocd-token
 
+# Local notes (kept out of the repo)
+notes/
+
 # OS files
 .DS_Store
 
