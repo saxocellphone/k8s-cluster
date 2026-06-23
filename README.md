@@ -19,8 +19,17 @@ All nodes are amd64 architecture.
 ```
 k8s-cluster/
 ├── apps/                       # Application workloads (Kustomize)
-│   ├── openclaw/               #   AI agent gateway + Telegram bot
-│   └── torrenting/             #   Media stack (qBittorrent, *arr, Postgres, etc.)
+│   ├── ai-inference/           #   Local LLM inference + chat/image UIs
+│   ├── openclaw/               #   AI agent gateway (Telegram + GitOps cluster ops)
+│   ├── torrenting/             #   VPN-protected media stack
+│   ├── database/               #   PostgreSQL (CloudNativePG)
+│   ├── memos/                  #   Note-taking
+│   ├── mirotalkc2c/            #   WebRTC video conferencing
+│   ├── coturn/                 #   TURN/STUN relay for WebRTC
+│   ├── gaming/                 #   Game-server sandbox (Docker-in-Docker)
+│   ├── cloudflared/            #   Cloudflare Tunnel (external access)
+│   ├── terraform-state/        #   MinIO S3 backend for Terraform state
+│   └── amd-gpu-device-plugin/  #   AMD GPU scheduling
 ├── argocd/                     # Argo CD Application definitions
 │   ├── app-of-apps.yaml        #   Root Application
 │   ├── apps/                   #   App Applications (torrenting, openclaw, cluster-resources)
@@ -53,17 +62,11 @@ Argo CD watches this repo and automatically syncs cluster state from Git.
 
 ```
 app-of-apps (argocd/app-of-apps.yaml)
-├── torrenting          apps/torrenting/          Kustomize (directory)
-├── openclaw            apps/openclaw/            Kustomize (directory)
-├── cluster-resources   cluster/                  Kustomize (directory)
-├── ingress-nginx       Helm chart                ingress-nginx namespace
-├── longhorn            Helm chart                longhorn namespace
-├── metallb             Helm chart                metallb-system namespace
-├── metallb-config      infrastructure/metallb/   MetalLB CRs (IPAddressPool, L2Advertisement)
-├── monitoring          Helm chart                monitoring namespace
-├── monitoring-extras   infrastructure/monitoring/ Grafana ingress
-└── nfs-provisioner     Helm chart                kube-system namespace
+├── argocd/apps/*            → directory apps (Kustomize): everything under apps/ and cluster/
+└── argocd/infrastructure/*  → Helm components (multi-source: upstream chart + this repo's values)
 ```
+
+See [Components](#components) for the full list.
 
 **Plain-manifest apps** (torrenting, openclaw, cluster-resources) use Kustomize with `kustomization.yaml` files that enumerate all resources.
 
@@ -139,46 +142,44 @@ SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
 
 **Never commit unencrypted secrets.** The `.gitignore` excludes `key.txt` and `*.dec.yaml`.
 
-## Infrastructure Components
+## Components
 
-| Component | Chart | Namespace | Purpose |
-|---|---|---|---|
-| Argo CD | argo/argo-cd | argocd | GitOps controller |
-| ingress-nginx | ingress-nginx | ingress-nginx | Ingress controller |
-| Longhorn | longhorn | longhorn | Distributed block storage (Talos workers only) |
-| MetalLB | metallb | metallb-system | Bare-metal LoadBalancer (192.168.8.200-220) |
-| kube-prometheus-stack | kube-prometheus-stack | monitoring | Prometheus + Grafana |
-| nfs-provisioner | nfs-subdir-external-provisioner | kube-system | NFS dynamic PV provisioner |
+### Applications (`apps/`)
 
-## Application Workloads
+| App | Purpose |
+|---|---|
+| ai-inference | Local LLM inference (HIPFire / SGLang) with Open WebUI, ComfyUI, and a mode switcher |
+| openclaw | AI agent gateway — Telegram bot, read-only cluster diagnostics, and GitOps changes via PR |
+| torrenting | VPN-protected media stack: qBittorrent (+ gluetun), Prowlarr, Radarr, Sonarr, Audiobookshelf |
+| database | PostgreSQL cluster (CloudNativePG) backing app workloads |
+| memos | Lightweight self-hosted note-taking |
+| mirotalkc2c | Peer-to-peer WebRTC video conferencing |
+| coturn | TURN/STUN relay that makes WebRTC work across NAT |
+| gaming | Docker-in-Docker sandbox for game servers |
+| cloudflared | Cloudflare Tunnel exposing select services externally behind CF Access |
+| terraform-state | MinIO (S3-compatible) backend for Terraform state |
+| amd-gpu-device-plugin | Advertises AMD GPUs to the scheduler for the inference workloads |
 
-### Torrenting (media stack)
+### Infrastructure (`infrastructure/`, Helm)
 
-VPN-protected media management stack in the `torrenting` namespace.
+| Component | Purpose |
+|---|---|
+| Argo CD | GitOps controller — reconciles the whole cluster from this repo |
+| ingress-nginx | Cluster ingress controller (`*.k8s.home`) |
+| cert-manager | Issues and renews TLS certificates |
+| MetalLB | Bare-metal LoadBalancer (LAN address pool) |
+| Longhorn | Distributed block storage (Talos workers only) |
+| nfs-provisioner | Dynamic PV provisioning from the NFS server |
+| CloudNativePG | PostgreSQL operator |
+| kube-prometheus-stack | Prometheus + Grafana monitoring and alerting |
+| Rancher | Cluster management UI |
 
-| Service | Port | URL | Notes |
-|---|---|---|---|
-| qBittorrent | 8080 | http://qbit.k8s.home | StatefulSet with gluetun VPN sidecar |
-| Prowlarr | 9696 | http://prowlarr.k8s.home | Indexer manager |
-| Radarr | 7878 | http://radarr.k8s.home | Movie management |
-| Sonarr | 8989 | http://sonarr.k8s.home | TV show management |
-| FlareSolverr | 8191 | http://flaresolverr.k8s.home | CloudFlare solver |
-| Audiobookshelf | 13378 | http://audiobooks.k8s.home | Audiobook server (scaled to 0) |
-| PostgreSQL | 5432 | hostNetwork on carbon-node | Database for *arr apps |
-
-### OpenClaw (AI gateway)
-
-AI agent gateway with Telegram bot integration in the `openclaw` namespace.
-
-| Service | Port | URL |
-|---|---|---|
-| OpenClaw Gateway | 18789 | https://openclaw.k8s.home |
-| Chromium Browser | 9222 | Internal (CDP) |
+Internal services are reachable at `*.k8s.home`; a subset is exposed externally through the Cloudflare Tunnel.
 
 ## Storage
 
 - **nfs-client** (default StorageClass) -- NFS volumes on 192.168.8.246
-- **longhorn** -- Distributed block storage on Talos workers (talos-gcx-zwd, talos-pik-q76)
+- **longhorn** -- Distributed block storage on iSCSI-enabled Talos workers (talos-gcx-zwd, talos-worker-pve191-01, talos-gpu-01)
 - **local-storage** -- Node-pinned local volumes
 
 ## Bootstrapping
