@@ -2,3 +2,10 @@ creation_rules:
   - path_regex: .*secret.*\.yaml$
     encrypted_regex: ^(data|stringData)$
     age: age15wxcpw5ppd6zc5dmqn69dxczla0vwa3es086u654l8y2mrj455nqzfapl2
+  # Talos machine configs embed the cluster/machine CA private keys, the
+  # service-account & etcd signing keys, the bootstrap token and the etcd
+  # encryption secret. Encrypt those leaf fields in place. Certs (crt) and the
+  # cluster id stay readable. Decrypt before `talosctl apply-config`.
+  - path_regex: talos/(controlplane|worker)\.yaml$
+    encrypted_regex: ^(token|key|secret|secretboxEncryptionSecret|aescbcEncryptionSecret)$
+    age: age15wxcpw5ppd6zc5dmqn69dxczla0vwa3es086u654l8y2mrj455nqzfapl2
