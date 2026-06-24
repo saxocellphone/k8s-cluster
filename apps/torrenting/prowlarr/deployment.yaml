@@ -129,5 +129,3 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1001
-        seccompProfile:
-          type: RuntimeDefault

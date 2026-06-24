@@ -210,6 +210,9 @@ spec:
             console.log("chown extensions failed:", e.message);
           }
           console.log("Installed cursor-sdk plugin");
+        envFrom:
+        - secretRef:
+            name: openclaw-secrets
         securityContext:
           runAsUser: 0
         volumeMounts:
