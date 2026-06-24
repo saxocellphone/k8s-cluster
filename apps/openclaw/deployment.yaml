@@ -48,6 +48,9 @@ spec:
     metadata:
       labels:
         app: openclaw
+      annotations:
+        # Reloader rolls the pod when openclaw-secrets changes (SOPS key updates).
+        secret.reloader.stakater.com/reload: openclaw-secrets
     spec:
       # Read-only cluster access for the Kubernetes MCP server (see rbac.yaml).
       # The npx-spawned MCP subprocess inherits this SA's in-cluster token, which
