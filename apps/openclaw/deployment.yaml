@@ -72,496 +72,496 @@ spec:
       nodeSelector:
         extensions.talos.dev/iscsi-tools: "v0.2.0"
       initContainers:
-        - name: fix-permissions
-          image: ghcr.io/openclaw/openclaw:2026.2.0
-          command: ["node", "-e"]
-          args:
-            - |
-              const { execSync } = require("child_process");
-              const fs = require("fs");
-              const dirs = ["/home/node/.openclaw", "/home/node/.openclaw/devices"];
-              for (const d of dirs) { try { fs.mkdirSync(d, { recursive: true }); } catch(e) {} }
-              try { execSync("chown -R 1000:1000 /home/node/.openclaw"); } catch(e) { console.log("chown failed:", e.message); }
-              console.log("Fixed permissions on /home/node/.openclaw");
-          securityContext:
-            runAsUser: 0
-          volumeMounts:
-            - name: openclaw-data
-              mountPath: /home/node/.openclaw
+      - name: fix-permissions
+        image: ghcr.io/openclaw/openclaw:latest
+        command: ["node", "-e"]
+        args:
+        - |
+          const { execSync } = require("child_process");
+          const fs = require("fs");
+          const dirs = ["/home/node/.openclaw", "/home/node/.openclaw/devices"];
+          for (const d of dirs) { try { fs.mkdirSync(d, { recursive: true }); } catch(e) {} }
+          try { execSync("chown -R 1000:1000 /home/node/.openclaw"); } catch(e) { console.log("chown failed:", e.message); }
+          console.log("Fixed permissions on /home/node/.openclaw");
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: openclaw-data
+          mountPath: /home/node/.openclaw
       # Seed the agent workspace with the Cluster Operator persona + GitOps
       # guardrails. OpenClaw injects workspace SOUL.md into the system prompt on
       # the first turn of a session. We overwrite it every start so the
       # version-controlled operator guidance is always authoritative (SOUL.md is
       # persona/boundaries, not the agent's mutable MEMORY.md — that is left
       # untouched). Default workspace is ~/.openclaw/workspace, on the PVC.
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
-        - name: seed-workspace
-          image: ghcr.io/openclaw/openclaw:2026.2.0
-          command: ["node", "-e"]
-          args:
-            - |
-              const fs = require("fs");
-              const { execSync } = require("child_process");
-              const ws = "/home/node/.openclaw/workspace";
-              fs.mkdirSync(ws, { recursive: true });
-              const soul = fs.readFileSync("/seed/SOUL.md", "utf8");
-              fs.writeFileSync(ws + "/SOUL.md", soul);
-              try { execSync("chown -R 1000:1000 " + ws); } catch(e) { console.log("chown failed:", e.message); }
-              console.log("Seeded workspace SOUL.md (" + soul.length + " bytes)");
-          securityContext:
-            runAsUser: 0
-          volumeMounts:
-            - name: openclaw-data
-              mountPath: /home/node/.openclaw
-            - name: workspace-seed
-              mountPath: /seed
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
-        - name: install-kubectl
-          image: alpine:3.22
-          command: ["sh", "-ceu"]
-          args:
-            - |
-              apk add --no-cache curl ca-certificates
-              curl -fsSL -o /tools/kubectl "https://dl.k8s.io/release/v1.34.2/bin/linux/amd64/kubectl"
-              chmod 0755 /tools/kubectl
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsUser: 0
-            capabilities:
-              drop: ["ALL"]
-          volumeMounts:
-            - name: kubectl-tools
-              mountPath: /tools
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+      - name: seed-workspace
+        image: ghcr.io/openclaw/openclaw:latest
+        command: ["node", "-e"]
+        args:
+        - |
+          const fs = require("fs");
+          const { execSync } = require("child_process");
+          const ws = "/home/node/.openclaw/workspace";
+          fs.mkdirSync(ws, { recursive: true });
+          const soul = fs.readFileSync("/seed/SOUL.md", "utf8");
+          fs.writeFileSync(ws + "/SOUL.md", soul);
+          try { execSync("chown -R 1000:1000 " + ws); } catch(e) { console.log("chown failed:", e.message); }
+          console.log("Seeded workspace SOUL.md (" + soul.length + " bytes)");
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: openclaw-data
+          mountPath: /home/node/.openclaw
+        - name: workspace-seed
+          mountPath: /seed
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+      - name: install-kubectl
+        image: alpine:3.22
+        command: ["sh", "-ceu"]
+        args:
+        - |
+          apk add --no-cache curl ca-certificates
+          curl -fsSL -o /tools/kubectl "https://dl.k8s.io/release/v1.34.2/bin/linux/amd64/kubectl"
+          chmod 0755 /tools/kubectl
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 0
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: kubectl-tools
+          mountPath: /tools
       # Cursor SDK plugin (openclaw/openclaw#75046) is not bundled in
       # ghcr.io/openclaw/openclaw:latest yet. Fetch it once into the PVC so
       # cursor-sdk/composer-2.5 can run as the default agent model.
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
-        - name: install-cursor-sdk
-          image: ghcr.io/openclaw/openclaw:2026.2.0
-          command: ["node", "-e"]
-          args:
-            - |
-              const fs = require("fs");
-              const path = require("path");
-              const https = require("https");
-              const { execSync } = require("child_process");
-              const extDir = "/home/node/.openclaw/extensions/cursor-sdk";
-              if (fs.existsSync(path.join(extDir, "openclaw.plugin.json"))) {
-                console.log("cursor-sdk plugin already installed");
-                process.exit(0);
-              }
-              const base =
-                "https://raw.githubusercontent.com/openclaw/openclaw/aeb993c825d4eacb758ece7951924ab43487e41f/extensions/cursor-sdk";
-              const files = [
-                "harness.ts",
-                "index.ts",
-                "provider.ts",
-                "openclaw.plugin.json",
-                "package.json",
-                "src/error-classification.ts",
-                "src/run-attempt.ts",
-              ];
-              const work = "/tmp/cursor-sdk";
-              fs.rmSync(work, { recursive: true, force: true });
-              fs.mkdirSync(path.join(work, "src"), { recursive: true });
-              function fetch(url) {
-                return new Promise((resolve, reject) => {
-                  https.get(url, (res) => {
-                    if (res.statusCode === 301 || res.statusCode === 302) {
-                      return resolve(fetch(res.headers.location));
-                    }
-                    if (res.statusCode !== 200) {
-                      reject(new Error("HTTP " + res.statusCode + " for " + url));
-                      return;
-                    }
-                    const chunks = [];
-                    res.on("data", (c) => chunks.push(c));
-                    res.on("end", () => resolve(Buffer.concat(chunks)));
-                  }).on("error", reject);
-                });
-              }
-              (async () => {
-                for (const rel of files) {
-                  const body = await fetch(base + "/" + rel);
-                  const dest = path.join(work, rel);
-                  fs.mkdirSync(path.dirname(dest), { recursive: true });
-                  fs.writeFileSync(dest, body);
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+      - name: install-cursor-sdk
+        image: ghcr.io/openclaw/openclaw:latest
+        command: ["node", "-e"]
+        args:
+        - |
+          const fs = require("fs");
+          const path = require("path");
+          const https = require("https");
+          const { execSync } = require("child_process");
+          const extDir = "/home/node/.openclaw/extensions/cursor-sdk";
+          if (fs.existsSync(path.join(extDir, "openclaw.plugin.json"))) {
+            console.log("cursor-sdk plugin already installed");
+            process.exit(0);
+          }
+          const base =
+            "https://raw.githubusercontent.com/openclaw/openclaw/aeb993c825d4eacb758ece7951924ab43487e41f/extensions/cursor-sdk";
+          const files = [
+            "harness.ts",
+            "index.ts",
+            "provider.ts",
+            "openclaw.plugin.json",
+            "package.json",
+            "src/error-classification.ts",
+            "src/run-attempt.ts",
+          ];
+          const work = "/tmp/cursor-sdk";
+          fs.rmSync(work, { recursive: true, force: true });
+          fs.mkdirSync(path.join(work, "src"), { recursive: true });
+          function fetch(url) {
+            return new Promise((resolve, reject) => {
+              https.get(url, (res) => {
+                if (res.statusCode === 301 || res.statusCode === 302) {
+                  return resolve(fetch(res.headers.location));
                 }
-                // Upstream package.json references @openclaw/plugin-sdk as
-                // workspace:* (monorepo-only). Strip devDependencies so npm
-                // install succeeds when fetching standalone files from GitHub.
-                const pkgPath = path.join(work, "package.json");
-                const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-                delete pkg.devDependencies;
-                fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
-                execSync("npm install --omit=dev --no-audit --no-fund", {
-                  cwd: work,
-                  stdio: "inherit",
-                });
-                execSync("openclaw plugins install " + work, { stdio: "inherit" });
-                try {
-                  execSync("chown -R 1000:1000 /home/node/.openclaw/extensions");
-                } catch (e) {
-                  console.log("chown extensions failed:", e.message);
+                if (res.statusCode !== 200) {
+                  reject(new Error("HTTP " + res.statusCode + " for " + url));
+                  return;
                 }
-                console.log("Installed cursor-sdk plugin");
-              })().catch((e) => {
-                console.error(e);
-                process.exit(1);
-              });
-          securityContext:
-            runAsUser: 0
-          volumeMounts:
-            - name: openclaw-data
-              mountPath: /home/node/.openclaw
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
-        - name: config-patch
-          image: ghcr.io/openclaw/openclaw:2026.2.0
-          command: ["node", "-e"]
-          args:
-            - |
-              const fs = require("fs");
-              const p = "/home/node/.openclaw/openclaw.json";
-              let c = {};
-              try { c = JSON.parse(fs.readFileSync(p, "utf8")); } catch(e) {}
-              c.gateway = c.gateway || {};
-              c.gateway.bind = "lan";
-              // Upstream `openclaw:latest` now refuses to start without
-              // `gateway.mode`. Set it explicitly to `local` (matching `bind: lan`
-              // — non-tunneled, in-cluster reachable only). Without this line the
-              // container errors with "Gateway start blocked: existing config is
-              // missing gateway.mode" and CrashLoopBackOffs.
-              c.gateway.mode = "local";
-              c.gateway.controlUi = c.gateway.controlUi || {};
-              c.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
-              // The Control UI is reached only via the Cloudflare Tunnel
-              // (openclaw.victornazzaro.com, behind CF Access). The gateway
-              // rejects any browser origin not in this list with "origin not
-              // allowed" (no wildcards supported).
-              c.gateway.controlUi.allowedOrigins = [
-                "https://openclaw.victornazzaro.com"
-              ];
-              // Auth is delegated to Cloudflare Access (trusted-proxy mode):
-              // cloudflared injects Cf-Access-Authenticated-User-Email after a
-              // successful CF Access login, so the browser never needs a gateway
-              // token. `auth=none` is refused on a lan bind, hence trusted-proxy.
-              // trustedProxies is scoped to the pod network (only in-cluster
-              // proxies — cloudflared — can present identity headers); the local
-              // nginx ingress was removed so there is no unauthenticated path that
-              // could spoof the identity header. requiredHeaders forces the CF
-              // Access JWT to be present, and allowUsers pins the single operator.
-              c.gateway.trustedProxies = ["10.244.0.0/16"];
-              c.gateway.auth = {
-                mode: "trusted-proxy",
-                trustedProxy: {
-                  userHeader: "Cf-Access-Authenticated-User-Email",
-                  requiredHeaders: ["Cf-Access-Jwt-Assertion"],
-                  allowUsers: ["nazzav923@gmail.com"]
-                }
-              };
-              delete c.gateway.tailscale;
-              c.browser = c.browser || {};
-              c.browser.enabled = true;
-              c.browser.attachOnly = true;
-              c.browser.defaultProfile = "kubernetes";
-              c.browser.remoteCdpTimeoutMs = 5000;
-              c.browser.profiles = c.browser.profiles || {};
-              c.browser.profiles.kubernetes = {
-                cdpUrl: "http://10.96.93.57:9222",
-                color: "#0099FF"
-              };
-              c.agents = c.agents || {};
-              c.agents.defaults = c.agents.defaults || {};
-              c.agents.defaults.sandbox = c.agents.defaults.sandbox || {};
-              c.agents.defaults.sandbox.browser = c.agents.defaults.sandbox.browser || {};
-              c.agents.defaults.sandbox.browser.allowHostControl = true;
-              // Agent model: Cursor Composer 2.5 via the cursor-sdk harness
-              // (CURSOR_API_KEY + @cursor/sdk). Grok 4.3 remains an explicit
-              // fallback for transient Cursor outages. Empty fallbacks when Cursor
-              // is unavailable would otherwise fall through to the openai default
-              // (reuses the xAI key against platform.openai.com and 401s) or the
-              // context-limited local qwen3-235b (8k window).
-              if (process.env.CURSOR_API_KEY) {
-                c.plugins = c.plugins || {};
-                c.plugins.entries = c.plugins.entries || {};
-                c.plugins.entries["cursor-sdk"] = {
-                  enabled: true,
-                  config: {
-                    model: "composer-2.5",
-                    runtime: "local",
-                    local: { cwd: "/home/node/.openclaw/workspace" }
-                  }
-                };
-                c.agents.defaults.models = c.agents.defaults.models || {};
-                c.agents.defaults.models["cursor-sdk/composer-2.5"] = {
-                  agentRuntime: { id: "cursor-sdk" }
-                };
-                c.agents.defaults.model = {
-                  primary: "cursor-sdk/composer-2.5",
-                  fallbacks: ["xai/grok-4.3"]
-                };
-              } else {
-                c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
+                const chunks = [];
+                res.on("data", (c) => chunks.push(c));
+                res.on("end", () => resolve(Buffer.concat(chunks)));
+              }).on("error", reject);
+            });
+          }
+          (async () => {
+            for (const rel of files) {
+              const body = await fetch(base + "/" + rel);
+              const dest = path.join(work, rel);
+              fs.mkdirSync(path.dirname(dest), { recursive: true });
+              fs.writeFileSync(dest, body);
+            }
+            // Upstream package.json references @openclaw/plugin-sdk as
+            // workspace:* (monorepo-only). Strip devDependencies so npm
+            // install succeeds when fetching standalone files from GitHub.
+            const pkgPath = path.join(work, "package.json");
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+            delete pkg.devDependencies;
+            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+            execSync("npm install --omit=dev --no-audit --no-fund", {
+              cwd: work,
+              stdio: "inherit",
+            });
+            execSync("openclaw plugins install " + work, { stdio: "inherit" });
+            try {
+              execSync("chown -R 1000:1000 /home/node/.openclaw/extensions");
+            } catch (e) {
+              console.log("chown extensions failed:", e.message);
+            }
+            console.log("Installed cursor-sdk plugin");
+          })().catch((e) => {
+            console.error(e);
+            process.exit(1);
+          });
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: openclaw-data
+          mountPath: /home/node/.openclaw
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+      - name: config-patch
+        image: ghcr.io/openclaw/openclaw:latest
+        command: ["node", "-e"]
+        args:
+        - |
+          const fs = require("fs");
+          const p = "/home/node/.openclaw/openclaw.json";
+          let c = {};
+          try { c = JSON.parse(fs.readFileSync(p, "utf8")); } catch(e) {}
+          c.gateway = c.gateway || {};
+          c.gateway.bind = "lan";
+          // Upstream `openclaw:latest` now refuses to start without
+          // `gateway.mode`. Set it explicitly to `local` (matching `bind: lan`
+          // — non-tunneled, in-cluster reachable only). Without this line the
+          // container errors with "Gateway start blocked: existing config is
+          // missing gateway.mode" and CrashLoopBackOffs.
+          c.gateway.mode = "local";
+          c.gateway.controlUi = c.gateway.controlUi || {};
+          c.gateway.controlUi.dangerouslyDisableDeviceAuth = true;
+          // The Control UI is reached only via the Cloudflare Tunnel
+          // (openclaw.victornazzaro.com, behind CF Access). The gateway
+          // rejects any browser origin not in this list with "origin not
+          // allowed" (no wildcards supported).
+          c.gateway.controlUi.allowedOrigins = [
+            "https://openclaw.victornazzaro.com"
+          ];
+          // Auth is delegated to Cloudflare Access (trusted-proxy mode):
+          // cloudflared injects Cf-Access-Authenticated-User-Email after a
+          // successful CF Access login, so the browser never needs a gateway
+          // token. `auth=none` is refused on a lan bind, hence trusted-proxy.
+          // trustedProxies is scoped to the pod network (only in-cluster
+          // proxies — cloudflared — can present identity headers); the local
+          // nginx ingress was removed so there is no unauthenticated path that
+          // could spoof the identity header. requiredHeaders forces the CF
+          // Access JWT to be present, and allowUsers pins the single operator.
+          c.gateway.trustedProxies = ["10.244.0.0/16"];
+          c.gateway.auth = {
+            mode: "trusted-proxy",
+            trustedProxy: {
+              userHeader: "Cf-Access-Authenticated-User-Email",
+              requiredHeaders: ["Cf-Access-Jwt-Assertion"],
+              allowUsers: ["nazzav923@gmail.com"]
+            }
+          };
+          delete c.gateway.tailscale;
+          c.browser = c.browser || {};
+          c.browser.enabled = true;
+          c.browser.attachOnly = true;
+          c.browser.defaultProfile = "kubernetes";
+          c.browser.remoteCdpTimeoutMs = 5000;
+          c.browser.profiles = c.browser.profiles || {};
+          c.browser.profiles.kubernetes = {
+            cdpUrl: "http://10.96.93.57:9222",
+            color: "#0099FF"
+          };
+          c.agents = c.agents || {};
+          c.agents.defaults = c.agents.defaults || {};
+          c.agents.defaults.sandbox = c.agents.defaults.sandbox || {};
+          c.agents.defaults.sandbox.browser = c.agents.defaults.sandbox.browser || {};
+          c.agents.defaults.sandbox.browser.allowHostControl = true;
+          // Agent model: Cursor Composer 2.5 via the cursor-sdk harness
+          // (CURSOR_API_KEY + @cursor/sdk). Grok 4.3 remains an explicit
+          // fallback for transient Cursor outages. Empty fallbacks when Cursor
+          // is unavailable would otherwise fall through to the openai default
+          // (reuses the xAI key against platform.openai.com and 401s) or the
+          // context-limited local qwen3-235b (8k window).
+          if (process.env.CURSOR_API_KEY) {
+            c.plugins = c.plugins || {};
+            c.plugins.entries = c.plugins.entries || {};
+            c.plugins.entries["cursor-sdk"] = {
+              enabled: true,
+              config: {
+                model: "composer-2.5",
+                runtime: "local",
+                local: { cwd: "/home/node/.openclaw/workspace" }
               }
-              // The morning briefing does substantial web research and then writes
-              // to Notion, which exceeds the default agent-turn / stuck-session
-              // watchdog (~520s) and gets aborted mid-run. Give it generous
-              // headroom: 20 min per turn, warn at 5 min, abort only after 20 min
-              // of no progress. Acceptable for a once-daily isolated cron.
-              c.agents.defaults.timeoutSeconds = 1200;
-              c.diagnostics = c.diagnostics || {};
-              c.diagnostics.stuckSessionWarnMs = 300000;
-              c.diagnostics.stuckSessionAbortMs = 1200000;
-              // xAI provider. Defining this entry shadows OpenClaw's built-in xai
-              // provider, so baseUrl + apiKey MUST be set explicitly — otherwise
-              // the openai-responses transport defaults to api.openai.com and the
-              // xAI key is rejected with a 401. timeoutSeconds raises the per-
-              // request idle ceiling (default 120s) so generating the large Notion
-              // payload doesn't abort mid-response.
-              c.models = c.models || {};
-              c.models.providers = c.models.providers || {};
-              // Local OpenAI-compatible inference backend, served by the shared
-              // ai-inference app on the Corsair AI Workstation 300 GPU node.
-              c.models.providers.local = {
-                baseUrl: "http://llm.ai-inference.svc.cluster.local:8080/v1",
-                api: "openai-completions",
-                apiKey: "local",
-                timeoutSeconds: 600,
-                models: [
-                  {
-                    id: "qwen3-235b-a22b-instruct",
-                    name: "Qwen3 235B A22B Instruct (local)",
-                    contextWindow: 8192,
-                    maxTokens: 4096,
-                    input: ["text"],
-                    cost: { input: 0, output: 0 }
-                  }
-                ]
-              };
-              // Only baseUrl + timeoutSeconds. The API key auto-resolves from the
-              // XAI_API_KEY env var (do NOT set apiKey here: the env-ref form
-              // expects a configured *secret provider*, not a model provider, and
-              // an invalid ref makes the gateway refuse to start).
-              c.models.providers.xai = {
-                baseUrl: "https://api.x.ai/v1",
-                timeoutSeconds: 300
-              };
+            };
+            c.agents.defaults.models = c.agents.defaults.models || {};
+            c.agents.defaults.models["cursor-sdk/composer-2.5"] = {
+              agentRuntime: { id: "cursor-sdk" }
+            };
+            c.agents.defaults.model = {
+              primary: "cursor-sdk/composer-2.5",
+              fallbacks: ["xai/grok-4.3"]
+            };
+          } else {
+            c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
+          }
+          // The morning briefing does substantial web research and then writes
+          // to Notion, which exceeds the default agent-turn / stuck-session
+          // watchdog (~520s) and gets aborted mid-run. Give it generous
+          // headroom: 20 min per turn, warn at 5 min, abort only after 20 min
+          // of no progress. Acceptable for a once-daily isolated cron.
+          c.agents.defaults.timeoutSeconds = 1200;
+          c.diagnostics = c.diagnostics || {};
+          c.diagnostics.stuckSessionWarnMs = 300000;
+          c.diagnostics.stuckSessionAbortMs = 1200000;
+          // xAI provider. Defining this entry shadows OpenClaw's built-in xai
+          // provider, so baseUrl + apiKey MUST be set explicitly — otherwise
+          // the openai-responses transport defaults to api.openai.com and the
+          // xAI key is rejected with a 401. timeoutSeconds raises the per-
+          // request idle ceiling (default 120s) so generating the large Notion
+          // payload doesn't abort mid-response.
+          c.models = c.models || {};
+          c.models.providers = c.models.providers || {};
+          // Local OpenAI-compatible inference backend, served by the shared
+          // ai-inference app on the Corsair AI Workstation 300 GPU node.
+          c.models.providers.local = {
+            baseUrl: "http://llm.ai-inference.svc.cluster.local:8080/v1",
+            api: "openai-completions",
+            apiKey: "local",
+            timeoutSeconds: 600,
+            models: [
+              {
+                id: "qwen3-235b-a22b-instruct",
+                name: "Qwen3 235B A22B Instruct (local)",
+                contextWindow: 8192,
+                maxTokens: 4096,
+                input: ["text"],
+                cost: { input: 0, output: 0 }
+              }
+            ]
+          };
+          // Only baseUrl + timeoutSeconds. The API key auto-resolves from the
+          // XAI_API_KEY env var (do NOT set apiKey here: the env-ref form
+          // expects a configured *secret provider*, not a model provider, and
+          // an invalid ref makes the gateway refuse to start).
+          c.models.providers.xai = {
+            baseUrl: "https://api.x.ai/v1",
+            timeoutSeconds: 300
+          };
 
-              // Normalize channels.telegram.streaming: schema now requires an object.
-              // Older versions persisted it as a boolean which causes a startup-time
-              // validation error ("must be object"). Drop the field entirely so the
-              // gateway falls back to its defaults; user can re-enable via UI.
-              if (c.channels && c.channels.telegram && "streaming" in c.channels.telegram) {
-                const s = c.channels.telegram.streaming;
-                if (s === null || typeof s !== "object" || Array.isArray(s)) {
-                  delete c.channels.telegram.streaming;
-                }
+          // Normalize channels.telegram.streaming: schema now requires an object.
+          // Older versions persisted it as a boolean which causes a startup-time
+          // validation error ("must be object"). Drop the field entirely so the
+          // gateway falls back to its defaults; user can re-enable via UI.
+          if (c.channels && c.channels.telegram && "streaming" in c.channels.telegram) {
+            const s = c.channels.telegram.streaming;
+            if (s === null || typeof s !== "object" || Array.isArray(s)) {
+              delete c.channels.telegram.streaming;
+            }
+          }
+          // Notion MCP server: gives the agent Notion tools (create/read
+          // pages) for the morning investment briefing. The integration token
+          // is injected from the NOTION_TOKEN env (sourced from the
+          // openclaw-secrets Secret) into the per-server OPENAPI_MCP_HEADERS
+          // so it is not hard-coded in Git. Spawned by the gateway via npx at
+          // runtime. Only configured when the token is present.
+          if (process.env.NOTION_TOKEN) {
+            c.mcp = c.mcp || {};
+            c.mcp.servers = c.mcp.servers || {};
+            c.mcp.servers.notion = {
+              command: "npx",
+              args: ["-y", "@notionhq/notion-mcp-server"],
+              env: {
+                OPENAPI_MCP_HEADERS: JSON.stringify({
+                  Authorization: "Bearer " + process.env.NOTION_TOKEN,
+                  "Notion-Version": "2022-06-28"
+                })
               }
-              // Notion MCP server: gives the agent Notion tools (create/read
-              // pages) for the morning investment briefing. The integration token
-              // is injected from the NOTION_TOKEN env (sourced from the
-              // openclaw-secrets Secret) into the per-server OPENAPI_MCP_HEADERS
-              // so it is not hard-coded in Git. Spawned by the gateway via npx at
-              // runtime. Only configured when the token is present.
-              if (process.env.NOTION_TOKEN) {
-                c.mcp = c.mcp || {};
-                c.mcp.servers = c.mcp.servers || {};
-                c.mcp.servers.notion = {
-                  command: "npx",
-                  args: ["-y", "@notionhq/notion-mcp-server"],
-                  env: {
-                    OPENAPI_MCP_HEADERS: JSON.stringify({
-                      Authorization: "Bearer " + process.env.NOTION_TOKEN,
-                      "Notion-Version": "2022-06-28"
-                    })
-                  }
-                };
-              }
-              // Kubernetes MCP (READ-ONLY cluster diagnostics). Native Go server
-              // (kubernetes-mcp-server) — no kubectl/helm binary needed, and it
-              // auto-detects the pod's in-cluster ServiceAccount token. Started with
-              // --read-only so writes are blocked at the tool layer; the SA itself
-              // is bound only to `view` (+ Argo read) so writes 403 regardless. The
-              // agent observes the live cluster here but NEVER changes it directly —
-              // all changes go out as GitHub PRs (below). selfHeal would revert any
-              // direct edit anyway.
-              c.mcp = c.mcp || {};
-              c.mcp.servers = c.mcp.servers || {};
-              c.mcp.servers.kubernetes = {
-                command: "npx",
-                args: ["-y", "kubernetes-mcp-server@latest", "--read-only"]
-              };
-              // GitHub MCP: the ONLY write path to the cluster. A separate
-              // github-app-mcp sidecar authenticates as a GitHub App and refreshes
-              // installation tokens internally — we just connect to it over
-              // Streamable HTTP (no token in this container). The agent edits
-              // manifests on a branch and opens a PR against saxocellphone/k8s-cluster;
-              // the operator reviews + merges, then Argo reconciles. The App identity
-              // cannot push to / merge `main` (enforced by a branch ruleset), so a PR
-              // is the only possible outcome. X-MCP-Token (substituted from the
-              // gateway's GITHUB_MCP_TOKEN env at connect time) authenticates us to
-              // the sidecar. Minimal toolset (read_file/list_dir/open_pr/...) keeps
-              // the tool count tiny for the local model's 8192-token context window.
-              c.mcp.servers.github = {
-                url: "http://github-app-mcp.openclaw.svc.cluster.local/mcp",
-                transport: "streamable-http",
-                headers: { "X-MCP-Token": "${GITHUB_MCP_TOKEN}" }
-              };
-              // Cron webhook auth: the morning job delivers via --webhook to the
-              // in-cluster notion-writer. OpenClaw sends `Authorization: Bearer
-              // <cron.webhookToken>`; set it from the WEBHOOK_TOKEN secret so the
-              // writer can authenticate the request.
-              if (process.env.WEBHOOK_TOKEN) {
-                c.cron = c.cron || {};
-                c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
-              }
-              fs.writeFileSync(p, JSON.stringify(c, null, 2));
-              const modelPrimary = process.env.CURSOR_API_KEY
-                ? "cursor-sdk/composer-2.5"
-                : "xai/grok-4.3";
-              console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=" + modelPrimary + ", mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
-          env:
-            - name: NOTION_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: NOTION_TOKEN
-            - name: WEBHOOK_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: WEBHOOK_TOKEN
-            - name: CURSOR_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: CURSOR_API_KEY
-          volumeMounts:
-            - name: openclaw-data
-              mountPath: /home/node/.openclaw
-          imagePullPolicy: Always
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 10001
-            capabilities:
-              drop:
-                - ALL
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
+            };
+          }
+          // Kubernetes MCP (READ-ONLY cluster diagnostics). Native Go server
+          // (kubernetes-mcp-server) — no kubectl/helm binary needed, and it
+          // auto-detects the pod's in-cluster ServiceAccount token. Started with
+          // --read-only so writes are blocked at the tool layer; the SA itself
+          // is bound only to `view` (+ Argo read) so writes 403 regardless. The
+          // agent observes the live cluster here but NEVER changes it directly —
+          // all changes go out as GitHub PRs (below). selfHeal would revert any
+          // direct edit anyway.
+          c.mcp = c.mcp || {};
+          c.mcp.servers = c.mcp.servers || {};
+          c.mcp.servers.kubernetes = {
+            command: "npx",
+            args: ["-y", "kubernetes-mcp-server@latest", "--read-only"]
+          };
+          // GitHub MCP: the ONLY write path to the cluster. A separate
+          // github-app-mcp sidecar authenticates as a GitHub App and refreshes
+          // installation tokens internally — we just connect to it over
+          // Streamable HTTP (no token in this container). The agent edits
+          // manifests on a branch and opens a PR against saxocellphone/k8s-cluster;
+          // the operator reviews + merges, then Argo reconciles. The App identity
+          // cannot push to / merge `main` (enforced by a branch ruleset), so a PR
+          // is the only possible outcome. X-MCP-Token (substituted from the
+          // gateway's GITHUB_MCP_TOKEN env at connect time) authenticates us to
+          // the sidecar. Minimal toolset (read_file/list_dir/open_pr/...) keeps
+          // the tool count tiny for the local model's 8192-token context window.
+          c.mcp.servers.github = {
+            url: "http://github-app-mcp.openclaw.svc.cluster.local/mcp",
+            transport: "streamable-http",
+            headers: { "X-MCP-Token": "${GITHUB_MCP_TOKEN}" }
+          };
+          // Cron webhook auth: the morning job delivers via --webhook to the
+          // in-cluster notion-writer. OpenClaw sends `Authorization: Bearer
+          // <cron.webhookToken>`; set it from the WEBHOOK_TOKEN secret so the
+          // writer can authenticate the request.
+          if (process.env.WEBHOOK_TOKEN) {
+            c.cron = c.cron || {};
+            c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
+          }
+          fs.writeFileSync(p, JSON.stringify(c, null, 2));
+          const modelPrimary = process.env.CURSOR_API_KEY
+            ? "cursor-sdk/composer-2.5"
+            : "xai/grok-4.3";
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=" + modelPrimary + ", mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+        env:
+        - name: NOTION_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: NOTION_TOKEN
+        - name: WEBHOOK_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: WEBHOOK_TOKEN
+        - name: CURSOR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: CURSOR_API_KEY
+        volumeMounts:
+        - name: openclaw-data
+          mountPath: /home/node/.openclaw
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
       containers:
-        - name: openclaw
-          image: ghcr.io/openclaw/openclaw:2026.2.0
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 18789
-              name: gateway
-              protocol: TCP
-          env:
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: ANTHROPIC_API_KEY
-            - name: XAI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: XAI_API_KEY
-            - name: CURSOR_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: CURSOR_API_KEY
-            - name: TELEGRAM_BOT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: TELEGRAM_BOT_TOKEN
+      - name: openclaw
+        image: ghcr.io/openclaw/openclaw:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 18789
+          name: gateway
+          protocol: TCP
+        env:
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: ANTHROPIC_API_KEY
+        - name: XAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: XAI_API_KEY
+        - name: CURSOR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: CURSOR_API_KEY
+        - name: TELEGRAM_BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: TELEGRAM_BOT_TOKEN
         # OPENCLAW_GATEWAY_TOKEN intentionally omitted: the gateway uses
         # trusted-proxy auth (Cloudflare Access), and a configured token
         # alongside trusted-proxy mode is rejected at startup.
-            - name: BRAVE_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: BRAVE_API_KEY
+        - name: BRAVE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: BRAVE_API_KEY
         # Shared secret the gateway sends as X-MCP-Token to the github-app-mcp
         # sidecar (substituted into the mcp.servers.github headers at connect
         # time). Must match the sidecar's MCP_SHARED_TOKEN.
-            - name: GITHUB_MCP_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: openclaw-secrets
-                  key: GITHUB_MCP_TOKEN
-            - name: TZ
-              value: "America/Los_Angeles"
-            - name: PATH
-              value: "/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-          resources:
-            requests:
-              cpu: 200m
-              memory: 512Mi
-            limits:
-              cpu: "2"
-              memory: 2Gi
-          volumeMounts:
-            - name: openclaw-data
-              mountPath: /home/node/.openclaw
-            - name: kubectl-tools
-              mountPath: /tools
-              readOnly: true
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 10001
-            capabilities:
-              drop:
-                - ALL
-      volumes:
+        - name: GITHUB_MCP_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: GITHUB_MCP_TOKEN
+        - name: TZ
+          value: "America/Los_Angeles"
+        - name: PATH
+          value: "/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: "2"
+            memory: 2Gi
+        volumeMounts:
         - name: openclaw-data
-          persistentVolumeClaim:
-            claimName: openclaw-data
+          mountPath: /home/node/.openclaw
         - name: kubectl-tools
-          emptyDir: {}
+          mountPath: /tools
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: openclaw-data
+        persistentVolumeClaim:
+          claimName: openclaw-data
+      - name: kubectl-tools
+        emptyDir: {}
       # Operator persona/guardrails (SOUL.md) generated from
       # cluster-operator-soul.md; copied into the workspace by seed-workspace.
-        - name: workspace-seed
-          configMap:
-            name: openclaw-workspace-seed
+      - name: workspace-seed
+        configMap:
+          name: openclaw-workspace-seed
       securityContext:
         seccompProfile:
           type: RuntimeDefault

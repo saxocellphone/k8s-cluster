@@ -13,20 +13,11 @@ from ruamel.yaml import YAML
 ROOT = Path(__file__).resolve().parents[1]
 WORKLOAD_KINDS = {"Deployment", "StatefulSet", "DaemonSet", "CronJob", "Job"}
 
+# Only pin images after verifying the tag exists on the registry.
 IMAGE_PINS: dict[str, str] = {
-    "linuxserver/sonarr:latest": "linuxserver/sonarr:4.0.16",
-    "linuxserver/radarr:latest": "linuxserver/radarr:5.22.4",
-    "linuxserver/prowlarr:latest": "linuxserver/prowlarr:1.32.2",
-    "linuxserver/qbittorrent:latest": "linuxserver/qbittorrent:5.0.4",
-    "cloudflare/cloudflared:latest": "cloudflare/cloudflared:2025.2.0",
-    "ghcr.io/flaresolverr/flaresolverr:latest": "ghcr.io/flaresolverr/flaresolverr:v3.3.25.0",
-    "ghcr.io/advplyr/audiobookshelf:latest": "ghcr.io/advplyr/audiobookshelf:2.25.1",
-    "mirotalk/c2c:latest": "mirotalk/c2c:1.0.16",
+    "qmcgaw/gluetun": "qmcgaw/gluetun:v3.40.0",
     "rclone/rclone:latest": "rclone/rclone:1.69.0",
     "nicolaka/netshoot:latest": "nicolaka/netshoot:v0.13",
-    "ghcr.io/openclaw/openclaw:latest": "ghcr.io/openclaw/openclaw:2026.2.0",
-    "ghcr.io/saxocellphone/hipfire-gfx1151:latest": "ghcr.io/saxocellphone/hipfire-gfx1151:2026.02.0",
-    "qmcgaw/gluetun": "qmcgaw/gluetun:v3.40.0",
 }
 
 # Per-file Checkov skip annotations (resource-level, justified).
@@ -270,17 +261,25 @@ def merge_security_context(existing: dict | None, defaults: dict) -> dict:
     return merged
 
 
-def container_run_as_user(image: str) -> int:
+SEED_INIT_NAMES = {"seed-config"}
+
+
+def default_container_security(image: str, *, init: bool, name: str) -> dict:
+    if init and name in SEED_INIT_NAMES:
+        return {
+            "allowPrivilegeEscalation": False,
+            "runAsUser": 0,
+            "capabilities": {"drop": ["ALL"]},
+        }
     if image.startswith("linuxserver/"):
-        return 1001
-    return 10001
-
-
-def default_container_security(image: str) -> dict:
+        return {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["ALL"]},
+        }
     return {
         "allowPrivilegeEscalation": False,
         "runAsNonRoot": True,
-        "runAsUser": container_run_as_user(image),
+        "runAsUser": 10001,
         "capabilities": {"drop": ["ALL"]},
     }
 
@@ -314,7 +313,12 @@ def ensure_resources(container: dict, profile: dict) -> None:
     container["resources"] = deepcopy(profile)
 
 
-def harden_container(container: dict, *, privileged_workload: bool) -> None:
+def harden_container(
+    container: dict,
+    *,
+    privileged_workload: bool,
+    init: bool = False,
+) -> None:
     image = container.get("image")
     if isinstance(image, str):
         container["image"] = pin_image(image)
@@ -326,7 +330,11 @@ def harden_container(container: dict, *, privileged_workload: bool) -> None:
 
     container["securityContext"] = merge_security_context(
         container.get("securityContext"),
-        default_container_security(container.get("image", "")),
+        default_container_security(
+            container.get("image", ""),
+            init=init,
+            name=container.get("name", ""),
+        ),
     )
 
 
@@ -363,7 +371,11 @@ def harden_pod_spec(spec: dict, *, privileged_workload: bool) -> None:
             containers.append((key, container))
 
     for key, container in containers:
-        harden_container(container, privileged_workload=privileged_workload)
+        harden_container(
+            container,
+            privileged_workload=privileged_workload,
+            init=key == "initContainers",
+        )
         profile = INIT_RESOURCES if key == "initContainers" else DEFAULT_RESOURCES
         ensure_resources(container, profile)
 

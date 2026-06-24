@@ -25,58 +25,58 @@ spec:
         reloader.stakater.com/auto: "true"
     spec:
       containers:
-        - name: mirotalkc2c
-          image: mirotalk/c2c:1.0.16
-          imagePullPolicy: Always
-          ports:
-            - name: http
-              containerPort: 8080
-              protocol: TCP
+      - name: mirotalkc2c
+        image: mirotalk/c2c:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
         # The upstream image reads /src/.env via dotenv on startup. We mount
         # the SOPS-managed Secret as a single file at that exact path.
-          volumeMounts:
-            - name: env
-              mountPath: /src/.env
-              subPath: .env
-              readOnly: true
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 30
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: "1"
-              memory: 512Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 10001
-            capabilities:
-              drop:
-                - ALL
-      volumes:
+        volumeMounts:
         - name: env
-          secret:
-            secretName: mirotalkc2c-env
-            defaultMode: 0400
-            items:
-              - key: .env
-                path: .env
+          mountPath: /src/.env
+          subPath: .env
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: "1"
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: env
+        secret:
+          secretName: mirotalkc2c-env
+          defaultMode: 0400
+          items:
+          - key: .env
+            path: .env
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:

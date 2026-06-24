@@ -22,77 +22,77 @@ spec:
         app: hipfire
     spec:
       imagePullSecrets:
-        - name: ghcr-saxocellphone
+      - name: ghcr-saxocellphone
       nodeSelector:
         accelerator: amd-strix-halo
       tolerations:
-        - key: accelerator
-          operator: Equal
-          value: amd-strix-halo
-          effect: NoSchedule
+      - key: accelerator
+        operator: Equal
+        value: amd-strix-halo
+        effect: NoSchedule
       containers:
-        - name: hipfire
-          image: ghcr.io/saxocellphone/hipfire-gfx1151:2026.02.0
-          imagePullPolicy: Always
-          env:
-            - name: HIPFIRE_MODEL
-              value: qwen3.6:27b
-          ports:
-            - name: http
-              containerPort: 11435
-              protocol: TCP
-          resources:
-            requests:
-              cpu: "4"
-              memory: 8Gi
-              amd.com/gpu: 1
-            limits:
-              cpu: "24"
-              memory: 64Gi
-              amd.com/gpu: 1
-          startupProbe:
-            httpGet:
-              path: /health
-              port: http
-            periodSeconds: 20
-            failureThreshold: 180
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: http
-            periodSeconds: 10
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            periodSeconds: 30
-            failureThreshold: 3
-          volumeMounts:
-            - name: llm-models
-              mountPath: /models
-            - name: dri
-              mountPath: /dev/dri
-            - name: kfd
-              mountPath: /dev/kfd
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 10001
-            capabilities:
-              drop:
-                - ALL
-      volumes:
-        - name: dri
-          hostPath:
-            path: /dev/dri
-        - name: kfd
-          hostPath:
-            path: /dev/kfd
-            type: CharDevice
+      - name: hipfire
+        image: ghcr.io/saxocellphone/hipfire-gfx1151:latest
+        imagePullPolicy: Always
+        env:
+        - name: HIPFIRE_MODEL
+          value: qwen3.6:27b
+        ports:
+        - name: http
+          containerPort: 11435
+          protocol: TCP
+        resources:
+          requests:
+            cpu: "4"
+            memory: 8Gi
+            amd.com/gpu: 1
+          limits:
+            cpu: "24"
+            memory: 64Gi
+            amd.com/gpu: 1
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 20
+          failureThreshold: 180
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 30
+          failureThreshold: 3
+        volumeMounts:
         - name: llm-models
-          persistentVolumeClaim:
-            claimName: llm-models
+          mountPath: /models
+        - name: dri
+          mountPath: /dev/dri
+        - name: kfd
+          mountPath: /dev/kfd
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: dri
+        hostPath:
+          path: /dev/dri
+      - name: kfd
+        hostPath:
+          path: /dev/kfd
+          type: CharDevice
+      - name: llm-models
+        persistentVolumeClaim:
+          claimName: llm-models
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:
