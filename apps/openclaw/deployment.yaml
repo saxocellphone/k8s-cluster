@@ -146,78 +146,6 @@ spec:
         volumeMounts:
         - name: kubectl-tools
           mountPath: /tools
-      # Cursor SDK plugin (openclaw/openclaw#75046) is not bundled in
-      # ghcr.io/openclaw/openclaw:latest yet. Fetch it once into the PVC so
-      # cursor-sdk/composer-2.5 can run as the default agent model.
-        imagePullPolicy: Always
-        resources:
-          requests:
-            cpu: 25m
-            memory: 64Mi
-          limits:
-            cpu: 250m
-            memory: 256Mi
-      - name: install-cursor-sdk
-        image: ghcr.io/openclaw/openclaw:2026.3.1
-        command: ["node", "-e"]
-        args:
-        - |
-          const fs = require("fs");
-          const path = require("path");
-          const { execSync } = require("child_process");
-          const extDir = "/home/node/.openclaw/extensions/cursor-sdk";
-          if (fs.existsSync(path.join(extDir, "openclaw.plugin.json"))) {
-            console.log("cursor-sdk plugin already installed");
-            process.exit(0);
-          }
-          // openclaw plugins install only bundles TypeScript plugins from a
-          // monorepo checkout (needs workspace plugin-sdk). Raw GitHub file
-          // fetches fail with "expected dist/index.js".
-          const commit = "aeb993c825d4eacb758ece7951924ab43487e41f";
-          const repo = "/tmp/openclaw-src";
-          fs.rmSync(repo, { recursive: true, force: true });
-          try {
-            execSync("apt-get update -qq && apt-get install -y -qq git ca-certificates", {
-              stdio: "inherit",
-            });
-          } catch (e) {
-            console.log("apt-get install git failed:", e.message);
-          }
-          execSync(
-            "git clone --filter=blob:none --no-checkout https://github.com/openclaw/openclaw.git " + repo,
-            { stdio: "inherit" },
-          );
-          execSync("git checkout " + commit, { cwd: repo, stdio: "inherit" });
-          // Install into a clean temp HOME. The PVC already has openclaw.json
-          // referencing secret env vars (GITHUB_MCP_TOKEN, etc.) which are not
-          // available in this init container — pointing HOME at the PVC makes
-          // `openclaw plugins install` fail config validation before bundling.
-          const tmpHome = "/tmp/openclaw-plugin-home";
-          fs.rmSync(tmpHome, { recursive: true, force: true });
-          fs.mkdirSync(path.join(tmpHome, ".openclaw"), { recursive: true });
-          execSync("openclaw plugins install extensions/cursor-sdk", {
-            cwd: repo,
-            env: { ...process.env, HOME: tmpHome },
-            stdio: "inherit",
-          });
-          const installed = path.join(tmpHome, ".openclaw/extensions/cursor-sdk");
-          fs.mkdirSync(path.dirname(extDir), { recursive: true });
-          fs.rmSync(extDir, { recursive: true, force: true });
-          fs.cpSync(installed, extDir, { recursive: true });
-          try {
-            execSync("chown -R 1000:1000 /home/node/.openclaw/extensions");
-          } catch (e) {
-            console.log("chown extensions failed:", e.message);
-          }
-          console.log("Installed cursor-sdk plugin");
-        envFrom:
-        - secretRef:
-            name: openclaw-secrets
-        securityContext:
-          runAsUser: 0
-        volumeMounts:
-        - name: openclaw-data
-          mountPath: /home/node/.openclaw
         imagePullPolicy: Always
         resources:
           requests:
@@ -286,34 +214,14 @@ spec:
           c.agents.defaults.sandbox = c.agents.defaults.sandbox || {};
           c.agents.defaults.sandbox.browser = c.agents.defaults.sandbox.browser || {};
           c.agents.defaults.sandbox.browser.allowHostControl = true;
-          // Agent model: Cursor Composer 2.5 via the cursor-sdk harness
-          // (CURSOR_API_KEY + @cursor/sdk). Grok 4.3 remains an explicit
-          // fallback for transient Cursor outages. Empty fallbacks when Cursor
-          // is unavailable would otherwise fall through to the openai default
-          // (reuses the xAI key against platform.openai.com and 401s) or the
-          // context-limited local qwen3-235b (8k window).
-          if (process.env.CURSOR_API_KEY) {
-            c.plugins = c.plugins || {};
-            c.plugins.entries = c.plugins.entries || {};
-            c.plugins.entries["cursor-sdk"] = {
-              enabled: true,
-              config: {
-                model: "composer-2.5",
-                runtime: "local",
-                local: { cwd: "/home/node/.openclaw/workspace" }
-              }
-            };
-            c.agents.defaults.models = c.agents.defaults.models || {};
-            c.agents.defaults.models["cursor-sdk/composer-2.5"] = {
-              agentRuntime: { id: "cursor-sdk" }
-            };
-            c.agents.defaults.model = {
-              primary: "cursor-sdk/composer-2.5",
-              fallbacks: ["xai/grok-4.3"]
-            };
-          } else {
-            c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
+          // Agent model: xAI Grok 4.3 via XAI_API_KEY.
+          if (c.plugins && c.plugins.entries) {
+            delete c.plugins.entries["cursor-sdk"];
           }
+          if (c.agents && c.agents.defaults && c.agents.defaults.models) {
+            delete c.agents.defaults.models["cursor-sdk/composer-2.5"];
+          }
+          c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
           // The morning briefing does substantial web research and then writes
           // to Notion, which exceeds the default agent-turn / stuck-session
           // watchdog (~520s) and gets aborted mid-run. Give it generous
@@ -427,10 +335,7 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          const modelPrimary = process.env.CURSOR_API_KEY
-            ? "cursor-sdk/composer-2.5"
-            : "xai/grok-4.3";
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=" + modelPrimary + ", mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: NOTION_TOKEN
           valueFrom:
@@ -442,11 +347,6 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: WEBHOOK_TOKEN
-        - name: CURSOR_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: openclaw-secrets
-              key: CURSOR_API_KEY
         volumeMounts:
         - name: openclaw-data
           mountPath: /home/node/.openclaw
@@ -484,11 +384,6 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: XAI_API_KEY
-        - name: CURSOR_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: openclaw-secrets
-              key: CURSOR_API_KEY
         - name: TELEGRAM_BOT_TOKEN
           valueFrom:
             secretKeyRef:
