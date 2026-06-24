@@ -25,6 +25,13 @@ REVERT_IMAGES = {
 
 SEED_INIT_NAMES = {"seed-config"}
 
+# Images that manage their own UID and need writable home/config paths.
+WRITABLE_IMAGES = (
+    "linuxserver/",
+    "ghcr.io/flaresolverr/flaresolverr",
+    "ghcr.io/advplyr/audiobookshelf",
+)
+
 
 def walk_containers(spec: dict):
     for key in ("initContainers", "containers", "ephemeralContainers"):
@@ -47,14 +54,14 @@ def fix_container(name: str, key: str, container: dict) -> bool:
         new_sc = {
             "allowPrivilegeEscalation": False,
             "runAsUser": 0,
-            "capabilities": {"drop": ["ALL"]},
+            "capabilities": {"add": ["CHOWN"], "drop": ["ALL"]},
         }
         if sc != new_sc:
             container["securityContext"] = new_sc
             changed = True
         return changed
 
-    if isinstance(image, str) and image.startswith("linuxserver/"):
+    if isinstance(image, str) and image.startswith(WRITABLE_IMAGES):
         new_sc = {
             "allowPrivilegeEscalation": False,
             "capabilities": {"drop": ["ALL"]},
