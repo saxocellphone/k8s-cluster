@@ -14,6 +14,8 @@ spec:
     metadata:
       labels:
         app: notion-writer
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       securityContext:
         runAsNonRoot: true

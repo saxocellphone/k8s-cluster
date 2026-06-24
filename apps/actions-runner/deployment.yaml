@@ -23,6 +23,8 @@ spec:
     metadata:
       labels:
         app: homelab-infra-runner
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       serviceAccountName: default
       automountServiceAccountToken: false

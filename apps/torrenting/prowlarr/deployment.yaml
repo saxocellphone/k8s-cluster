@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         app: prowlarr
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
