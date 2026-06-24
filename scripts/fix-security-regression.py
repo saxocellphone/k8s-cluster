@@ -55,7 +55,10 @@ def fix_container(name: str, key: str, container: dict) -> bool:
             "allowPrivilegeEscalation": False,
             "runAsUser": 0,
             "seccompProfile": {"type": "Unconfined"},
-            "capabilities": {"add": ["CHOWN"], "drop": ["ALL"]},
+            "capabilities": {
+                "add": ["CHOWN", "FOWNER", "DAC_OVERRIDE"],
+                "drop": ["ALL"],
+            },
         }
         if sc != new_sc:
             container["securityContext"] = new_sc

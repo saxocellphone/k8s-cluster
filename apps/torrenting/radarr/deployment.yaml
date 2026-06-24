@@ -61,6 +61,8 @@ spec:
           capabilities:
             add:
             - CHOWN
+            - FOWNER
+            - DAC_OVERRIDE
             drop:
             - ALL
         resources:
