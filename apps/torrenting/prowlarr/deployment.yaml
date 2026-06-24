@@ -57,6 +57,8 @@ spec:
           allowPrivilegeEscalation: false
           runAsUser: 0
           capabilities:
+            add:
+            - CHOWN
             drop:
             - ALL
         resources:
