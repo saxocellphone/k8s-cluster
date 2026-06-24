@@ -73,7 +73,7 @@ spec:
         extensions.talos.dev/iscsi-tools: "v0.2.0"
       initContainers:
       - name: fix-permissions
-        image: ghcr.io/openclaw/openclaw:latest
+        image: ghcr.io/openclaw/openclaw:2026.3.1
         command: ["node", "-e"]
         args:
         - |
@@ -103,7 +103,7 @@ spec:
             cpu: 250m
             memory: 256Mi
       - name: seed-workspace
-        image: ghcr.io/openclaw/openclaw:latest
+        image: ghcr.io/openclaw/openclaw:2026.3.1
         command: ["node", "-e"]
         args:
         - |
@@ -158,78 +158,48 @@ spec:
             cpu: 250m
             memory: 256Mi
       - name: install-cursor-sdk
-        image: ghcr.io/openclaw/openclaw:latest
+        image: ghcr.io/openclaw/openclaw:2026.3.1
         command: ["node", "-e"]
         args:
         - |
           const fs = require("fs");
           const path = require("path");
-          const https = require("https");
           const { execSync } = require("child_process");
           const extDir = "/home/node/.openclaw/extensions/cursor-sdk";
           if (fs.existsSync(path.join(extDir, "openclaw.plugin.json"))) {
             console.log("cursor-sdk plugin already installed");
             process.exit(0);
           }
-          const base =
-            "https://raw.githubusercontent.com/openclaw/openclaw/aeb993c825d4eacb758ece7951924ab43487e41f/extensions/cursor-sdk";
-          const files = [
-            "harness.ts",
-            "index.ts",
-            "provider.ts",
-            "openclaw.plugin.json",
-            "package.json",
-            "src/error-classification.ts",
-            "src/run-attempt.ts",
-          ];
-          const work = "/tmp/cursor-sdk";
-          fs.rmSync(work, { recursive: true, force: true });
-          fs.mkdirSync(path.join(work, "src"), { recursive: true });
-          function fetch(url) {
-            return new Promise((resolve, reject) => {
-              https.get(url, (res) => {
-                if (res.statusCode === 301 || res.statusCode === 302) {
-                  return resolve(fetch(res.headers.location));
-                }
-                if (res.statusCode !== 200) {
-                  reject(new Error("HTTP " + res.statusCode + " for " + url));
-                  return;
-                }
-                const chunks = [];
-                res.on("data", (c) => chunks.push(c));
-                res.on("end", () => resolve(Buffer.concat(chunks)));
-              }).on("error", reject);
-            });
-          }
-          (async () => {
-            for (const rel of files) {
-              const body = await fetch(base + "/" + rel);
-              const dest = path.join(work, rel);
-              fs.mkdirSync(path.dirname(dest), { recursive: true });
-              fs.writeFileSync(dest, body);
-            }
-            // Upstream package.json references @openclaw/plugin-sdk as
-            // workspace:* (monorepo-only). Strip devDependencies so npm
-            // install succeeds when fetching standalone files from GitHub.
-            const pkgPath = path.join(work, "package.json");
-            const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-            delete pkg.devDependencies;
-            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
-            execSync("npm install --omit=dev --no-audit --no-fund", {
-              cwd: work,
+          // openclaw plugins install only bundles TypeScript plugins from a
+          // monorepo checkout (needs workspace:* plugin-sdk). Raw GitHub file
+          // fetches fail with "expected dist/index.js".
+          const commit = "aeb993c825d4eacb758ece7951924ab43487e41f";
+          const repo = "/tmp/openclaw-src";
+          fs.rmSync(repo, { recursive: true, force: true });
+          try {
+            execSync("apt-get update -qq && apt-get install -y -qq git ca-certificates", {
               stdio: "inherit",
             });
-            execSync("openclaw plugins install " + work, { stdio: "inherit" });
-            try {
-              execSync("chown -R 1000:1000 /home/node/.openclaw/extensions");
-            } catch (e) {
-              console.log("chown extensions failed:", e.message);
-            }
-            console.log("Installed cursor-sdk plugin");
-          })().catch((e) => {
-            console.error(e);
-            process.exit(1);
+          } catch (e) {
+            console.log("apt-get install git failed:", e.message);
+          }
+          execSync(
+            "git clone --filter=blob:none --no-checkout https://github.com/openclaw/openclaw.git " + repo,
+            { stdio: "inherit" },
+          );
+          execSync("git checkout " + commit, { cwd: repo, stdio: "inherit" });
+          const env = { ...process.env, HOME: "/home/node" };
+          execSync("openclaw plugins install extensions/cursor-sdk", {
+            cwd: repo,
+            env,
+            stdio: "inherit",
           });
+          try {
+            execSync("chown -R 1000:1000 /home/node/.openclaw/extensions");
+          } catch (e) {
+            console.log("chown extensions failed:", e.message);
+          }
+          console.log("Installed cursor-sdk plugin");
         securityContext:
           runAsUser: 0
         volumeMounts:
@@ -244,7 +214,7 @@ spec:
             cpu: 250m
             memory: 256Mi
       - name: config-patch
-        image: ghcr.io/openclaw/openclaw:latest
+        image: ghcr.io/openclaw/openclaw:2026.3.1
         command: ["node", "-e"]
         args:
         - |
@@ -484,7 +454,7 @@ spec:
             memory: 256Mi
       containers:
       - name: openclaw
-        image: ghcr.io/openclaw/openclaw:latest
+        image: ghcr.io/openclaw/openclaw:2026.3.1
         imagePullPolicy: Always
         ports:
         - containerPort: 18789
