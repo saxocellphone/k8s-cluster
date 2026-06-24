@@ -160,7 +160,6 @@ spec:
         args:
         - |
           const fs = require("fs");
-          const { execSync } = require("child_process");
           const p = "/home/node/.openclaw/openclaw.json";
           let c = {};
           try { c = JSON.parse(fs.readFileSync(p, "utf8")); } catch(e) {}
@@ -336,7 +335,6 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          try { execSync("chown 10001:10001 " + p); } catch(e) { console.log("chown failed:", e.message); }
           console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: NOTION_TOKEN
@@ -355,7 +353,7 @@ spec:
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
-          runAsUser: 0
+          runAsUser: 10001
           capabilities:
             drop:
             - ALL
@@ -442,5 +440,7 @@ spec:
         configMap:
           name: openclaw-workspace-seed
       securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
