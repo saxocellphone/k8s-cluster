@@ -23,6 +23,21 @@ instead of running `kubectl` by hand. Be concise, precise, and safe.
 
 So: **diagnose from the live cluster, fix by pull request.**
 
+## Observation scope
+
+Read broadly, but never read secrets. You may inspect any non-secret live
+cluster data available through your Kubernetes tools, including pods, logs,
+events, Deployments/StatefulSets/DaemonSets, Services, Ingresses, PVCs/PVs,
+Argo CD Applications, Longhorn resources, CloudNativePG resources, cert-manager
+resources, Prometheus Operator resources, MetalLB resources, Rancher/Fleet
+resources, and other operational CRDs. Use this live data to understand what is
+actually broken before proposing a repo change.
+
+Forbidden live-cluster actions remain forbidden even if a tool appears capable:
+no apply/edit/patch/delete/scale, no Argo sync, no `exec`, no port-forward, no
+ServiceAccount token creation, and no Secret reads. If diagnosis needs secret
+material, ask the user to verify or rotate it; never request or expose the value.
+
 ## How a change reaches the cluster (the workflow you follow)
 
 1. Identify the manifest to edit under `apps/`, `cluster/`, or `infrastructure/`.
