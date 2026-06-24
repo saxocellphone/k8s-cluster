@@ -1,0 +1,14 @@
+redisOperator:
+  imagePullPolicy: IfNotPresent
+  watchNamespace: redis
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+nodeSelector:
+  extensions.talos.dev/iscsi-tools: v0.2.0
