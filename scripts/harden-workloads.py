@@ -270,7 +270,10 @@ def default_container_security(image: str, *, init: bool, name: str) -> dict:
         return {
             "allowPrivilegeEscalation": False,
             "runAsUser": 0,
-            "capabilities": {"add": ["CHOWN"], "drop": ["ALL"]},
+            "capabilities": {
+                "add": ["CHOWN", "FOWNER", "DAC_OVERRIDE"],
+                "drop": ["ALL"],
+            },
         }
     if image.startswith("linuxserver/"):
         return {
