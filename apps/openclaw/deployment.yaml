@@ -230,7 +230,10 @@ spec:
           c.agents.defaults.timeoutSeconds = 1200;
           c.diagnostics = c.diagnostics || {};
           c.diagnostics.stuckSessionWarnMs = 300000;
-          // xAI Grok uses the built-in provider; XAI_API_KEY is injected via env.
+          // xAI provider. Defining this entry shadows OpenClaw's built-in xai
+          // provider, so baseUrl MUST be set explicitly — otherwise the
+          // openai-responses transport defaults to api.openai.com and the
+          // xAI key is rejected with a 401. 2026.3.1 also requires models[].
           c.models = c.models || {};
           c.models.providers = c.models.providers || {};
           // Local OpenAI-compatible inference backend, served by the shared
@@ -250,6 +253,20 @@ spec:
               }
             ]
           };
+          // API key auto-resolves from XAI_API_KEY env (do NOT set apiKey here).
+          c.models.providers.xai = {
+            baseUrl: "https://api.x.ai/v1",
+            models: [
+              {
+                id: "grok-4.3",
+                name: "Grok 4.3",
+                contextWindow: 131072,
+                maxTokens: 16384,
+                input: ["text"],
+                cost: { input: 0, output: 0 }
+              }
+            ]
+          };
 
           // Normalize channels.telegram.streaming: schema now requires an object.
           // Older versions persisted it as a boolean which causes a startup-time
@@ -261,15 +278,14 @@ spec:
               delete c.channels.telegram.streaming;
             }
           }
-          // 2026.3.1 rejects legacy root-level `mcp` and provider timeout keys
-          // persisted on the PVC. Strip them so the gateway can start; MCP
-          // wiring needs a follow-up once the new registry API is confirmed.
+          // Strip legacy keys persisted on the PVC from older gateways. 2026.3.1
+          // rejects timeoutSeconds, stuckSessionAbortMs, and root-level mcp.
           if (c.diagnostics) delete c.diagnostics.stuckSessionAbortMs;
-          if (c.models && c.models.providers) {
-            if (c.models.providers.xai) delete c.models.providers.xai;
-            if (c.models.providers.local && c.models.providers.local.timeoutSeconds !== undefined) {
-              delete c.models.providers.local.timeoutSeconds;
-            }
+          if (c.models && c.models.providers && c.models.providers.local) {
+            delete c.models.providers.local.timeoutSeconds;
+          }
+          if (c.models && c.models.providers && c.models.providers.xai) {
+            delete c.models.providers.xai.timeoutSeconds;
           }
           delete c.mcp;
           // Cron webhook auth: the morning job delivers via --webhook to the
@@ -281,7 +297,7 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, legacy-mcp=stripped, cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, xai.models=grok-4.3, cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: WEBHOOK_TOKEN
           valueFrom:
