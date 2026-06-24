@@ -188,12 +188,22 @@ spec:
             { stdio: "inherit" },
           );
           execSync("git checkout " + commit, { cwd: repo, stdio: "inherit" });
-          const env = { ...process.env, HOME: "/home/node" };
+          // Install into a clean temp HOME. The PVC already has openclaw.json
+          // referencing secret env vars (GITHUB_MCP_TOKEN, etc.) which are not
+          // available in this init container — pointing HOME at the PVC makes
+          // `openclaw plugins install` fail config validation before bundling.
+          const tmpHome = "/tmp/openclaw-plugin-home";
+          fs.rmSync(tmpHome, { recursive: true, force: true });
+          fs.mkdirSync(path.join(tmpHome, ".openclaw"), { recursive: true });
           execSync("openclaw plugins install extensions/cursor-sdk", {
             cwd: repo,
-            env,
+            env: { ...process.env, HOME: tmpHome },
             stdio: "inherit",
           });
+          const installed = path.join(tmpHome, ".openclaw/extensions/cursor-sdk");
+          fs.mkdirSync(path.dirname(extDir), { recursive: true });
+          fs.rmSync(extDir, { recursive: true, force: true });
+          fs.cpSync(installed, extDir, { recursive: true });
           try {
             execSync("chown -R 1000:1000 /home/node/.openclaw/extensions");
           } catch (e) {
