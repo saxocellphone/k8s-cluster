@@ -18,6 +18,8 @@ spec:
     metadata:
       labels:
         app: github-app-mcp
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       securityContext:
         runAsNonRoot: true

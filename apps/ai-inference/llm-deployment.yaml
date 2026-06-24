@@ -16,6 +16,8 @@ spec:
     metadata:
       labels:
         app: llm
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       nodeSelector:
         accelerator: amd-strix-halo

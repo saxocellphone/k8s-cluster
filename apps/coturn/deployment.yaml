@@ -20,6 +20,8 @@ spec:
     metadata:
       labels:
         app: coturn
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       # Pin to carbon-node specifically:
       #   - Talos workers have an immutable rootfs and stricter PSA defaults

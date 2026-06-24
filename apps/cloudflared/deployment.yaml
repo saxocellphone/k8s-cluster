@@ -21,6 +21,8 @@ spec:
     metadata:
       labels:
         app: cloudflared
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       affinity:
         podAntiAffinity:

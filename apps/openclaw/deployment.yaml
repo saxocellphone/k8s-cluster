@@ -48,6 +48,8 @@ spec:
     metadata:
       labels:
         app: openclaw
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       # Read-only cluster access for the Kubernetes MCP server (see rbac.yaml).
       # The npx-spawned MCP subprocess inherits this SA's in-cluster token, which

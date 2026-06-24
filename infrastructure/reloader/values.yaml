@@ -1,6 +1,7 @@
 # Stakater Reloader rolling-restarts annotated workloads when their
-# referenced ConfigMaps or Secrets change. Opt in per workload via
-# reloader.stakater.com/auto or configmap/secret.reloader.stakater.com/reload.
+# referenced ConfigMaps or Secrets change. Workloads opt in via pod-template
+# annotation reloader.stakater.com/auto: "true" (preferred — reloads on any
+# referenced CM/Secret) or per-resource configmap/secret.reloader.stakater.com/reload.
 
 reloader:
   deployment:

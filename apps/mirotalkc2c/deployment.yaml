@@ -17,9 +17,7 @@ spec:
       labels:
         app: mirotalkc2c
       annotations:
-        # Restart pods when the .env Secret changes (Argo CD won't roll us
-        # automatically because the env is mounted as a file, not envFrom).
-        checksum/env: replace-on-change
+        reloader.stakater.com/auto: "true"
     spec:
       containers:
       - name: mirotalkc2c
