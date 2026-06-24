@@ -2,6 +2,9 @@ env:
   DISABLE_WAITLIST: "true"
   LITELLM_DEFAULT_MODEL: litellm_proxy/local-qwen3-27b
   RUNTIME_URL_PATTERN: "http://{runtime_id}.runtime.openhands.k8s.home"
+  WEB_HOST: openhands.victornazzaro.com
+  AUTH_WEB_HOST: auth.openhands.victornazzaro.com
+  OH_PERMITTED_CORS_ORIGINS: https://openhands.victornazzaro.com
   REDIS_HOST: redis.redis.svc.cluster.local
   REDIS_PORT: "6379"
   FILE_STORE: s3
@@ -30,9 +33,12 @@ filestore:
 minio:
   enabled: false
 
+github:
+  enabled: true
+
 keycloak:
   enabled: true
-  url: http://keycloak
+  url: https://auth.openhands.victornazzaro.com
   ingress:
     enabled: true
     hostname: auth.openhands.k8s.home

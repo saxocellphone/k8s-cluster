@@ -220,6 +220,25 @@ resource "cloudflare_dns_record" "openhands" {
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
 }
 
+resource "cloudflare_dns_record" "openhands_auth" {
+  comment         = "OpenHands Keycloak auth"
+  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
+  data            = null
+  name            = "auth.openhands.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
+}
+
 # __generated__ by Terraform from "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/ac88c1ef-f5e0-4f10-80a4-41ad08ddbff7"
 resource "cloudflare_zero_trust_access_service_token" "nzb360" {
   account_id                        = "e34e1aabbaa8c7a5ca6a7a229dea2ae7"
@@ -403,6 +422,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         service        = "http://openhands-service.openhands.svc.cluster.local:3000"
       },
       {
+        hostname       = "auth.openhands.victornazzaro.com"
+        origin_request = null
+        path           = null
+        service        = "http://keycloak.openhands.svc.cluster.local:80"
+      },
+      {
         hostname       = "ai.victornazzaro.com"
         origin_request = null
         path           = null
@@ -484,6 +509,16 @@ resource "cloudflare_zero_trust_access_application" "openclaw" {
       port_range    = null
       type          = "public"
       uri           = "openhands.victornazzaro.com"
+      vnet_id       = null
+    },
+    {
+      cidr          = null
+      hostname      = null
+      l4_protocol   = null
+      mcp_server_id = null
+      port_range    = null
+      type          = "public"
+      uri           = "auth.openhands.victornazzaro.com"
       vnet_id       = null
     },
   ]
