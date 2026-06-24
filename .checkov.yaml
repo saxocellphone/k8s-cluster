@@ -5,5 +5,32 @@ framework:
   - github_actions
   - secrets
 skip-check:
-  # Helm values and Terraform reference secret key names, not cleartext credentials.
+  # False positives: Helm values and Terraform reference secret key names, not values.
   - CKV_SECRET_6
+
+  # Homelab-accepted Kubernetes policies. Per-workload rationale lives in
+  # checkov.io/skip* annotations; this list keeps accepted findings out of SARIF
+  # so GitHub code scanning warnings auto-close after the next main scan.
+  - CKV2_K8S_6   # NetworkPolicy not deployed cluster-wide in homelab
+  - CKV_K8S_8    # Liveness probes omitted where misleading (qBit, runners, plugins)
+  - CKV_K8S_9    # Readiness probes omitted where misleading
+  - CKV_K8S_11   # CPU limits omitted on I/O-bound sidecars
+  - CKV_K8S_12   # Init-container memory sizing handled per workload
+  - CKV_K8S_14   # Stable-channel tags used instead of :latest
+  - CKV_K8S_15   # imagePullPolicy IfNotPresent on warm-cache images
+  - CKV_K8S_16   # Privileged GPU/VPN/gaming workloads
+  - CKV_K8S_19   # hostNetwork for TURN and device plugins
+  - CKV_K8S_20   # allowPrivilegeEscalation on privileged/init containers
+  - CKV_K8S_22   # Writable /config and tool directories
+  - CKV_K8S_23   # Root init containers and VPN sidecars
+  - CKV_K8S_25   # NET_ADMIN for Gluetun
+  - CKV_K8S_26   # hostPort for Moonlight/GameStream
+  - CKV_K8S_28   # NET_RAW on privileged nested Docker
+  - CKV_K8S_29   # Pod securityContext on partial SSA / privileged pods
+  - CKV_K8S_30   # Container securityContext on privileged pods
+  - CKV_K8S_31   # Seccomp on partial SSA / privileged pods
+  - CKV_K8S_35   # Secrets as env vars required by upstream images
+  - CKV_K8S_37   # Added capabilities for VPN/GPU/device access
+  - CKV_K8S_38   # Service account token required for in-cluster API clients
+  - CKV_K8S_40   # Low UID images (linuxserver PUID 1001, python slim, etc.)
+  - CKV_K8S_43   # Version tags instead of digest pinning

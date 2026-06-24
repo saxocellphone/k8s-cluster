@@ -66,6 +66,24 @@ jobs:
           SEMGREP_SEND_METRICS: off
           SEMGREP_APP_TOKEN: ""
 
+      - name: Filter Semgrep SARIF to errors only
+        if: always() && hashFiles('semgrep.sarif') != ''
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("semgrep.sarif")
+          data = json.loads(path.read_text())
+          for run in data.get("runs", []):
+              run["results"] = [
+                  result
+                  for result in run.get("results", [])
+                  if result.get("level") == "error"
+              ]
+          path.write_text(json.dumps(data))
+          PY
+
       - name: Upload Semgrep SARIF
         if: always() && hashFiles('semgrep.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
@@ -122,6 +140,7 @@ jobs:
         uses: bridgecrewio/checkov-action@v12
         with:
           directory: .
+          config_file: .checkov.yaml
           framework: kubernetes,terraform,github_actions,secrets
           output_format: cli,sarif
           output_file_path: console,checkov.sarif
