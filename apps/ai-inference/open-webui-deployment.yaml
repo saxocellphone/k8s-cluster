@@ -110,5 +110,7 @@ spec:
             claimName: open-webui-data
       automountServiceAccountToken: false
       securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault

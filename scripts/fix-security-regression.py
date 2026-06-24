@@ -54,6 +54,7 @@ def fix_container(name: str, key: str, container: dict) -> bool:
         new_sc = {
             "allowPrivilegeEscalation": False,
             "runAsUser": 0,
+            "seccompProfile": {"type": "Unconfined"},
             "capabilities": {"add": ["CHOWN"], "drop": ["ALL"]},
         }
         if sc != new_sc:
