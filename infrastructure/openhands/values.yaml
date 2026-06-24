@@ -47,8 +47,11 @@ postgresql:
     database: openhands
     existingSecret: postgres-password
     secretKeys:
+      # checkov:skip=CKV_SECRET_6 False positive: these are Secret key names, not secret values.
       adminPasswordKey: postgres-password
+      # checkov:skip=CKV_SECRET_6 False positive: this is a Secret key name, not a secret value.
       userPasswordKey: password
+      # checkov:skip=CKV_SECRET_6 False positive: this is a Secret key name, not a secret value.
       replicationPasswordKey: replication-password
   primary:
     persistence:
@@ -64,6 +67,7 @@ redis:
   auth:
     enabled: true
     existingSecret: redis
+    # checkov:skip=CKV_SECRET_6 False positive: this is a Secret key name, not a secret value.
     existingSecretPasswordKey: redis-password
   master:
     persistence:
