@@ -77,4 +77,5 @@ COPY apps/ai-inference/hipfire-serve.sh /usr/local/bin/hipfire-serve.sh
 RUN chmod +x /usr/local/bin/hipfire-serve.sh
 
 EXPOSE 11435
+USER 1000
 CMD ["/usr/local/bin/hipfire-serve.sh"]

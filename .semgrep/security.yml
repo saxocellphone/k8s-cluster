@@ -59,6 +59,11 @@ rules:
     message: Privileged containers should be limited to namespaces that intentionally opt into privileged PodSecurity.
     pattern: |
       privileged: true
+    paths:
+      exclude:
+        - apps/gaming/**
+        - apps/amd-gpu-device-plugin/**
+        - apps/ai-inference/**
     metadata:
       category: security
       confidence: medium
@@ -70,6 +75,11 @@ rules:
     pattern: |
       hostPath:
         ...
+    paths:
+      exclude:
+        - apps/gaming/**
+        - apps/amd-gpu-device-plugin/**
+        - apps/ai-inference/**
     metadata:
       category: security
       confidence: medium

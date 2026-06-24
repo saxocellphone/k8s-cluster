@@ -3,6 +3,16 @@ kind: StatefulSet
 metadata:
   name: qbittorrent
   namespace: torrenting
+  annotations:
+    checkov.io/skip1: CKV_K8S_8=qBittorrent WebUI becomes unresponsive during heavy rechecks; probes cause false 503s.
+    checkov.io/skip2: CKV_K8S_9=qBittorrent WebUI becomes unresponsive during heavy rechecks; probes cause false 503s.
+    checkov.io/skip3: CKV_K8S_22=Torrent client and VPN sidecar require writable config directories.
+    checkov.io/skip4: CKV_K8S_25=Gluetun VPN sidecar requires NET_ADMIN for tunnel setup.
+    checkov.io/skip5: CKV_K8S_35=Bootstrap and VPN credentials are required as env vars by Gluetun and seed scripts.
+    checkov.io/skip6: CKV_K8S_37=Gluetun adds NET_ADMIN for WireGuard tunnel management.
+    checkov.io/skip7: CKV_K8S_40=linuxserver images use PUID 1001 for NFS volume ownership.
+    checkov.io/skip8: CKV_K8S_43=Images are tag-pinned; digest pinning tracked separately.
+    checkov.io/skip9: CKV_K8S_23=Gluetun VPN sidecar requires root-equivalent privileges for tunnel setup.
 spec:
   serviceName: qbittorrent-headless
   replicas: 1
@@ -22,6 +32,10 @@ spec:
         kubernetes.io/ingress-bandwidth: "100M"
         kubernetes.io/egress-bandwidth: "50M"
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       # Restricted to Longhorn-capable workers via the iscsi-tools label only.
       # Do NOT pin to a specific hostname: the qbit-config Longhorn volume has
       # 2 replicas and is network-accessible, so any labeled worker can run it.
@@ -31,6 +45,7 @@ spec:
       initContainers:
       - name: seed-config
         image: python:3.13-alpine
+        imagePullPolicy: Always
         command: ["/usr/local/bin/python3", "/scripts/seed-qbit-conf.py"]
         env:
         - name: QBIT_USERNAME
@@ -48,6 +63,19 @@ spec:
           mountPath: /config
         - name: bootstrap-scripts
           mountPath: /scripts
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
       # Native sidecar (k8s >= 1.29; cluster is v1.34.1). Pins our MAM
       # session to the current Gluetun exit IP — without this, every VPN
       # reconnect locks the MAM session and torrents stall.
@@ -56,6 +84,7 @@ spec:
       # qBittorrent's tracker traffic.
       - name: mousehole
         image: python:3.13-alpine
+        imagePullPolicy: Always
         restartPolicy: Always
         command: ["/usr/local/bin/python3", "/scripts/mousehole.py"]
         env:
@@ -67,16 +96,25 @@ spec:
         volumeMounts:
         - name: mousehole-scripts
           mountPath: /scripts
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop: ["ALL"]
         resources:
           limits: { cpu: 100m, memory: 64Mi }
           requests: { cpu: 10m, memory: 32Mi }
       containers:
       - name: gluetun
-        image: qmcgaw/gluetun
+        image: qmcgaw/gluetun:v3.40.0
+        imagePullPolicy: Always
         securityContext:
+          allowPrivilegeEscalation: false
           capabilities:
             add:
             - NET_ADMIN
+            drop: ["ALL"]
         env:
         # VPN_SERVICE_PROVIDER=custom (rather than protonvpn) is required
         # for Gluetun to honor the VPN_ENDPOINT_IP/PORT overrides below.
@@ -155,7 +193,8 @@ spec:
             cpu: 100m
             memory: 128Mi
       - name: qbittorrent
-        image: linuxserver/qbittorrent:latest
+        image: linuxserver/qbittorrent:5.0.4
+        imagePullPolicy: Always
         env:
         - name: PUID
           value: "1001"
@@ -187,6 +226,12 @@ spec:
           requests:
             cpu: 100m
             memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop: ["ALL"]
       volumes:
       - name: torrents
         persistentVolumeClaim:

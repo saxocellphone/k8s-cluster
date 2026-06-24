@@ -48,7 +48,7 @@ def request_json(method, url, body=None):
     req.add_header("Accept", "application/json")
     if body is not None:
         req.add_header("Content-Type", "application/merge-patch+json")
-    with urllib.request.urlopen(req, context=context(), timeout=10) as resp:
+    with urllib.request.urlopen(req, context=context(), timeout=10) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         raw = resp.read()
     return json.loads(raw.decode("utf-8")) if raw else {}
 

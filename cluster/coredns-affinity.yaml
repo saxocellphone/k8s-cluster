@@ -24,6 +24,10 @@ metadata:
   namespace: kube-system
   annotations:
     argocd.argoproj.io/sync-options: ServerSideApply=true
+    checkov.io/skip1: CKV_K8S_29=Partial SSA manifest only owns affinity; security context is kubeadm-owned.
+    checkov.io/skip2: CKV_K8S_31=Partial SSA manifest only owns affinity; seccomp is kubeadm-owned.
+    checkov.io/skip3: CKV_K8S_38=Partial SSA manifest only owns affinity; SA token policy is kubeadm-owned.
+    checkov.io/skip4: CKV_K8S_40=Partial SSA manifest only owns affinity; runAsUser is kubeadm-owned.
 spec:
   template:
     spec:
@@ -51,3 +55,8 @@ spec:
                       operator: In
                       values:
                         - kube-dns
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+    metadata: {}

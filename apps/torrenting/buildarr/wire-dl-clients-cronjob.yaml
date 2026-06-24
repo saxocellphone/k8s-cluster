@@ -362,6 +362,11 @@ kind: CronJob
 metadata:
   name: wire-dl-clients
   namespace: torrenting
+  annotations:
+    checkov.io/skip1: CKV_K8S_22=Debug sidecar and Buildarr need writable temp directories.
+    checkov.io/skip2: CKV_K8S_35=ARR API keys are required as env vars for Buildarr wiring.
+    checkov.io/skip3: CKV_K8S_40=Upstream images run as low UIDs.
+    checkov.io/skip4: CKV_K8S_43=Images are tag-pinned; digest pinning tracked separately.
 spec:
   schedule: "*/30 * * * *"
   concurrencyPolicy: Forbid
@@ -388,30 +393,43 @@ spec:
         spec:
           restartPolicy: OnFailure
           containers:
-          - name: wire
-            image: nicolaka/netshoot:latest
-            command: ["/bin/sh", "/scripts/wire.sh"]
-            env:
-            - name: RADARR_API_KEY
-              valueFrom:
-                secretKeyRef: { name: arr-bootstrap, key: RADARR_API_KEY }
-            - name: SONARR_API_KEY
-              valueFrom:
-                secretKeyRef: { name: arr-bootstrap, key: SONARR_API_KEY }
-            - name: PROWLARR_API_KEY
-              valueFrom:
-                secretKeyRef: { name: arr-bootstrap, key: PROWLARR_API_KEY }
-            - name: QBIT_PASSWORD
-              valueFrom:
-                secretKeyRef: { name: arr-bootstrap, key: QBIT_PASSWORD }
-            volumeMounts:
-            - name: scripts
-              mountPath: /scripts
-            resources:
-              limits: { cpu: 500m, memory: 256Mi }
-              requests: { cpu: 50m, memory: 64Mi }
+            - name: wire
+              image: nicolaka/netshoot:v0.13
+              command: ["/bin/sh", "/scripts/wire.sh"]
+              env:
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef: {name: arr-bootstrap, key: RADARR_API_KEY}
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef: {name: arr-bootstrap, key: SONARR_API_KEY}
+                - name: PROWLARR_API_KEY
+                  valueFrom:
+                    secretKeyRef: {name: arr-bootstrap, key: PROWLARR_API_KEY}
+                - name: QBIT_PASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: arr-bootstrap, key: QBIT_PASSWORD}
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                limits: {cpu: 500m, memory: 256Mi}
+                requests: {cpu: 50m, memory: 64Mi}
+              imagePullPolicy: Always
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                runAsUser: 10001
+                capabilities:
+                  drop:
+                    - ALL
           volumes:
-          - name: scripts
-            configMap:
-              name: wire-dl-clients-script
-              defaultMode: 0755
+            - name: scripts
+              configMap:
+                name: wire-dl-clients-script
+                defaultMode: 0755
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+        metadata: {}

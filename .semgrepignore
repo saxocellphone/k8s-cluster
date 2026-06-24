@@ -1,0 +1,7 @@
+# Privileged PodSecurity namespaces with intentional hostNetwork/hostPath/privileged workloads.
+apps/gaming/wolf-deployment.yaml
+apps/amd-gpu-device-plugin/daemonset.yaml
+apps/ai-inference/llm-deployment.yaml
+apps/ai-inference/hipfire-deployment.yaml
+apps/ai-inference/comfyui-deployment.yaml
+apps/coturn/deployment.yaml

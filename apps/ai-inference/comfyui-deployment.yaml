@@ -5,6 +5,10 @@ metadata:
   namespace: ai-inference
   labels:
     app: comfyui
+  annotations:
+    checkov.io/skip1: CKV_K8S_22=ComfyUI requires writable output and cache directories.
+    checkov.io/skip2: CKV_K8S_40=ComfyUI image runs as a low UID.
+    checkov.io/skip3: CKV_K8S_43=Image is tag-pinned.
 spec:
   replicas: 0
   strategy:
@@ -27,7 +31,7 @@ spec:
       containers:
         - name: comfyui
           image: ignatberesnev/comfyui-gfx1151:v0.2
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           env:
             - name: HSA_OVERRIDE_GFX_VERSION
               value: "11.5.1"
@@ -69,7 +73,18 @@ spec:
           volumeMounts:
             - name: comfyui-data
               mountPath: /opt/ComfyUI
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
       volumes:
         - name: comfyui-data
           persistentVolumeClaim:
             claimName: comfyui-data
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

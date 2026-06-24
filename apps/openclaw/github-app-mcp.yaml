@@ -9,6 +9,12 @@ metadata:
   namespace: openclaw
   labels:
     app: github-app-mcp
+  annotations:
+    checkov.io/skip1: CKV_K8S_22=pip install writes to /deps at container start.
+    checkov.io/skip2: CKV_K8S_35=GitHub App private key and MCP token are required as env vars.
+    checkov.io/skip3: CKV_K8S_38=No Kubernetes API access; service account token not needed.
+    checkov.io/skip4: CKV_K8S_40=python:slim runs as a low UID.
+    checkov.io/skip5: CKV_K8S_43=python base image is tag-pinned.
 spec:
   replicas: 1
   selector:
@@ -27,83 +33,87 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - name: github-app-mcp
-        image: python:3.12-slim
+        - name: github-app-mcp
+          image: python:3.12-slim
         # Deps installed into a writable tmpfs at start (rootfs stays read-only),
         # matching the repo's "no build pipeline" convention. Pin in a follow-up
         # if you want fully reproducible startups.
-        command: ["sh", "-c"]
-        args:
-        - |
-          pip install --no-cache-dir --target=/deps mcp pyjwt cryptography \
-            && PYTHONPATH=/deps exec python /app/server.py
-        env:
-        - name: GITHUB_APP_ID
-          value: "4121586"                      # non-secret App ID
-        - name: GITHUB_APP_INSTALLATION_ID
-          value: "142043768"                    # non-secret installation ID
-        - name: GITHUB_APP_PRIVATE_KEY
-          valueFrom:
-            secretKeyRef:
-              name: openclaw-secrets
-              key: GITHUB_APP_PRIVATE_KEY
-        - name: MCP_SHARED_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: openclaw-secrets
-              key: GITHUB_MCP_TOKEN
-        - name: GITHUB_REPO
-          value: "saxocellphone/k8s-cluster"
-        - name: GITHUB_BASE_BRANCH
-          value: "main"
-        - name: PORT
-          value: "9000"
-        - name: HOME
-          value: "/tmp"
-        - name: PYTHONUNBUFFERED
-          value: "1"
-        ports:
-        - containerPort: 9000
-          name: http
-        resources:
-          requests:
-            cpu: 25m
-            memory: 96Mi
-          limits:
-            cpu: 500m
-            memory: 256Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop: ["ALL"]
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 20
-        volumeMounts:
-        - name: src
-          mountPath: /app
-        - name: deps
-          mountPath: /deps
-        - name: tmp
-          mountPath: /tmp
+          command: ["sh", "-c"]
+          args:
+            - |
+              pip install --no-cache-dir --target=/deps mcp pyjwt cryptography \
+                && PYTHONPATH=/deps exec python /app/server.py
+          env:
+            - name: GITHUB_APP_ID
+              value: "4121586"                  # non-secret App ID
+            - name: GITHUB_APP_INSTALLATION_ID
+              value: "142043768"                # non-secret installation ID
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openclaw-secrets
+                  key: GITHUB_APP_PRIVATE_KEY
+            - name: MCP_SHARED_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: openclaw-secrets
+                  key: GITHUB_MCP_TOKEN
+            - name: GITHUB_REPO
+              value: "saxocellphone/k8s-cluster"
+            - name: GITHUB_BASE_BRANCH
+              value: "main"
+            - name: PORT
+              value: "9000"
+            - name: HOME
+              value: "/tmp"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          ports:
+            - containerPort: 9000
+              name: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          volumeMounts:
+            - name: src
+              mountPath: /app
+            - name: deps
+              mountPath: /deps
+            - name: tmp
+              mountPath: /tmp
+          imagePullPolicy: Always
       volumes:
-      - name: src
-        configMap:
-          name: github-app-mcp-src
-      - name: deps
-        emptyDir: {}
-      - name: tmp
-        emptyDir: {}
+        - name: src
+          configMap:
+            name: github-app-mcp-src
+        - name: deps
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      automountServiceAccountToken: false
 ---
 apiVersion: v1
 kind: Service
@@ -114,6 +124,6 @@ spec:
   selector:
     app: github-app-mcp
   ports:
-  - name: http
-    port: 80
-    targetPort: 9000
+    - name: http
+      port: 80
+      targetPort: 9000
