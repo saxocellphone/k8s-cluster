@@ -229,11 +229,6 @@ spec:
           requests:
             cpu: 100m
             memory: 128Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
       volumes:
       - name: torrents
         persistentVolumeClaim:
