@@ -18,10 +18,8 @@ spec:
       labels:
         app.kubernetes.io/name: alert-responder
       annotations:
-        # Roll the pod when the script changes so we don't need to wait for
-        # k8s to notice the configmap update on its own (which can take
-        # several minutes).
-        configmap.reloader/script-checksum: "v1"
+        # Reloader rolls the pod when alert-responder-code changes.
+        configmap.reloader.stakater.com/reload: alert-responder-code
     spec:
       serviceAccountName: alert-responder
       securityContext:
