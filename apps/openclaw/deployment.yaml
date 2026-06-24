@@ -99,6 +99,22 @@ spec:
           mountPath: /home/node/.openclaw
         - name: workspace-seed
           mountPath: /seed
+      - name: install-kubectl
+        image: alpine:3.22
+        command: ["sh", "-ceu"]
+        args:
+        - |
+          apk add --no-cache curl ca-certificates
+          curl -fsSL -o /tools/kubectl "https://dl.k8s.io/release/v1.34.2/bin/linux/amd64/kubectl"
+          chmod 0755 /tools/kubectl
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 0
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+        - name: kubectl-tools
+          mountPath: /tools
       - name: config-patch
         image: ghcr.io/openclaw/openclaw:latest
         command: ["node", "-e"]
@@ -337,6 +353,8 @@ spec:
               key: GITHUB_MCP_TOKEN
         - name: TZ
           value: "America/Los_Angeles"
+        - name: PATH
+          value: "/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         resources:
           requests:
             cpu: 200m
@@ -347,10 +365,15 @@ spec:
         volumeMounts:
         - name: openclaw-data
           mountPath: /home/node/.openclaw
+        - name: kubectl-tools
+          mountPath: /tools
+          readOnly: true
       volumes:
       - name: openclaw-data
         persistentVolumeClaim:
           claimName: openclaw-data
+      - name: kubectl-tools
+        emptyDir: {}
       # Operator persona/guardrails (SOUL.md) generated from
       # cluster-operator-soul.md; copied into the workspace by seed-workspace.
       - name: workspace-seed
