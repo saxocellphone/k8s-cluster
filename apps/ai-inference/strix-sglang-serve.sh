@@ -39,9 +39,9 @@ BASE_ARGS=(
   --port "${SGLANG_PORT:-8080}"
   --tp-size 1
   --trust-remote-code
-  --context-length "${SGLANG_CONTEXT_LENGTH:-8192}"
+  --context-length "${SGLANG_CONTEXT_LENGTH:-32768}"
   --mem-fraction-static "${SGLANG_MEM_FRACTION_STATIC:-0.96}"
-  --max-total-tokens "${SGLANG_MAX_TOTAL_TOKENS:-8192}"
+  --max-total-tokens "${SGLANG_MAX_TOTAL_TOKENS:-32768}"
   --max-mamba-cache-size "${SGLANG_MAX_MAMBA_CACHE_SIZE:-16}"
   --reasoning-parser qwen3
   --attention-backend triton
