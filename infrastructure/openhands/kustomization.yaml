@@ -5,5 +5,9 @@ kind: Kustomization
 # referenced by the `openhands` Application as $values, not a Kubernetes
 # resource to apply.
 
+resources:
+  - s3-env-patch-rbac.yaml
+  - s3-env-patch-job.yaml
+
 generators:
   - secret-generator.yaml

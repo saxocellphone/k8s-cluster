@@ -20,6 +20,13 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: openhands
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: openhands
+      namespace: openhands
+      jqPathExpressions:
+        - '.spec.template.spec.containers[] | select(.name == "openhands") | .env[] | select(.name == "AWS_ACCESS_KEY_ID" or .name == "AWS_SECRET_ACCESS_KEY")'
   syncPolicy:
     automated:
       prune: false
@@ -30,6 +37,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
