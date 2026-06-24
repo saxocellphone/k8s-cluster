@@ -116,11 +116,6 @@ spec:
             cpu: 50m
             memory: 128Mi
         imagePullPolicy: Always
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
       volumes:
       - name: sonarr-config
         emptyDir: {}

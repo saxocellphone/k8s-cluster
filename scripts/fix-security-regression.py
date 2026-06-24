@@ -66,12 +66,8 @@ def fix_container(name: str, key: str, container: dict) -> bool:
         return changed
 
     if isinstance(image, str) and image.startswith(WRITABLE_IMAGES):
-        new_sc = {
-            "allowPrivilegeEscalation": False,
-            "capabilities": {"drop": ["ALL"]},
-        }
-        if sc != new_sc:
-            container["securityContext"] = new_sc
+        if sc:
+            del container["securityContext"]
             changed = True
     return changed
 
