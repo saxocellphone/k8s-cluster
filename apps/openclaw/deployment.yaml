@@ -230,13 +230,7 @@ spec:
           c.agents.defaults.timeoutSeconds = 1200;
           c.diagnostics = c.diagnostics || {};
           c.diagnostics.stuckSessionWarnMs = 300000;
-          c.diagnostics.stuckSessionAbortMs = 1200000;
-          // xAI provider. Defining this entry shadows OpenClaw's built-in xai
-          // provider, so baseUrl + apiKey MUST be set explicitly — otherwise
-          // the openai-responses transport defaults to api.openai.com and the
-          // xAI key is rejected with a 401. timeoutSeconds raises the per-
-          // request idle ceiling (default 120s) so generating the large Notion
-          // payload doesn't abort mid-response.
+          // xAI Grok uses the built-in provider; XAI_API_KEY is injected via env.
           c.models = c.models || {};
           c.models.providers = c.models.providers || {};
           // Local OpenAI-compatible inference backend, served by the shared
@@ -245,7 +239,6 @@ spec:
             baseUrl: "http://llm.ai-inference.svc.cluster.local:8080/v1",
             api: "openai-completions",
             apiKey: "local",
-            timeoutSeconds: 600,
             models: [
               {
                 id: "qwen3-235b-a22b-instruct",
@@ -256,14 +249,6 @@ spec:
                 cost: { input: 0, output: 0 }
               }
             ]
-          };
-          // Only baseUrl + timeoutSeconds. The API key auto-resolves from the
-          // XAI_API_KEY env var (do NOT set apiKey here: the env-ref form
-          // expects a configured *secret provider*, not a model provider, and
-          // an invalid ref makes the gateway refuse to start).
-          c.models.providers.xai = {
-            baseUrl: "https://api.x.ai/v1",
-            timeoutSeconds: 300
           };
 
           // Normalize channels.telegram.streaming: schema now requires an object.
@@ -276,56 +261,17 @@ spec:
               delete c.channels.telegram.streaming;
             }
           }
-          // Notion MCP server: gives the agent Notion tools (create/read
-          // pages) for the morning investment briefing. The integration token
-          // is injected from the NOTION_TOKEN env (sourced from the
-          // openclaw-secrets Secret) into the per-server OPENAPI_MCP_HEADERS
-          // so it is not hard-coded in Git. Spawned by the gateway via npx at
-          // runtime. Only configured when the token is present.
-          if (process.env.NOTION_TOKEN) {
-            c.mcp = c.mcp || {};
-            c.mcp.servers = c.mcp.servers || {};
-            c.mcp.servers.notion = {
-              command: "npx",
-              args: ["-y", "@notionhq/notion-mcp-server"],
-              env: {
-                OPENAPI_MCP_HEADERS: JSON.stringify({
-                  Authorization: "Bearer " + process.env.NOTION_TOKEN,
-                  "Notion-Version": "2022-06-28"
-                })
-              }
-            };
+          // 2026.3.1 rejects legacy root-level `mcp` and provider timeout keys
+          // persisted on the PVC. Strip them so the gateway can start; MCP
+          // wiring needs a follow-up once the new registry API is confirmed.
+          if (c.diagnostics) delete c.diagnostics.stuckSessionAbortMs;
+          if (c.models && c.models.providers) {
+            if (c.models.providers.xai) delete c.models.providers.xai;
+            if (c.models.providers.local && c.models.providers.local.timeoutSeconds !== undefined) {
+              delete c.models.providers.local.timeoutSeconds;
+            }
           }
-          // Kubernetes MCP (READ-ONLY cluster diagnostics). Native Go server
-          // (kubernetes-mcp-server) — no kubectl/helm binary needed, and it
-          // auto-detects the pod's in-cluster ServiceAccount token. Started with
-          // --read-only so writes are blocked at the tool layer; the SA itself
-          // is bound only to `view` (+ Argo read) so writes 403 regardless. The
-          // agent observes the live cluster here but NEVER changes it directly —
-          // all changes go out as GitHub PRs (below). selfHeal would revert any
-          // direct edit anyway.
-          c.mcp = c.mcp || {};
-          c.mcp.servers = c.mcp.servers || {};
-          c.mcp.servers.kubernetes = {
-            command: "npx",
-            args: ["-y", "kubernetes-mcp-server@latest", "--read-only"]
-          };
-          // GitHub MCP: the ONLY write path to the cluster. A separate
-          // github-app-mcp sidecar authenticates as a GitHub App and refreshes
-          // installation tokens internally — we just connect to it over
-          // Streamable HTTP (no token in this container). The agent edits
-          // manifests on a branch and opens a PR against saxocellphone/k8s-cluster;
-          // the operator reviews + merges, then Argo reconciles. The App identity
-          // cannot push to / merge `main` (enforced by a branch ruleset), so a PR
-          // is the only possible outcome. X-MCP-Token (substituted from the
-          // gateway's GITHUB_MCP_TOKEN env at connect time) authenticates us to
-          // the sidecar. Minimal toolset (read_file/list_dir/open_pr/...) keeps
-          // the tool count tiny for the local model's 8192-token context window.
-          c.mcp.servers.github = {
-            url: "http://github-app-mcp.openclaw.svc.cluster.local/mcp",
-            transport: "streamable-http",
-            headers: { "X-MCP-Token": "${GITHUB_MCP_TOKEN}" }
-          };
+          delete c.mcp;
           // Cron webhook auth: the morning job delivers via --webhook to the
           // in-cluster notion-writer. OpenClaw sends `Authorization: Bearer
           // <cron.webhookToken>`; set it from the WEBHOOK_TOKEN secret so the
@@ -335,13 +281,8 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, legacy-mcp=stripped, cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
-        - name: NOTION_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: openclaw-secrets
-              key: NOTION_TOKEN
         - name: WEBHOOK_TOKEN
           valueFrom:
             secretKeyRef:
@@ -404,6 +345,10 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: GITHUB_MCP_TOKEN
+        # runAsUser 10001 has no /etc/passwd entry; without HOME the gateway
+        # resolves ~/.openclaw to /.openclaw (read-only root fs) and crashes.
+        - name: HOME
+          value: "/home/node"
         - name: TZ
           value: "America/Los_Angeles"
         - name: PATH
