@@ -12,6 +12,9 @@ metadata:
     checkov.io/skip4: CKV_K8S_40=coturn image runs as a low UID required by the upstream image.
     checkov.io/skip5: CKV_K8S_43=coturn image is version-pinned.
     checkov.io/skip6: CKV_K8S_31=turnserver requires unconfined seccomp for hostNetwork relay syscalls.
+    checkov.io/skip7: CKV_K8S_16=TURN relay requires privileged hostNetwork UDP port allocation.
+    checkov.io/skip8: CKV_K8S_20=Privileged coturn cannot disable privilege escalation.
+    checkov.io/skip9: CKV_K8S_23=hostNetwork TURN relay requires privileged container access.
 spec:
   # hostNetwork is incompatible with running multiple replicas on the same
   # node (port collision). Pinning to one replica on carbon-node is the
@@ -144,14 +147,7 @@ spec:
               cpu: "1"
               memory: 256Mi
           securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 10001
-            seccompProfile:
-              type: Unconfined
-            capabilities:
-              drop:
-                - ALL
+            privileged: true
       volumes:
         - name: template
           configMap:
@@ -159,6 +155,3 @@ spec:
         - name: rendered-config
           emptyDir: {}
       automountServiceAccountToken: false
-      securityContext:
-        seccompProfile:
-          type: Unconfined

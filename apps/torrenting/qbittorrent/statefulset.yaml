@@ -35,8 +35,6 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1001
-        seccompProfile:
-          type: RuntimeDefault
       # Restricted to Longhorn-capable workers via the iscsi-tools label only.
       # Do NOT pin to a specific hostname: the qbit-config Longhorn volume has
       # 2 replicas and is network-accessible, so any labeled worker can run it.
@@ -117,11 +115,9 @@ spec:
         image: qmcgaw/gluetun:v3.40.0
         imagePullPolicy: Always
         securityContext:
-          allowPrivilegeEscalation: false
           capabilities:
             add:
             - NET_ADMIN
-            drop: ["ALL"]
         env:
         # VPN_SERVICE_PROVIDER=custom (rather than protonvpn) is required
         # for Gluetun to honor the VPN_ENDPOINT_IP/PORT overrides below.
