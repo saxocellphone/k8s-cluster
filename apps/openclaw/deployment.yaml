@@ -254,8 +254,11 @@ spec:
             ]
           };
           // API key auto-resolves from XAI_API_KEY env (do NOT set apiKey here).
+          // api is required: without it the agent crashes with
+          // "No API provider registered for api: undefined".
           c.models.providers.xai = {
             baseUrl: "https://api.x.ai/v1",
+            api: "openai-responses",
             models: [
               {
                 id: "grok-4.3",
