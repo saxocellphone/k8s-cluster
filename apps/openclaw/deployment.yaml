@@ -115,6 +115,80 @@ spec:
         volumeMounts:
         - name: kubectl-tools
           mountPath: /tools
+      # Cursor SDK plugin (openclaw/openclaw#75046) is not bundled in
+      # ghcr.io/openclaw/openclaw:latest yet. Fetch it once into the PVC so
+      # cursor-sdk/composer-2.5 can run as the default agent model.
+      - name: install-cursor-sdk
+        image: ghcr.io/openclaw/openclaw:latest
+        command: ["node", "-e"]
+        args:
+        - |
+          const fs = require("fs");
+          const path = require("path");
+          const https = require("https");
+          const { execSync } = require("child_process");
+          const extDir = "/home/node/.openclaw/extensions/cursor-sdk";
+          if (fs.existsSync(path.join(extDir, "openclaw.plugin.json"))) {
+            console.log("cursor-sdk plugin already installed");
+            process.exit(0);
+          }
+          const base =
+            "https://raw.githubusercontent.com/openclaw/openclaw/aeb993c825d4eacb758ece7951924ab43487e41f/extensions/cursor-sdk";
+          const files = [
+            "harness.ts",
+            "index.ts",
+            "provider.ts",
+            "openclaw.plugin.json",
+            "package.json",
+            "src/error-classification.ts",
+            "src/run-attempt.ts",
+          ];
+          const work = "/tmp/cursor-sdk";
+          fs.rmSync(work, { recursive: true, force: true });
+          fs.mkdirSync(path.join(work, "src"), { recursive: true });
+          function fetch(url) {
+            return new Promise((resolve, reject) => {
+              https.get(url, (res) => {
+                if (res.statusCode === 301 || res.statusCode === 302) {
+                  return resolve(fetch(res.headers.location));
+                }
+                if (res.statusCode !== 200) {
+                  reject(new Error("HTTP " + res.statusCode + " for " + url));
+                  return;
+                }
+                const chunks = [];
+                res.on("data", (c) => chunks.push(c));
+                res.on("end", () => resolve(Buffer.concat(chunks)));
+              }).on("error", reject);
+            });
+          }
+          (async () => {
+            for (const rel of files) {
+              const body = await fetch(base + "/" + rel);
+              const dest = path.join(work, rel);
+              fs.mkdirSync(path.dirname(dest), { recursive: true });
+              fs.writeFileSync(dest, body);
+            }
+            execSync("npm install --omit=dev --no-audit --no-fund", {
+              cwd: work,
+              stdio: "inherit",
+            });
+            execSync("openclaw plugins install " + work, { stdio: "inherit" });
+            try {
+              execSync("chown -R 1000:1000 /home/node/.openclaw/extensions");
+            } catch (e) {
+              console.log("chown extensions failed:", e.message);
+            }
+            console.log("Installed cursor-sdk plugin");
+          })().catch((e) => {
+            console.error(e);
+            process.exit(1);
+          });
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: openclaw-data
+          mountPath: /home/node/.openclaw
       - name: config-patch
         image: ghcr.io/openclaw/openclaw:latest
         command: ["node", "-e"]
@@ -175,15 +249,34 @@ spec:
           c.agents.defaults.sandbox = c.agents.defaults.sandbox || {};
           c.agents.defaults.sandbox.browser = c.agents.defaults.sandbox.browser || {};
           c.agents.defaults.sandbox.browser.allowHostControl = true;
-          // Agent model: Grok 4.3 via the xAI provider (auth from XAI_API_KEY).
-          // The local qwen3-235b only serves an 8k context window — too small for
-          // this agent's MCP tool schemas + conversation, so OpenClaw's auto-
-          // compaction runs out of room ("could not recover this turn"). Grok's
-          // large context handles the cluster-ops workload. Empty `fallbacks`
-          // DISABLES failover: a transient stall must not fall back to the openai
-          // default (no key -> reuses the xAI key against platform.openai.com and
-          // 401s) nor to the context-limited local model.
-          c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
+          // Agent model: Cursor Composer 2.5 via the cursor-sdk harness
+          // (CURSOR_API_KEY + @cursor/sdk). Grok 4.3 remains an explicit
+          // fallback for transient Cursor outages. Empty fallbacks when Cursor
+          // is unavailable would otherwise fall through to the openai default
+          // (reuses the xAI key against platform.openai.com and 401s) or the
+          // context-limited local qwen3-235b (8k window).
+          if (process.env.CURSOR_API_KEY) {
+            c.plugins = c.plugins || {};
+            c.plugins.entries = c.plugins.entries || {};
+            c.plugins.entries["cursor-sdk"] = {
+              enabled: true,
+              config: {
+                model: "composer-2.5",
+                runtime: "local",
+                local: { cwd: "/home/node/.openclaw/workspace" }
+              }
+            };
+            c.agents.defaults.models = c.agents.defaults.models || {};
+            c.agents.defaults.models["cursor-sdk/composer-2.5"] = {
+              agentRuntime: { id: "cursor-sdk" }
+            };
+            c.agents.defaults.model = {
+              primary: "cursor-sdk/composer-2.5",
+              fallbacks: ["xai/grok-4.3"]
+            };
+          } else {
+            c.agents.defaults.model = { primary: "xai/grok-4.3", fallbacks: [] };
+          }
           // The morning briefing does substantial web research and then writes
           // to Notion, which exceeds the default agent-turn / stuck-session
           // watchdog (~520s) and gets aborted mid-run. Give it generous
@@ -227,6 +320,7 @@ spec:
             baseUrl: "https://api.x.ai/v1",
             timeoutSeconds: 300
           };
+
           // Normalize channels.telegram.streaming: schema now requires an object.
           // Older versions persisted it as a boolean which causes a startup-time
           // validation error ("must be object"). Drop the field entirely so the
@@ -296,7 +390,10 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+          const modelPrimary = process.env.CURSOR_API_KEY
+            ? "cursor-sdk/composer-2.5"
+            : "xai/grok-4.3";
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=" + modelPrimary + ", mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: NOTION_TOKEN
           valueFrom:
@@ -308,6 +405,11 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: WEBHOOK_TOKEN
+        - name: CURSOR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: CURSOR_API_KEY
         volumeMounts:
         - name: openclaw-data
           mountPath: /home/node/.openclaw
@@ -330,6 +432,11 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: XAI_API_KEY
+        - name: CURSOR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: CURSOR_API_KEY
         - name: TELEGRAM_BOT_TOKEN
           valueFrom:
             secretKeyRef:
