@@ -1,0 +1,22 @@
+architecture: standalone
+
+auth:
+  enabled: false
+
+master:
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 8Gi
+  nodeSelector:
+    extensions.talos.dev/iscsi-tools: v0.2.0
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+replica:
+  replicaCount: 0
