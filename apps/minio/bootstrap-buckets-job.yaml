@@ -35,6 +35,8 @@ spec:
                 echo "ensured bucket: ${bucket}"
               done
           env:
+            - name: MC_CONFIG_DIR
+              value: /tmp/.mc
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
@@ -52,6 +54,9 @@ spec:
             limits:
               cpu: 250m
               memory: 256Mi
+          volumeMounts:
+            - name: mc-config
+              mountPath: /tmp/.mc
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
@@ -59,6 +64,9 @@ spec:
             capabilities:
               drop:
                 - ALL
+      volumes:
+        - name: mc-config
+          emptyDir: {}
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:
