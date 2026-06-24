@@ -404,6 +404,10 @@ spec:
             secretKeyRef:
               name: openclaw-secrets
               key: GITHUB_MCP_TOKEN
+        # runAsUser 10001 has no /etc/passwd entry; without HOME the gateway
+        # resolves ~/.openclaw to /.openclaw (read-only root fs) and crashes.
+        - name: HOME
+          value: "/home/node"
         - name: TZ
           value: "America/Los_Angeles"
         - name: PATH
