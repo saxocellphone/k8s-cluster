@@ -30,7 +30,7 @@ spec:
                 echo "waiting for minio API..."
                 sleep 5
               done
-              for bucket in terraform-state homelab; do
+              for bucket in terraform-state homelab openhands-sessions; do
                 mc mb --ignore-existing "local/${bucket}"
                 echo "ensured bucket: ${bucket}"
               done

@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: openhands-s3-env-patch
+  namespace: openhands
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: openhands-s3-env-patcher
+      automountServiceAccountToken: true
+      containers:
+        - name: kubectl
+          image: docker.io/rancher/kubectl:v1.33.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ceu
+            - |
+              kubectl -n openhands patch deployment openhands --type json -p '[
+                {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"AWS_ACCESS_KEY_ID","valueFrom":{"secretKeyRef":{"name":"litellm-env-secrets","key":"AWS_ACCESS_KEY_ID"}}}},
+                {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"AWS_SECRET_ACCESS_KEY","valueFrom":{"secretKeyRef":{"name":"litellm-env-secrets","key":"AWS_SECRET_ACCESS_KEY"}}}}
+              ]'
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

@@ -4,6 +4,10 @@ env:
   RUNTIME_URL_PATTERN: "http://{runtime_id}.runtime.openhands.k8s.home"
   REDIS_HOST: redis.redis.svc.cluster.local
   REDIS_PORT: "6379"
+  FILE_STORE: s3
+  AWS_S3_ENDPOINT: http://minio.minio.svc.cluster.local:9000
+  AWS_S3_BUCKET: openhands-sessions
+  AWS_S3_SECURE: "false"
 
 ingress:
   enabled: true
@@ -19,17 +23,12 @@ tls:
   enabled: false
 
 filestore:
-  ephemeral: true
+  ephemeral: false
   bucket: openhands-sessions
   type: s3
 
 minio:
-  persistence:
-    enabled: true
-    storageClass: longhorn
-    size: 20Gi
-  nodeSelector:
-    extensions.talos.dev/iscsi-tools: v0.2.0
+  enabled: false
 
 keycloak:
   enabled: true
