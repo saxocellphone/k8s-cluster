@@ -161,4 +161,4 @@ spec:
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:
-          type: RuntimeDefault
+          type: Unconfined

@@ -31,8 +31,6 @@ data:
       <PostgresLogDb>${POSTGRES_LOG_DB}</PostgresLogDb>
     </Config>
     EOF
-    chown 1001:100 /config/config.xml
-    chmod 600 /config/config.xml
   seed-qbit-conf.py: |
     #!/usr/bin/env python3
     # Seeds /config/qBittorrent/qBittorrent.conf on every pod boot. Re-applies
@@ -98,5 +96,3 @@ data:
         text = set_kv(text, section, key, value)
 
     conf.write_text(text)
-    os.chown(str(conf), 1001, 100)
-    os.chmod(str(conf), 0o600)
