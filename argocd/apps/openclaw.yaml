@@ -12,9 +12,19 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: openclaw
+  # volumeName is immutable once bound; ignore live value so Argo does not try to
+  # clear it when git omits the field (e.g. after manual PV re-bind or restore).
+  ignoreDifferences:
+    - group: ""
+      kind: PersistentVolumeClaim
+      name: openclaw-data
+      namespace: openclaw
+      jsonPointers:
+        - /spec/volumeName
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
