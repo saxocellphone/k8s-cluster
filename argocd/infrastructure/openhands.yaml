@@ -3,6 +3,7 @@ kind: Application
 metadata:
   name: openhands
   namespace: argocd
+  # Rebased onto security hardening branch (PR #22) so Checkov/Semgrep scans pass.
 spec:
   project: default
   sources:
