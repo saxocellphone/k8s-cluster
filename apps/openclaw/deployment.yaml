@@ -81,7 +81,7 @@ spec:
           const fs = require("fs");
           const dirs = ["/home/node/.openclaw", "/home/node/.openclaw/devices"];
           for (const d of dirs) { try { fs.mkdirSync(d, { recursive: true }); } catch(e) {} }
-          try { execSync("chown -R 1000:1000 /home/node/.openclaw"); } catch(e) { console.log("chown failed:", e.message); }
+          try { execSync("chown -R 10001:10001 /home/node/.openclaw"); } catch(e) { console.log("chown failed:", e.message); }
           console.log("Fixed permissions on /home/node/.openclaw");
         securityContext:
           runAsUser: 0
@@ -113,7 +113,7 @@ spec:
           fs.mkdirSync(ws, { recursive: true });
           const soul = fs.readFileSync("/seed/SOUL.md", "utf8");
           fs.writeFileSync(ws + "/SOUL.md", soul);
-          try { execSync("chown -R 1000:1000 " + ws); } catch(e) { console.log("chown failed:", e.message); }
+          try { execSync("chown -R 10001:10001 " + ws); } catch(e) { console.log("chown failed:", e.message); }
           console.log("Seeded workspace SOUL.md (" + soul.length + " bytes)");
         securityContext:
           runAsUser: 0
@@ -160,6 +160,7 @@ spec:
         args:
         - |
           const fs = require("fs");
+          const { execSync } = require("child_process");
           const p = "/home/node/.openclaw/openclaw.json";
           let c = {};
           try { c = JSON.parse(fs.readFileSync(p, "utf8")); } catch(e) {}
@@ -335,6 +336,7 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
+          try { execSync("chown 10001:10001 " + p); } catch(e) { console.log("chown failed:", e.message); }
           console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, mcp.notion=" + (process.env.NOTION_TOKEN ? "configured" : "skipped") + ", mcp.kubernetes=read-only, mcp.github=streamable-http(github-app-mcp), cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
         env:
         - name: NOTION_TOKEN
@@ -353,8 +355,7 @@ spec:
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
-          runAsNonRoot: true
-          runAsUser: 10001
+          runAsUser: 0
           capabilities:
             drop:
             - ALL
