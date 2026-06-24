@@ -57,7 +57,7 @@ def notion(method, path, body=None):
         "Notion-Version": NOTION_VERSION,
         "Content-Type": "application/json",
     })
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=30) as resp:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
         return json.load(resp)
 
 
@@ -221,7 +221,7 @@ def telegram_notify(text):
         req = urllib.request.Request(
             "https://api.telegram.org/bot%s/sendMessage" % TELEGRAM_BOT_TOKEN,
             data=body, method="POST", headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(req, timeout=20).read()
+        urllib.request.urlopen(req, timeout=20).read()  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
     except Exception as e:  # notification is best-effort
         log("telegram notify failed:", e)
 

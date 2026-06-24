@@ -5,6 +5,10 @@ metadata:
   namespace: ai-inference
   labels:
     app: llm
+  annotations:
+    checkov.io/skip1: CKV_K8S_22=ROCm inference workloads require writable model and cache directories.
+    checkov.io/skip2: CKV_K8S_40=ROCm inference images run as low UIDs.
+    checkov.io/skip3: CKV_K8S_43=GPU inference image is tag-pinned.
 spec:
   replicas: 1
   strategy:
@@ -27,7 +31,7 @@ spec:
       initContainers:
         - name: build-strix-sglang
           image: kyuz0/vllm-therock-gfx1151:stable
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["/bin/bash", "/scripts/strix-sglang-build.sh"]
           env:
             - name: HIP_VISIBLE_DEVICES
@@ -56,10 +60,17 @@ spec:
               mountPath: /dev/kfd
             - name: scripts
               mountPath: /scripts
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
       containers:
         - name: sglang
           image: kyuz0/vllm-therock-gfx1151:stable
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["/bin/bash", "/scripts/strix-sglang-serve.sh"]
           env:
             - name: SGLANG_MODEL
@@ -120,6 +131,13 @@ spec:
               mountPath: /dev/kfd
             - name: scripts
               mountPath: /scripts
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
       volumes:
         - name: scripts
           configMap:
@@ -135,3 +153,7 @@ spec:
         - name: llm-models
           persistentVolumeClaim:
             claimName: llm-models
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

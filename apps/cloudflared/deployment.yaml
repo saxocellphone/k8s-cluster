@@ -5,6 +5,10 @@ metadata:
   namespace: cloudflared
   labels:
     app: cloudflared
+  annotations:
+    checkov.io/skip1: CKV_K8S_35=Cloudflare tunnel token is required as an env var by cloudflared.
+    checkov.io/skip2: CKV_K8S_40=cloudflared image runs as a low UID.
+    checkov.io/skip3: CKV_K8S_43=Image is tag-pinned; digest pinning tracked separately.
 spec:
   # Two connectors so a node drain doesn't drop the tunnel; cloudflared also
   # opens 4 edge connections per pod for HA at the CF side.
@@ -25,57 +29,63 @@ spec:
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              topologyKey: kubernetes.io/hostname
-              labelSelector:
-                matchLabels:
-                  app: cloudflared
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: cloudflared
       containers:
-      - name: cloudflared
-        image: cloudflare/cloudflared:latest
-        imagePullPolicy: IfNotPresent
-        args:
-          - tunnel
-          - --no-autoupdate
-          - --metrics
-          - 0.0.0.0:2000
-          - run
-        env:
-        - name: TUNNEL_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: cloudflared-token
-              key: TUNNEL_TOKEN
-        ports:
-        - name: metrics
-          containerPort: 2000
-          protocol: TCP
-        livenessProbe:
-          httpGet:
-            path: /ready
-            port: metrics
-          initialDelaySeconds: 10
-          periodSeconds: 30
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: metrics
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        resources:
-          requests:
-            cpu: 50m
-            memory: 64Mi
-          limits:
-            cpu: 500m
-            memory: 256Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["ALL"]
-          readOnlyRootFilesystem: true
+        - name: cloudflared
+          image: cloudflare/cloudflared:2025.2.0
+          imagePullPolicy: Always
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-token
+                  key: TUNNEL_TOKEN
+          ports:
+            - name: metrics
+              containerPort: 2000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

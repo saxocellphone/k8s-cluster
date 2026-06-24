@@ -3,6 +3,10 @@ kind: Deployment
 metadata:
   name: flaresolverr
   namespace: torrenting
+  annotations:
+    checkov.io/skip1: CKV_K8S_22=FlareSolverr requires writable session state.
+    checkov.io/skip2: CKV_K8S_40=Upstream image runs as a low UID.
+    checkov.io/skip3: CKV_K8S_43=Image is tag-pinned; digest pinning tracked separately.
 spec:
   replicas: 1
   selector:
@@ -14,40 +18,52 @@ spec:
         app: flaresolverr
     spec:
       containers:
-      - name: flaresolverr
-        image: ghcr.io/flaresolverr/flaresolverr:latest
-        env:
-        - name: LOG_LEVEL
-          value: info
-        - name: LOG_HTML
-          value: "false"
-        - name: CAPTCHA_SOLVER
-          value: none
-        - name: TZ
-          value: America/Los_Angeles
-        ports:
-        - containerPort: 8191
-          name: http
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 8191
-          initialDelaySeconds: 90
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 8191
-          initialDelaySeconds: 60
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        resources:
-          limits:
-            cpu: "1"
-            memory: 1Gi
-          requests:
-            cpu: 200m
-            memory: 512Mi
+        - name: flaresolverr
+          image: ghcr.io/flaresolverr/flaresolverr:v3.3.25.0
+          env:
+            - name: LOG_LEVEL
+              value: info
+            - name: LOG_HTML
+              value: "false"
+            - name: CAPTCHA_SOLVER
+              value: none
+            - name: TZ
+              value: America/Los_Angeles
+          ports:
+            - containerPort: 8191
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8191
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8191
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

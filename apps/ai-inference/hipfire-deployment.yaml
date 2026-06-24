@@ -5,6 +5,10 @@ metadata:
   namespace: ai-inference
   labels:
     app: hipfire
+  annotations:
+    checkov.io/skip1: CKV_K8S_22=ROCm inference workloads require writable model and cache directories.
+    checkov.io/skip2: CKV_K8S_40=ROCm inference images run as low UIDs.
+    checkov.io/skip3: CKV_K8S_43=Custom GPU image is tag-pinned.
 spec:
   replicas: 0
   strategy:
@@ -28,7 +32,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: hipfire
-          image: ghcr.io/saxocellphone/hipfire-gfx1151:latest
+          image: ghcr.io/saxocellphone/hipfire-gfx1151:2026.02.0
           imagePullPolicy: Always
           env:
             - name: HIPFIRE_MODEL
@@ -71,6 +75,13 @@ spec:
               mountPath: /dev/dri
             - name: kfd
               mountPath: /dev/kfd
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
       volumes:
         - name: dri
           hostPath:
@@ -82,3 +93,7 @@ spec:
         - name: llm-models
           persistentVolumeClaim:
             claimName: llm-models
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

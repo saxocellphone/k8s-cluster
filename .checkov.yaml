@@ -1,0 +1,9 @@
+compact: true
+framework:
+  - kubernetes
+  - terraform
+  - github_actions
+  - secrets
+skip-check:
+  # Helm values and Terraform reference secret key names, not cleartext credentials.
+  - CKV_SECRET_6

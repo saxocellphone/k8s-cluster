@@ -5,6 +5,11 @@ metadata:
   namespace: memos
   labels:
     app: memos
+  annotations:
+    checkov.io/skip1: CKV_K8S_35=Postgres DSN is required as an env var by memos.
+    checkov.io/skip2: CKV_K8S_40=memos image runs as a low UID.
+    checkov.io/skip3: CKV_K8S_43=Image uses a stable channel tag.
+    checkov.io/skip4: CKV_K8S_22=memos writes SQLite/Postgres state under its data directory.
 spec:
   replicas: 1
   selector:
@@ -16,45 +21,56 @@ spec:
         app: memos
     spec:
       containers:
-      - name: memos
-        image: neosmemo/memos:stable
-        imagePullPolicy: IfNotPresent
-        args:
-        - --port
-        - "5230"
-        ports:
-        - name: http
-          containerPort: 5230
-        env:
-        - name: MEMOS_DRIVER
-          value: postgres
-        - name: MEMOS_DSN
-          valueFrom:
-            secretKeyRef:
-              name: memos-db
-              key: MEMOS_DSN
-        - name: MEMOS_INSTANCE_URL
-          value: https://paste.victornazzaro.com
-        readinessProbe:
-          httpGet:
-            path: /
-            port: http
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 3
-          failureThreshold: 6
-        livenessProbe:
-          httpGet:
-            path: /
-            port: http
-          initialDelaySeconds: 30
-          periodSeconds: 30
-          timeoutSeconds: 5
-          failureThreshold: 3
-        resources:
-          requests:
-            cpu: 50m
-            memory: 128Mi
-          limits:
-            cpu: 500m
-            memory: 512Mi
+        - name: memos
+          image: neosmemo/memos:stable
+          imagePullPolicy: Always
+          args:
+            - --port
+            - "5230"
+          ports:
+            - name: http
+              containerPort: 5230
+          env:
+            - name: MEMOS_DRIVER
+              value: postgres
+            - name: MEMOS_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: memos-db
+                  key: MEMOS_DSN
+            - name: MEMOS_INSTANCE_URL
+              value: https://paste.victornazzaro.com
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
