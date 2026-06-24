@@ -11,6 +11,7 @@ metadata:
     checkov.io/skip3: CKV_K8S_35=TURN credentials are injected as env vars during config rendering.
     checkov.io/skip4: CKV_K8S_40=coturn image runs as a low UID required by the upstream image.
     checkov.io/skip5: CKV_K8S_43=coturn image is version-pinned.
+    checkov.io/skip6: CKV_K8S_31=turnserver requires unconfined seccomp for hostNetwork relay syscalls.
 spec:
   # hostNetwork is incompatible with running multiple replicas on the same
   # node (port collision). Pinning to one replica on carbon-node is the
@@ -146,6 +147,8 @@ spec:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
             runAsUser: 10001
+            seccompProfile:
+              type: Unconfined
             capabilities:
               drop:
                 - ALL

@@ -55,8 +55,4 @@ spec:
                       operator: In
                       values:
                         - kube-dns
-      automountServiceAccountToken: false
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
     metadata: {}
