@@ -18,6 +18,7 @@ IMAGE_PINS: dict[str, str] = {
     "qmcgaw/gluetun": "qmcgaw/gluetun:v3.40.0",
     "rclone/rclone:latest": "rclone/rclone:1.69.0",
     "nicolaka/netshoot:latest": "nicolaka/netshoot:v0.13",
+    "ghcr.io/openclaw/openclaw:latest": "ghcr.io/openclaw/openclaw:2026.3.1",
 }
 
 # Per-file Checkov skip annotations (resource-level, justified).
