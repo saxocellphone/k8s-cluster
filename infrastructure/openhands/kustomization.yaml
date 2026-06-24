@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# values.yaml is intentionally NOT listed here -- it's a Helm values file
+# referenced by the `openhands` Application as $values, not a Kubernetes
+# resource to apply.
+
+generators:
+  - secret-generator.yaml
