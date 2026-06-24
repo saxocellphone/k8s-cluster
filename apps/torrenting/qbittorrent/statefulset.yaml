@@ -65,10 +65,10 @@ spec:
           mountPath: /scripts
         securityContext:
           allowPrivilegeEscalation: false
-          runAsNonRoot: true
-          runAsUser: 10001
+          runAsUser: 0
           capabilities:
-            drop: ["ALL"]
+            drop:
+            - ALL
         resources:
           requests:
             cpu: 25m
@@ -103,8 +103,8 @@ spec:
           capabilities:
             drop: ["ALL"]
         resources:
-          limits: { cpu: 100m, memory: 64Mi }
-          requests: { cpu: 10m, memory: 32Mi }
+          limits: {cpu: 100m, memory: 64Mi}
+          requests: {cpu: 10m, memory: 32Mi}
       containers:
       - name: gluetun
         image: qmcgaw/gluetun:v3.40.0
@@ -193,7 +193,7 @@ spec:
             cpu: 100m
             memory: 128Mi
       - name: qbittorrent
-        image: linuxserver/qbittorrent:5.0.4
+        image: linuxserver/qbittorrent:latest
         imagePullPolicy: Always
         env:
         - name: PUID
@@ -228,10 +228,9 @@ spec:
             memory: 128Mi
         securityContext:
           allowPrivilegeEscalation: false
-          runAsNonRoot: true
-          runAsUser: 1001
           capabilities:
-            drop: ["ALL"]
+            drop:
+            - ALL
       volumes:
       - name: torrents
         persistentVolumeClaim:

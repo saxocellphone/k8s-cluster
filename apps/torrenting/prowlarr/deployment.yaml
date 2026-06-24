@@ -23,106 +23,103 @@ spec:
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
       initContainers:
-        - name: seed-config
-          image: busybox:1.36
-          command: ["/bin/sh", "/scripts/seed-arr-config.sh"]
-          env:
-            - name: PORT
-              value: "9696"
-            - name: SSL_PORT
-              value: "6969"
-            - name: INSTANCE_NAME
-              value: "Prowlarr"
-            - name: API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: arr-bootstrap
-                  key: PROWLARR_API_KEY
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: platform-postgres-credentials
-                  key: arr-user-password
-            - name: POSTGRES_MAIN_DB
-              value: prowlarr_main
-            - name: POSTGRES_LOG_DB
-              value: prowlarr_log
-          volumeMounts:
-            - name: prowlarr-config
-              mountPath: /config
-            - name: bootstrap-scripts
-              mountPath: /scripts
-          imagePullPolicy: Always
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 10001
-            capabilities:
-              drop:
-                - ALL
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
-      containers:
-        - name: prowlarr
-          image: linuxserver/prowlarr:1.32.2
-          env:
-            - name: PUID
-              value: "1001"
-            - name: PGID
-              value: "100"
-            - name: TZ
-              value: America/Los_Angeles
-            - name: UMASK
-              value: "002"
-          ports:
-            - containerPort: 9696
-              name: http
-          volumeMounts:
-            - mountPath: /config
-              name: prowlarr-config
-          livenessProbe:
-            httpGet:
-              path: /ping
-              port: 9696
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 5
-          readinessProbe:
-            httpGet:
-              path: /ping
-              port: 9696
-            initialDelaySeconds: 45
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 5
-          resources:
-            limits:
-              cpu: 250m
-              memory: 256Mi
-            requests:
-              cpu: 50m
-              memory: 128Mi
-          imagePullPolicy: Always
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 1001
-            capabilities:
-              drop:
-                - ALL
-      volumes:
+      - name: seed-config
+        image: busybox:1.36
+        command: ["/bin/sh", "/scripts/seed-arr-config.sh"]
+        env:
+        - name: PORT
+          value: "9696"
+        - name: SSL_PORT
+          value: "6969"
+        - name: INSTANCE_NAME
+          value: "Prowlarr"
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: arr-bootstrap
+              key: PROWLARR_API_KEY
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: platform-postgres-credentials
+              key: arr-user-password
+        - name: POSTGRES_MAIN_DB
+          value: prowlarr_main
+        - name: POSTGRES_LOG_DB
+          value: prowlarr_log
+        volumeMounts:
         - name: prowlarr-config
-          emptyDir: {}
+          mountPath: /config
         - name: bootstrap-scripts
-          configMap:
-            name: arr-bootstrap-scripts
-            defaultMode: 0755
+          mountPath: /scripts
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 0
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+      containers:
+      - name: prowlarr
+        image: linuxserver/prowlarr:latest
+        env:
+        - name: PUID
+          value: "1001"
+        - name: PGID
+          value: "100"
+        - name: TZ
+          value: America/Los_Angeles
+        - name: UMASK
+          value: "002"
+        ports:
+        - containerPort: 9696
+          name: http
+        volumeMounts:
+        - mountPath: /config
+          name: prowlarr-config
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 9696
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: 9696
+          initialDelaySeconds: 45
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 5
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: prowlarr-config
+        emptyDir: {}
+      - name: bootstrap-scripts
+        configMap:
+          name: arr-bootstrap-scripts
+          defaultMode: 0755
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:

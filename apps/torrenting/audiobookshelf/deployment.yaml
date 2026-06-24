@@ -20,72 +20,72 @@ spec:
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
       containers:
-        - name: audiobookshelf
-          image: ghcr.io/advplyr/audiobookshelf:2.25.1
-          env:
-            - name: AUDIOBOOKSHELF_UID
-              value: "1001"
-            - name: AUDIOBOOKSHELF_GID
-              value: "100"
-            - name: TZ
-              value: America/Los_Angeles
-            - name: PORT
-              value: "13378"
-          ports:
-            - containerPort: 13378
-              name: http
-          livenessProbe:
-            httpGet:
-              path: /healthcheck
-              port: 13378
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /healthcheck
-              port: 13378
-            initialDelaySeconds: 30
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 3
-          resources:
-            limits:
-              cpu: "1"
-              memory: 1Gi
-            requests:
-              cpu: 100m
-              memory: 256Mi
-          volumeMounts:
-            - mountPath: /config
-              name: audiobookshelf-config
-            - mountPath: /metadata
-              name: audiobookshelf-metadata
-            - mountPath: /audiobooks
-              name: torrents
-              subPath: books/audiobooks
-            - mountPath: /books
-              name: torrents
-              subPath: books/ebooks
-          imagePullPolicy: Always
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 10001
-            capabilities:
-              drop:
-                - ALL
+      - name: audiobookshelf
+        image: ghcr.io/advplyr/audiobookshelf:latest
+        env:
+        - name: AUDIOBOOKSHELF_UID
+          value: "1001"
+        - name: AUDIOBOOKSHELF_GID
+          value: "100"
+        - name: TZ
+          value: America/Los_Angeles
+        - name: PORT
+          value: "13378"
+        ports:
+        - containerPort: 13378
+          name: http
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 13378
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 13378
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          limits:
+            cpu: "1"
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /config
+          name: audiobookshelf-config
+        - mountPath: /metadata
+          name: audiobookshelf-metadata
+        - mountPath: /audiobooks
+          name: torrents
+          subPath: books/audiobooks
+        - mountPath: /books
+          name: torrents
+          subPath: books/ebooks
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+            - ALL
       volumes:
-        - name: audiobookshelf-config
-          persistentVolumeClaim:
-            claimName: audiobookshelf-config-pvc
-        - name: audiobookshelf-metadata
-          persistentVolumeClaim:
-            claimName: audiobookshelf-metadata-pvc
-        - name: torrents
-          persistentVolumeClaim:
-            claimName: torrents-unified-pvc
+      - name: audiobookshelf-config
+        persistentVolumeClaim:
+          claimName: audiobookshelf-config-pvc
+      - name: audiobookshelf-metadata
+        persistentVolumeClaim:
+          claimName: audiobookshelf-metadata-pvc
+      - name: torrents
+        persistentVolumeClaim:
+          claimName: torrents-unified-pvc
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:
