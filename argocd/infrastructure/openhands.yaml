@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openhands
+  namespace: argocd
+  # Rebased onto security hardening branch (PR #22) so Checkov/Semgrep scans pass.
+spec:
+  project: default
+  sources:
+    - repoURL: ghcr.io/openhands/helm-charts
+      chart: openhands
+      targetRevision: 0.7.71
+      helm:
+        releaseName: openhands
+        valueFiles:
+          - $values/infrastructure/openhands/values.yaml
+    - repoURL: https://github.com/saxocellphone/k8s-cluster.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openhands
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openhands-extras
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/saxocellphone/k8s-cluster.git
+    targetRevision: main
+    path: infrastructure/openhands
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openhands
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true

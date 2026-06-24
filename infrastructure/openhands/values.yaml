@@ -1,0 +1,164 @@
+env:
+  DISABLE_WAITLIST: "true"
+  LITELLM_DEFAULT_MODEL: litellm_proxy/local-qwen3-27b
+  RUNTIME_URL_PATTERN: "http://{runtime_id}.runtime.openhands.k8s.home"
+
+ingress:
+  enabled: true
+  host: openhands.k8s.home
+  class: nginx
+  root:
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+tls:
+  enabled: false
+
+filestore:
+  ephemeral: true
+  bucket: openhands-sessions
+  type: s3
+
+minio:
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 20Gi
+  nodeSelector:
+    extensions.talos.dev/iscsi-tools: v0.2.0
+
+keycloak:
+  enabled: true
+  url: http://keycloak
+  ingress:
+    enabled: true
+    hostname: auth.openhands.k8s.home
+    ingressClassName: nginx
+    tls: false
+  nodeSelector:
+    extensions.talos.dev/iscsi-tools: v0.2.0
+  externalDatabase:
+    host: platform-postgres-rw.database.svc.cluster.local
+    port: 5432
+    database: openhands_keycloak
+    existingSecret: postgres-password
+    existingSecretUserKey: username
+    existingSecretPasswordKey: password
+    sslMode: prefer
+
+postgresql:
+  enabled: false
+  auth:
+    username: openhands
+    database: openhands
+    existingSecret: postgres-password
+
+externalDatabase:
+  enabled: true
+  host: platform-postgres-rw.database.svc.cluster.local
+  port: "5432"
+  username: openhands
+  database: openhands
+  sslMode: prefer
+  existingSecret: postgres-password
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: redis
+    # checkov:skip=CKV_SECRET_6 False positive: this is a Secret key name, not a secret value.
+    existingSecretPasswordKey: redis-password
+  master:
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 8Gi
+    nodeSelector:
+      extensions.talos.dev/iscsi-tools: v0.2.0
+  replica:
+    replicaCount: 0
+
+litellm-helm:
+  enabled: true
+  nodeSelector:
+    extensions.talos.dev/iscsi-tools: v0.2.0
+  db:
+    deployStandalone: false
+    useExisting: true
+    database: openhands_litellm
+    endpoint: platform-postgres-rw.database.svc.cluster.local
+    secret:
+      name: postgres-password
+      usernameKey: username
+      passwordKey: password
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: llm-proxy.openhands.k8s.home
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  proxy_config:
+    environment_variables:
+      OR_APP_NAME: OpenHands
+      OR_SITE_URL: http://openhands.k8s.home
+    model_list:
+      - model_name: local-qwen3-27b
+        litellm_params:
+          model: openai/Qwen/Qwen3.6-27B
+          api_base: http://llm.ai-inference.svc.cluster.local:8080/v1
+          api_key: os.environ/OPENAI_API_KEY
+    general_settings:
+      forward_client_headers_to_llm_api: false
+    litellm_settings:
+      num_retries: 3
+      request_timeout: 600
+      context_window_fallbacks: []
+      allowed_fails: 3
+
+sandbox:
+  apiHostname: http://openhands-runtime-api:5000
+
+runtime-api:
+  enabled: true
+  runtimeInSameCluster: true
+  replicaCount: 1
+  imagePullSecrets: []
+  ingress:
+    enabled: true
+    host: runtime-api.openhands.k8s.home
+    className: nginx
+    tls: false
+    annotations: {}
+  env:
+    DB_HOST: platform-postgres-rw.database.svc.cluster.local
+    DB_PORT: "5432"
+    DB_SSL_MODE: prefer
+    PGSSLMODE: prefer
+    DB_USER: openhands
+    DB_NAME: openhands_runtime_api
+    K8S_NAMESPACE: openhands
+    RUNTIME_BASE_URL: runtime.openhands.k8s.home
+    RUNTIME_DISABLE_SSL: "true"
+    STORAGE_CLASS: longhorn
+    RUNTIME_CLASS: ""
+    MEMORY_REQUEST: 3072Mi
+    MEMORY_LIMIT: 3072Mi
+    CPU_REQUEST: 500m
+    EPHEMERAL_STORAGE_SIZE: 10Gi
+  databaseMigrations:
+    waitForDatabase: true
+    createDatabases: false
+    migrate: true
+  warmRuntimes:
+    enabled: false
+  autoscaling:
+    enabled: false
+  nodeSelector:
+    extensions.talos.dev/iscsi-tools: v0.2.0
