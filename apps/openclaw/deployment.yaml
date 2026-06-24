@@ -221,11 +221,11 @@ spec:
         imagePullPolicy: Always
         resources:
           requests:
-            cpu: 25m
-            memory: 64Mi
+            cpu: 100m
+            memory: 512Mi
           limits:
-            cpu: 250m
-            memory: 256Mi
+            cpu: "1"
+            memory: 2Gi
       - name: config-patch
         image: ghcr.io/openclaw/openclaw:2026.3.1
         command: ["node", "-e"]
