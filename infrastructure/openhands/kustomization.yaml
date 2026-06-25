@@ -6,7 +6,6 @@ kind: Kustomization
 # resource to apply.
 
 resources:
-  - runtimeclass.yaml
   - s3-env-patch-rbac.yaml
   - s3-env-patch-job.yaml
 
