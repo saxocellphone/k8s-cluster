@@ -16,16 +16,18 @@ spec:
       automountServiceAccountToken: true
       containers:
         - name: kubectl
-          image: docker.io/rancher/kubectl:v1.33.0
+          image: alpine:3.22
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
             - -ceu
             - |
-              kubectl -n openhands patch deployment openhands --type json -p '[
-                {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"AWS_ACCESS_KEY_ID","valueFrom":{"secretKeyRef":{"name":"litellm-env-secrets","key":"AWS_ACCESS_KEY_ID"}}}},
-                {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"AWS_SECRET_ACCESS_KEY","valueFrom":{"secretKeyRef":{"name":"litellm-env-secrets","key":"AWS_SECRET_ACCESS_KEY"}}}}
-              ]'
+              apk add --no-cache curl ca-certificates
+              curl -fsSL -o /tmp/kubectl https://dl.k8s.io/release/v1.34.2/bin/linux/amd64/kubectl
+              chmod 0755 /tmp/kubectl
+              /tmp/kubectl -n openhands set env deployment/openhands \
+                --from=secret/litellm-env-secrets \
+                --keys=AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY
           resources:
             requests:
               cpu: 25m
