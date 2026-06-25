@@ -501,26 +501,6 @@ resource "cloudflare_zero_trust_access_application" "openclaw" {
       uri           = "openclaw.victornazzaro.com"
       vnet_id       = null
     },
-    {
-      cidr          = null
-      hostname      = null
-      l4_protocol   = null
-      mcp_server_id = null
-      port_range    = null
-      type          = "public"
-      uri           = "openhands.victornazzaro.com"
-      vnet_id       = null
-    },
-    {
-      cidr          = null
-      hostname      = null
-      l4_protocol   = null
-      mcp_server_id = null
-      port_range    = null
-      type          = "public"
-      uri           = "openhands-auth.victornazzaro.com"
-      vnet_id       = null
-    },
   ]
   domain                     = "openclaw.victornazzaro.com"
   enable_binding_cookie      = false
