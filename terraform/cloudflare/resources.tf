@@ -518,18 +518,25 @@ resource "cloudflare_zero_trust_access_application" "opencode" {
   oauth_configuration        = null
   options_preflight_bypass   = false
   path_cookie_attribute      = null
-  # Reuse the same Access policy attachment pattern as OpenClaw (account policy id).
+  # Inline allow-list (same operator email as AI Services app) — legacy policy
+  # id attachment fails for new apps (CF 12130).
   policies = [
     {
       connection_rules = null
-      decision         = null
+      decision         = "allow"
       exclude          = null
-      id               = "0febeabd-8492-480f-96ae-55ea5dad764c"
-      include          = null
-      mfa_config       = null
-      name             = null
-      precedence       = 1
-      require          = null
+      id               = null
+      include = [
+        {
+          email = {
+            email = "nazzav923@gmail.com"
+          }
+        }
+      ]
+      mfa_config = null
+      name       = "Operator email allow-list"
+      precedence = 1
+      require    = null
     },
   ]
   read_service_tokens_from_header = null
