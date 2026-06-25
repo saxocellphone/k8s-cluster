@@ -153,8 +153,10 @@ runtime-api:
     # topology). Those workers are small; 3Gi+10Gi ephemeral * N stuck runtimes
     # exhausts CPU/memory/ephemeral and new pods sit Pending until the app's
     # startup timeout. Keep requests modest so one sandbox fits per worker.
+    # MEMORY_* must be Mi-suffixed integers — runtime-api parses with
+    # int(MEMORY_LIMIT.rstrip("Mi")) and rejects Gi (breaks migrate-db init).
     MEMORY_REQUEST: 1536Mi
-    MEMORY_LIMIT: 2Gi
+    MEMORY_LIMIT: 2048Mi
     CPU_REQUEST: 200m
     EPHEMERAL_STORAGE_SIZE: 2Gi
     # Match app-side OH_* timeouts so agent-server startup probes / longhorn
