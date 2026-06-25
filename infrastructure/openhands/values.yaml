@@ -141,12 +141,21 @@ runtime-api:
     K8S_NAMESPACE: openhands
     RUNTIME_BASE_URL: runtime.openhands.k8s.home
     RUNTIME_DISABLE_SSL: "true"
+    # Default in the image is "traefik"; without this, resumed runtimes get an
+    # IngressClass that nothing in the cluster implements, so
+    # {id}.runtime.openhands.k8s.home 404s and the app times out waiting for
+    # the sandbox (even though the pod is Ready). Pause also deletes Service +
+    # Ingress, so resume must recreate them with the right class every time.
+    INGRESS_CLASS: nginx
     STORAGE_CLASS: longhorn-openhands-runtime
     RUNTIME_CLASS: ""
     MEMORY_REQUEST: 3072Mi
     MEMORY_LIMIT: 3072Mi
     CPU_REQUEST: 500m
     EPHEMERAL_STORAGE_SIZE: 10Gi
+    # Match app-side OH_* timeouts so agent-server startup probes / longhorn
+    # attach on cold nodes don't lose the race at the default 120s.
+    STARTUP_GRACE_PERIOD: "300"
   databaseMigrations:
     waitForDatabase: true
     createDatabases: false
