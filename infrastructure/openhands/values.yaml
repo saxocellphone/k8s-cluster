@@ -149,10 +149,14 @@ runtime-api:
     INGRESS_CLASS: nginx
     STORAGE_CLASS: longhorn-openhands-runtime
     RUNTIME_CLASS: ""
-    MEMORY_REQUEST: 3072Mi
-    MEMORY_LIMIT: 3072Mi
-    CPU_REQUEST: 500m
-    EPHEMERAL_STORAGE_SIZE: 10Gi
+    # Sandboxes only schedule on Longhorn nodes (WaitForFirstConsumer SC +
+    # topology). Those workers are small; 3Gi+10Gi ephemeral * N stuck runtimes
+    # exhausts CPU/memory/ephemeral and new pods sit Pending until the app's
+    # startup timeout. Keep requests modest so one sandbox fits per worker.
+    MEMORY_REQUEST: 1536Mi
+    MEMORY_LIMIT: 2Gi
+    CPU_REQUEST: 200m
+    EPHEMERAL_STORAGE_SIZE: 2Gi
     # Match app-side OH_* timeouts so agent-server startup probes / longhorn
     # attach on cold nodes don't lose the race at the default 120s.
     STARTUP_GRACE_PERIOD: "300"
