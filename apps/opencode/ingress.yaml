@@ -1,6 +1,6 @@
-# Public hostname rides CF tunnel wildcard (*.victornazzaro.com → ingress-nginx).
-# Protect with Cloudflare Access (terraform) + OPENCODE_SERVER_PASSWORD basic auth.
-# No header-less "LAN only is fine" assumption for the public host — Access is required off-LAN.
+# Public hostname rides CF tunnel (DNS + wildcard → ingress-nginx).
+# Auth is Cloudflare Access only (OAuth / email allow-list) — OpenCode has no
+# basic auth. No LAN host (would bypass Access and expose a privileged DinD pod).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -16,17 +16,6 @@ spec:
   ingressClassName: nginx
   rules:
     - host: opencode.victornazzaro.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: opencode
-                port:
-                  number: 4096
-    # Optional LAN host for home network debugging (still has basic auth).
-    - host: opencode.k8s.home
       http:
         paths:
           - path: /

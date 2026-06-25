@@ -139,11 +139,10 @@ spec:
             - --cors
             - https://opencode.victornazzaro.com
             - --cors
-            - http://opencode.k8s.home
-            - --cors
             - http://localhost:5173
             - --cors
             - http://127.0.0.1:5173
+
 
           ports:
             - name: http
@@ -156,16 +155,8 @@ spec:
               value: /tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: DOCKER_HOST
               value: unix:///var/run/docker.sock
-            - name: OPENCODE_SERVER_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: opencode-secrets
-                  key: OPENCODE_SERVER_USERNAME
-            - name: OPENCODE_SERVER_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: opencode-secrets
-                  key: OPENCODE_SERVER_PASSWORD
+            # No OPENCODE_SERVER_PASSWORD: auth is Cloudflare Access only (OAuth/IdP
+            # at the edge). Do not expose a LAN ingress — pod has no app-level auth.
             # Optional provider keys — omit key from secret until set; optional: true
             # avoids CrashLoop if you only configure one vendor.
             - name: ANTHROPIC_API_KEY
@@ -205,7 +196,7 @@ spec:
             limits:
               cpu: "4"
               memory: 8Gi
-          # /global/health requires basic auth; TCP is enough for liveness.
+          # Health is unauthenticated on the pod; TCP probe is sufficient.
           startupProbe:
             tcpSocket:
               port: http
