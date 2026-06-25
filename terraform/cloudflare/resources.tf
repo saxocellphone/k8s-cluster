@@ -201,49 +201,13 @@ resource "cloudflare_dns_record" "openclaw" {
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
 }
 
-resource "cloudflare_dns_record" "openhands" {
-  comment         = "OpenHands"
-  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
-  data            = null
-  name            = "openhands.victornazzaro.com"
-  priority        = null
-  private_routing = null
-  proxied         = true
-  settings = {
-    flatten_cname = false
-    ipv4_only     = false
-    ipv6_only     = false
-  }
-  tags    = []
-  ttl     = 1
-  type    = "CNAME"
-  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
-}
 
-resource "cloudflare_dns_record" "openhands_auth" {
-  comment         = "OpenHands Keycloak auth"
-  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
-  data            = null
-  name            = "openhands-auth.victornazzaro.com"
-  priority        = null
-  private_routing = null
-  proxied         = true
-  settings = {
-    flatten_cname = false
-    ipv4_only     = false
-    ipv6_only     = false
-  }
-  tags    = []
-  ttl     = 1
-  type    = "CNAME"
-  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
-}
 
-# Zone-apex wildcard for OpenHands runtime sandboxes ({id}.victornazzaro.com).
-# Specific DNS records (openhands, sonarr, …) take precedence over this
+# Zone-apex wildcard for dynamic first-level public hosts.
+# Specific DNS records (sonarr, memos, …) take precedence over this
 # wildcard. Required for CF Universal SSL (only covers one label under apex).
 resource "cloudflare_dns_record" "openhands_runtime_wildcard" {
-  comment         = "OpenHands runtime sandboxes (zone wildcard; specifics win)"
+  comment         = "Zone apex wildcard (specifics win; CF Universal SSL)"
   content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
   data            = null
   name            = "*.victornazzaro.com"
@@ -437,19 +401,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         path           = null
         service        = "http://openclaw.openclaw.svc.cluster.local:18789"
       },
-      {
-        hostname       = "openhands.victornazzaro.com"
-        origin_request = null
-        path           = null
-        service        = "http://openhands-service.openhands.svc.cluster.local:3000"
-      },
-      {
-        hostname       = "openhands-auth.victornazzaro.com"
-        origin_request = null
-        path           = null
-        service        = "http://keycloak.openhands.svc.cluster.local:80"
-      },
-      {
+                  {
         hostname       = "ai.victornazzaro.com"
         origin_request = null
         path           = null
@@ -485,8 +437,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         service        = "http://notion-writer.openclaw.svc.cluster.local:80"
       },
       {
-        # Catch-all for OpenHands sandboxes ({id}.victornazzaro.com) and any
-        # other unlisted first-level subdomain. Named routes above win first.
+        # Catch-all for unlisted first-level subdomains. Named routes above win.
         # Must hit ingress-nginx so Host-based Ingress rules are honored.
         hostname       = "*.victornazzaro.com"
         origin_request = null

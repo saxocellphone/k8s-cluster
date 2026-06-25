@@ -4,7 +4,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - platform-postgres.yaml
-  - openhands-databases.yaml
 
 generators:
   - secret-generator.yaml

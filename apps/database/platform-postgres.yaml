@@ -29,13 +29,6 @@ spec:
         - CREATE DATABASE radarr_log OWNER arr_user
         - CREATE DATABASE sonarr_main OWNER arr_user
         - CREATE DATABASE sonarr_log OWNER arr_user
-  managed:
-    roles:
-      - name: openhands
-        ensure: present
-        login: true
-        passwordSecret:
-          name: openhands-postgres-app
   monitoring:
     enablePodMonitor: true
   resources:

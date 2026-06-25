@@ -3,7 +3,6 @@ kind: Kustomization
 
 resources:
   - storage-classes.yaml
-  - openhands-runtime-storageclass.yaml
   - persistent-volumes.yaml
   - rbac.yaml
   - coredns-affinity.yaml
