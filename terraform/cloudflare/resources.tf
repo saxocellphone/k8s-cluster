@@ -239,14 +239,14 @@ resource "cloudflare_dns_record" "openhands_auth" {
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
 }
 
-# Wildcard for OpenHands remote sandboxes. Hosts are {id}.oh-rt.victornazzaro.com
-# (one label under the zone apex so CF Universal SSL applies). Tunnel preserves
-# Host so ingress-nginx can match the per-runtime Ingress rules.
+# Zone-apex wildcard for OpenHands runtime sandboxes ({id}.victornazzaro.com).
+# Specific DNS records (openhands, sonarr, …) take precedence over this
+# wildcard. Required for CF Universal SSL (only covers one label under apex).
 resource "cloudflare_dns_record" "openhands_runtime_wildcard" {
-  comment         = "OpenHands runtime sandboxes (wildcard)"
+  comment         = "OpenHands runtime sandboxes (zone wildcard; specifics win)"
   content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
   data            = null
-  name            = "*.oh-rt.victornazzaro.com"
+  name            = "*.victornazzaro.com"
   priority        = null
   private_routing = null
   proxied         = true
@@ -450,15 +450,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         service        = "http://keycloak.openhands.svc.cluster.local:80"
       },
       {
-        # Dynamic per-sandbox hosts; must hit ingress-nginx (not a fixed Service)
-        # so Host-based Ingress rules for each runtime_id are honored.
-        # Single label under apex (oh-rt) for CF Universal SSL coverage.
-        hostname       = "*.oh-rt.victornazzaro.com"
-        origin_request = null
-        path           = null
-        service        = "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80"
-      },
-      {
         hostname       = "ai.victornazzaro.com"
         origin_request = null
         path           = null
@@ -492,6 +483,15 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         origin_request = null
         path           = null
         service        = "http://notion-writer.openclaw.svc.cluster.local:80"
+      },
+      {
+        # Catch-all for OpenHands sandboxes ({id}.victornazzaro.com) and any
+        # other unlisted first-level subdomain. Named routes above win first.
+        # Must hit ingress-nginx so Host-based Ingress rules are honored.
+        hostname       = "*.victornazzaro.com"
+        origin_request = null
+        path           = null
+        service        = "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80"
       },
       {
         hostname       = null

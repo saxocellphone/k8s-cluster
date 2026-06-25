@@ -4,10 +4,10 @@ env:
   # Browser talks to sandboxes directly; must be public HTTPS (CF tunnel),
   # not LAN-only *.runtime.openhands.k8s.home — otherwise the UI shows
   # "network error" even when the agent pod is Ready in-cluster.
-  # Use a single DNS label under victornazzaro.com so CF Universal SSL
-  # (*.victornazzaro.com) covers the host; deeper names like
-  # *.runtime.openhands.victornazzaro.com fail TLS handshake on free CF.
-  RUNTIME_URL_PATTERN: "https://{runtime_id}.oh-rt.victornazzaro.com"
+  # Hosts must be a single label under the zone apex so CF Universal SSL
+  # (*.victornazzaro.com) covers TLS. Nested names (*.oh-rt.…, *.runtime.…)
+  # fail handshake on free CF.
+  RUNTIME_URL_PATTERN: "https://{runtime_id}.victornazzaro.com"
   WEB_HOST: openhands.victornazzaro.com
   AUTH_WEB_HOST: openhands-auth.victornazzaro.com
   AUTH_URL: https://openhands-auth.victornazzaro.com
@@ -145,16 +145,16 @@ runtime-api:
     DB_USER: openhands
     DB_NAME: openhands_runtime_api
     K8S_NAMESPACE: openhands
-    # Public base so runtime Ingress hosts are {id}.oh-rt.victornazzaro.com
-    # (CF tunnel → ingress-nginx; see terraform/cloudflare). Origin is HTTP;
-    # CF terminates TLS. Keep under *.victornazzaro.com for Universal SSL.
-    RUNTIME_BASE_URL: oh-rt.victornazzaro.com
+    # Public base so runtime Ingress hosts are {id}.victornazzaro.com (one label
+    # under apex → CF Universal SSL). Tunnel catch-all *.victornazzaro.com →
+    # ingress-nginx after named routes (terraform/cloudflare). Origin HTTP.
+    RUNTIME_BASE_URL: victornazzaro.com
     RUNTIME_DISABLE_SSL: "false"
     # Default in the image is "traefik"; without this, resumed runtimes get an
     # IngressClass that nothing in the cluster implements, so
-    # {id}.oh-rt.victornazzaro.com 404s and the app times out waiting for the
-    # sandbox (even though the pod is Ready). Pause also deletes Service +
-    # Ingress, so resume must recreate them with the right class every time.
+    # {id}.victornazzaro.com 404s and the app times out waiting for the sandbox
+    # (even though the pod is Ready). Pause also deletes Service + Ingress, so
+    # resume must recreate them with the right class every time.
     INGRESS_CLASS: nginx
     STORAGE_CLASS: longhorn-openhands-runtime
     RUNTIME_CLASS: ""
