@@ -140,7 +140,7 @@ runtime-api:
     RUNTIME_BASE_URL: runtime.openhands.k8s.home
     RUNTIME_DISABLE_SSL: "true"
     STORAGE_CLASS: longhorn
-    RUNTIME_CLASS: ""
+    RUNTIME_CLASS: openhands-runtime
     MEMORY_REQUEST: 3072Mi
     MEMORY_LIMIT: 3072Mi
     CPU_REQUEST: 500m
