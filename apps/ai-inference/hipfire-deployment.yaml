@@ -46,7 +46,9 @@ spec:
           for d in \
             /models/hipfire-home \
             /models/hipfire-home/.cache \
+            /models/hipfire-home/.cache/hip \
             /models/hipfire-home/.hipfire \
+            /models/hipfire-home/.hipfire_kernels \
             /models/hipfire-home/.local \
             /models/hipfire-home/tmp
           do
@@ -72,6 +74,9 @@ spec:
       - name: hipfire
         image: ghcr.io/saxocellphone/hipfire-gfx1151:latest
         imagePullPolicy: Always
+        # Image CMD does not cd; daemon creates $CWD/.hipfire_kernels unless
+        # HIPFIRE_KERNEL_CACHE is set. Default CWD is / (not writable for 10001).
+        workingDir: /models/hipfire-home
         env:
         - name: HIPFIRE_MODEL
           value: qwen3.6:27b
@@ -85,9 +90,11 @@ spec:
         - name: XDG_CONFIG_HOME
           value: /models/hipfire-home/.config
         - name: TMPDIR
-          value: /models/hipfire-home/tmp
+          value: /tmp
         - name: HIP_USER_CACHE
           value: /models/hipfire-home/.cache/hip
+        - name: HIPFIRE_KERNEL_CACHE
+          value: /models/hipfire-home/.hipfire_kernels
         - name: ROCM_PATH
           value: /opt/rocm
         ports:
@@ -136,13 +143,6 @@ spec:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
           runAsUser: 10001
-          # Host render/video groups for /dev/kfd + /dev/dri on Talos GPU node.
-          # Values match typical udev on amdgpu nodes; adjust if diag still denies.
-          supplementalGroups:
-          - 44
-          - 109
-          - 110
-          - 992
           capabilities:
             drop:
             - ALL
@@ -164,7 +164,7 @@ spec:
       securityContext:
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
-        # Same render/video GIDs at pod level for all containers.
+        # Host render/video GIDs for /dev/kfd + /dev/dri (pod-level only; not valid on containers).
         supplementalGroups:
         - 44
         - 109
