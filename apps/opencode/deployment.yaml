@@ -126,9 +126,11 @@ spec:
           image: ghcr.io/anomalyco/opencode:1.17.11@sha256:c38a7cb4449f342166c43ff4a69e1b02f12ef1959bbfdd83993cdff8cea698a7
           imagePullPolicy: IfNotPresent
           workingDir: /workspace
+          # `web` = headless server + built-in browser UI (same OpenAPI as `serve`).
+          # Custom clients / attach / SDK still use /session, /doc, SSE, etc.
           command: ["opencode"]
           args:
-            - serve
+            - web
             - --hostname
             - 0.0.0.0
             - --port
@@ -142,6 +144,7 @@ spec:
             - http://localhost:5173
             - --cors
             - http://127.0.0.1:5173
+
           ports:
             - name: http
               containerPort: 4096
