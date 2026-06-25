@@ -239,6 +239,28 @@ resource "cloudflare_dns_record" "openhands_auth" {
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
 }
 
+# Wildcard for OpenHands remote sandboxes. Hosts are {id}.oh-rt.victornazzaro.com
+# (one label under the zone apex so CF Universal SSL applies). Tunnel preserves
+# Host so ingress-nginx can match the per-runtime Ingress rules.
+resource "cloudflare_dns_record" "openhands_runtime_wildcard" {
+  comment         = "OpenHands runtime sandboxes (wildcard)"
+  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
+  data            = null
+  name            = "*.oh-rt.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
+}
+
 # __generated__ by Terraform from "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/ac88c1ef-f5e0-4f10-80a4-41ad08ddbff7"
 resource "cloudflare_zero_trust_access_service_token" "nzb360" {
   account_id                        = "e34e1aabbaa8c7a5ca6a7a229dea2ae7"
@@ -426,6 +448,15 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         origin_request = null
         path           = null
         service        = "http://keycloak.openhands.svc.cluster.local:80"
+      },
+      {
+        # Dynamic per-sandbox hosts; must hit ingress-nginx (not a fixed Service)
+        # so Host-based Ingress rules for each runtime_id are honored.
+        # Single label under apex (oh-rt) for CF Universal SSL coverage.
+        hostname       = "*.oh-rt.victornazzaro.com"
+        origin_request = null
+        path           = null
+        service        = "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80"
       },
       {
         hostname       = "ai.victornazzaro.com"
