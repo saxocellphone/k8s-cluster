@@ -3,6 +3,10 @@ set -euo pipefail
 
 export HOME="${HIPFIRE_HOME:-/models/hipfire-home}"
 export HIPFIRE_HOME="$HOME"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+export TMPDIR="${TMPDIR:-$HOME/tmp}"
+export HIP_USER_CACHE="${HIP_USER_CACHE:-$HOME/.cache/hip}"
 export PATH="$HOME/.hipfire/bin:/opt/rocm/bin:$PATH"
 export HIP_VISIBLE_DEVICES=0
 export HSA_OVERRIDE_GFX_VERSION=11.5.1
@@ -10,7 +14,8 @@ export HSA_ENABLE_SDMA=0
 
 MODEL="${HIPFIRE_MODEL:-qwen3.6:27b}"
 
-mkdir -p "$HOME/.hipfire/bin" "$HOME/.hipfire/models" "$HOME/.hipfire/cli"
+mkdir -p "$HOME/.hipfire/bin" "$HOME/.hipfire/models" "$HOME/.hipfire/cli" \
+  "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$TMPDIR" "$HIP_USER_CACHE"
 for binary in daemon infer infer_hfq triattn_validate hipfire-tui; do
   if [[ -x "/opt/hipfire/bin/$binary" && ! -e "$HOME/.hipfire/bin/$binary" ]]; then
     ln -s "/opt/hipfire/bin/$binary" "$HOME/.hipfire/bin/$binary"
