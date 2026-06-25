@@ -224,7 +224,7 @@ resource "cloudflare_dns_record" "openhands_auth" {
   comment         = "OpenHands Keycloak auth"
   content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
   data            = null
-  name            = "auth.openhands.victornazzaro.com"
+  name            = "openhands-auth.victornazzaro.com"
   priority        = null
   private_routing = null
   proxied         = true
@@ -422,7 +422,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         service        = "http://openhands-service.openhands.svc.cluster.local:3000"
       },
       {
-        hostname       = "auth.openhands.victornazzaro.com"
+        hostname       = "openhands-auth.victornazzaro.com"
         origin_request = null
         path           = null
         service        = "http://keycloak.openhands.svc.cluster.local:80"
@@ -518,7 +518,7 @@ resource "cloudflare_zero_trust_access_application" "openclaw" {
       mcp_server_id = null
       port_range    = null
       type          = "public"
-      uri           = "auth.openhands.victornazzaro.com"
+      uri           = "openhands-auth.victornazzaro.com"
       vnet_id       = null
     },
   ]
