@@ -458,6 +458,93 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
 }
 
 # __generated__ by Terraform from "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/c6948052-8a41-4c2d-830e-427b3b6cc4b4"
+
+# OpenCode server (multi-client coding harness). Public host uses tunnel wildcard
+# → ingress-nginx; Access app gates browsers before OpenCode basic auth.
+resource "cloudflare_dns_record" "opencode" {
+  comment         = "OpenCode serve (API + clients)"
+  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
+  data            = null
+  name            = "opencode.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
+}
+
+resource "cloudflare_zero_trust_access_application" "opencode" {
+  account_id                   = "e34e1aabbaa8c7a5ca6a7a229dea2ae7"
+  allow_authenticate_via_warp  = null
+  allow_iframe                 = null
+  allowed_idps                 = null
+  app_launcher_logo_url        = null
+  app_launcher_visible         = true
+  auto_redirect_to_identity    = false
+  bg_color                     = null
+  cors_headers                 = null
+  custom_deny_message          = null
+  custom_deny_url              = null
+  custom_non_identity_deny_url = null
+  custom_pages                 = null
+  destinations = [
+    {
+      cidr          = null
+      hostname      = null
+      l4_protocol   = null
+      mcp_server_id = null
+      port_range    = null
+      type          = "public"
+      uri           = "opencode.victornazzaro.com"
+      vnet_id       = null
+    },
+  ]
+  domain                     = "opencode.victornazzaro.com"
+  enable_binding_cookie      = false
+  footer_links               = null
+  header_bg_color            = null
+  http_only_cookie_attribute = true
+  landing_page_design        = null
+  logo_url                   = null
+  mfa_config                 = null
+  name                       = "OpenCode"
+  oauth_configuration        = null
+  options_preflight_bypass   = false
+  path_cookie_attribute      = null
+  # Reuse the same Access policy attachment pattern as OpenClaw (account policy id).
+  policies = [
+    {
+      connection_rules = null
+      decision         = null
+      exclude          = null
+      id               = "0febeabd-8492-480f-96ae-55ea5dad764c"
+      include          = null
+      mfa_config       = null
+      name             = null
+      precedence       = 1
+      require          = null
+    },
+  ]
+  read_service_tokens_from_header = null
+  saas_app                        = null
+  same_site_cookie_attribute      = null
+  scim_config                     = null
+  service_auth_401_redirect       = null
+  session_duration                = "24h"
+  skip_interstitial               = null
+  tags                            = null
+  target_criteria                 = null
+  type                            = "self_hosted"
+  zone_id                         = null
+}
+
 resource "cloudflare_zero_trust_access_application" "openclaw" {
   account_id                   = "e34e1aabbaa8c7a5ca6a7a229dea2ae7"
   allow_authenticate_via_warp  = null

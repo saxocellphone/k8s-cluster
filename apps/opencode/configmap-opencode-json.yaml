@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencode-config
+  namespace: opencode
+data:
+  # Non-secret provider wiring. API keys come from env / auth.json on the PVC.
+  # Cluster LLM is optional — point at ai-inference OpenAI-compatible endpoint.
+  # Adjust model IDs after checking what the LLM pod actually serves.
+  opencode.json: |
+    {
+      "$schema": "https://opencode.ai/config.json",
+      "provider": {
+        "cluster-llm": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Cluster LLM",
+          "options": {
+            "baseURL": "http://llm.ai-inference.svc.cluster.local:8080/v1"
+          },
+          "models": {
+            "local-default": {
+              "name": "local-default"
+            }
+          }
+        }
+      }
+    }
+  AGENTS.md: |
+    # OpenCode cluster sandbox
+
+    You are running inside a long-lived Kubernetes sandbox (`opencode` namespace)
+    with Docker-in-Docker available via `DOCKER_HOST=unix:///var/run/docker.sock`.
+
+    ## Workspace layout
+
+    - Home / projects: `/workspace`
+    - Clone repos under `/workspace/repos/<name>`
+    - Prefer branches + pull requests over pushing directly to `main`
+    - Do not commit secrets, kubeconfig, or age keys
+
+    ## Tools
+
+    - `git`, `gh`, and the Docker CLI are on `PATH` (seeded by the tools init container)
+    - Use containers for integration tests and language toolchains when practical
+
+    ## Safety
+
+    - This pod is privileged (DinD). Treat it as a single-tenant personal workstation.
+    - Do not attempt to reach the Kubernetes API unless the operator has mounted credentials.
+    - Prefer GitHub App / PAT scoped tokens already in the environment for git push.

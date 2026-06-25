@@ -1,0 +1,65 @@
+# Default-deny ingress except from ingress-nginx; egress is open enough for
+# agent work (LLM APIs, GitHub, package registries). Tighten further if needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: opencode
+  namespace: opencode
+spec:
+  podSelector:
+    matchLabels:
+      app: opencode
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # ingress-nginx (LAN + CF wildcard → controller)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 4096
+    # in-cluster probes / port-forward (optional: restrict further)
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 4096
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Cluster LLM
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-inference
+      ports:
+        - protocol: TCP
+          port: 8080
+    # External HTTPS (LLM APIs, GitHub, registries, apt, etc.)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    # Allow remaining in-cluster TCP (package mirrors on NodePorts rare; DinD
+    # may need pod network to itself — keep broad in-cluster egress for agent)
+    - to:
+        - namespaceSelector: {}

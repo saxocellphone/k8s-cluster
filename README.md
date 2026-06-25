@@ -21,6 +21,7 @@ k8s-cluster/
 ├── apps/                       # Application workloads (Kustomize)
 │   ├── ai-inference/           #   Local LLM inference + chat/image UIs
 │   ├── openclaw/               #   AI agent gateway (Telegram + GitOps cluster ops)
+│   ├── opencode/               #   OpenCode server (phone UI + multi-client API sandbox)
 │   ├── torrenting/             #   VPN-protected media stack
 │   ├── database/               #   PostgreSQL (CloudNativePG)
 │   ├── memos/                  #   Note-taking
@@ -121,6 +122,7 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using [age](h
 | `apps/torrenting/postgres/secret.yaml` | PostgreSQL credentials |
 | `apps/torrenting/qbittorrent/secret.yaml` | ProtonVPN WireGuard config |
 | `apps/openclaw/secret.yaml` | Anthropic API key, Telegram bot token |
+| `apps/opencode/secret.yaml` | OpenCode server basic auth + optional LLM/GitHub tokens |
 | `apps/openclaw/tls-secret.yaml` | Self-signed TLS certificate |
 
 ### How it works
@@ -150,6 +152,7 @@ SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
 |---|---|
 | ai-inference | Local LLM inference (HIPFire / SGLang) with Open WebUI, ComfyUI, and a mode switcher |
 | openclaw | AI agent gateway — Telegram bot, read-only cluster diagnostics, and GitOps changes via PR |
+| opencode | OpenCode `serve` — DinD coding sandbox, OpenAPI multi-client (web/attach/SDK), CF Access |
 | torrenting | VPN-protected media stack: qBittorrent (+ gluetun), Prowlarr, Radarr, Sonarr, Audiobookshelf |
 | database | PostgreSQL cluster (CloudNativePG) backing app workloads |
 | memos | Lightweight self-hosted note-taking |

@@ -1,0 +1,245 @@
+# OpenCode headless server (multi-client: web attach, TUI attach, SDK, custom HTTP/SSE).
+# Docs: https://opencode.ai/docs/server/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode
+  namespace: opencode
+  labels:
+    app: opencode
+  annotations:
+    checkov.io/skip1: CKV_K8S_16=DinD requires privileged for nested Docker.
+    checkov.io/skip2: CKV_K8S_20=Privileged DinD cannot disable privilege escalation.
+    checkov.io/skip3: CKV_K8S_22=Workspace and Docker data need writable volumes.
+    checkov.io/skip4: CKV_K8S_23=Sandbox runs as root to share docker.sock with DinD.
+    checkov.io/skip5: CKV_K8S_28=Privileged inherits NET_RAW.
+    checkov.io/skip6: CKV_K8S_29=Pod security context incompatible with privileged DinD.
+    checkov.io/skip7: CKV_K8S_30=Container security context incompatible with privileged DinD.
+    checkov.io/skip8: CKV_K8S_31=Seccomp cannot be RuntimeDefault on privileged DinD.
+    checkov.io/skip9: CKV_K8S_37=Elevated capabilities required for DinD.
+    checkov.io/skip10: CKV_K8S_40=Root required for docker.sock + tool install paths.
+    checkov.io/skip11: CKV_K8S_8=DinD has no HTTP probes; opencode container is probed.
+    checkov.io/skip12: CKV_K8S_9=DinD has no readiness HTTP; opencode container is probed.
+    checkov.io/skip13: CKV_K8S_35=API keys required as env vars by OpenCode providers.
+    checkov.io/skip14: CKV_K8S_43=Image pinned by tag+digest comment; digest updated on bump.
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: opencode
+  template:
+    metadata:
+      labels:
+        app: opencode
+    spec:
+      # Longhorn RWO — schedule where iscsi-tools extension is present (Talos workers).
+      nodeSelector:
+        extensions.talos.dev/iscsi-tools: v0.2.0
+      terminationGracePeriodSeconds: 60
+      initContainers:
+        # Seed git/gh/docker CLI into an emptyDir so the slim OpenCode image can
+        # use the DinD sidecar and talk to GitHub without a private image build.
+        - name: seed-tools
+          image: alpine:3.21
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -eux
+              apk add --no-cache curl tar gzip git ca-certificates
+              mkdir -p /tools/bin
+              cp /usr/bin/git /tools/bin/git
+              # GitHub CLI
+              GH_VER=2.67.0
+              curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.tar.gz" \
+                | tar -xz -C /tmp
+              mv "/tmp/gh_${GH_VER}_linux_amd64/bin/gh" /tools/bin/gh
+              # Docker CLI only (daemon is the dind sidecar)
+              DOCKER_VER=27.5.1
+              curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VER}.tgz" \
+                | tar -xz -C /tmp
+              mv /tmp/docker/docker /tools/bin/docker
+              chmod -R a+rX /tools
+          volumeMounts:
+            - name: tools
+              mountPath: /tools
+        - name: seed-workspace
+          image: alpine:3.21
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -eux
+              # Persist HOME on the workspace PVC so auth.json / sessions survive restarts.
+              mkdir -p /workspace/repos \
+                /workspace/.home/.config/opencode \
+                /workspace/.home/.local/share/opencode
+              if [ -f /seed/opencode.json ]; then
+                # Refresh non-secret provider wiring each start (keys stay in env/secret).
+                cp /seed/opencode.json /workspace/.home/.config/opencode/opencode.json
+              fi
+              if [ -f /seed/AGENTS.md ] && [ ! -f /workspace/AGENTS.md ]; then
+                cp /seed/AGENTS.md /workspace/AGENTS.md
+              fi
+              if [ ! -f /workspace/repos/.keep ]; then
+                touch /workspace/repos/.keep
+              fi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: config-seed
+              mountPath: /seed
+              readOnly: true
+      containers:
+        - name: dind
+          image: docker:29-dind
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          command: ["dockerd"]
+          args:
+            - --host=unix:///var/run/docker.sock
+            - --data-root=/var/lib/docker
+            - --exec-root=/var/run/docker/execroot
+            - --pidfile=/var/run/docker.pid
+            # Match common CNI MTU; avoids PMTU black holes for nested containers.
+            - --mtu=1450
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          volumeMounts:
+            - name: docker-run
+              mountPath: /var/run
+            - name: docker-data
+              mountPath: /var/lib/docker
+        - name: opencode
+          # Pinned release verified in-cluster: opencode 1.17.11
+          image: ghcr.io/anomalyco/opencode:1.17.11@sha256:c38a7cb4449f342166c43ff4a69e1b02f12ef1959bbfdd83993cdff8cea698a7
+          imagePullPolicy: IfNotPresent
+          workingDir: /workspace
+          command: ["opencode"]
+          args:
+            - serve
+            - --hostname
+            - 0.0.0.0
+            - --port
+            - "4096"
+            # Browser custom clients + public web origin
+            - --cors
+            - https://opencode.victornazzaro.com
+            - --cors
+            - http://opencode.k8s.home
+            - --cors
+            - http://localhost:5173
+            - --cors
+            - http://127.0.0.1:5173
+          ports:
+            - name: http
+              containerPort: 4096
+              protocol: TCP
+          env:
+            - name: HOME
+              value: /workspace/.home
+            - name: PATH
+              value: /tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            - name: DOCKER_HOST
+              value: unix:///var/run/docker.sock
+            - name: OPENCODE_SERVER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: OPENCODE_SERVER_USERNAME
+            - name: OPENCODE_SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: OPENCODE_SERVER_PASSWORD
+            # Optional provider keys — omit key from secret until set; optional: true
+            # avoids CrashLoop if you only configure one vendor.
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: OPENAI_API_KEY
+                  optional: true
+            - name: XAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: XAI_API_KEY
+                  optional: true
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: GITHUB_TOKEN
+                  optional: true
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: GITHUB_TOKEN
+                  optional: true
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          # /global/health requires basic auth; TCP is enough for liveness.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: docker-run
+              mountPath: /var/run
+            - name: tools
+              mountPath: /tools
+              readOnly: true
+            - name: config-seed
+              mountPath: /seed
+              readOnly: true
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: opencode-workspace
+        - name: docker-data
+          persistentVolumeClaim:
+            claimName: opencode-docker
+        - name: docker-run
+          emptyDir: {}
+        - name: tools
+          emptyDir: {}
+        - name: config-seed
+          configMap:
+            name: opencode-config

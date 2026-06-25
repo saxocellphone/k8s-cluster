@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opencode
+  labels:
+    # DinD sidecar + shared docker socket need privileged admission.
+    # Cluster default is baseline; without this the pod never schedules.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

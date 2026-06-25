@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: opencode
+  namespace: opencode
+  labels:
+    app: opencode
+spec:
+  selector:
+    app: opencode
+  ports:
+    - name: http
+      port: 4096
+      targetPort: http
+      protocol: TCP
