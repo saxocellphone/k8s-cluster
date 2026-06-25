@@ -25,6 +25,22 @@ speaker:
     rollingUpdate:
       maxUnavailable: 100%
 
+  # talos-gpu-01 is tainted accelerator=amd-strix-halo:NoSchedule. Speaker
+  # already tolerates control-plane; without this, desired=4 while a leftover
+  # speaker on the GPU node counts as misscheduled and trips
+  # KubeDaemonSetMisScheduled / KubeDaemonSetRolloutStuck.
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      effect: NoSchedule
+      operator: Exists
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+      operator: Exists
+    - key: accelerator
+      operator: Equal
+      value: amd-strix-halo
+      effect: NoSchedule
+
   livenessProbe:
     enabled: true
     initialDelaySeconds: 10

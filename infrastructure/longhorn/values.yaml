@@ -1,8 +1,23 @@
+# talos-gpu-01 carries accelerator=amd-strix-halo:NoSchedule so GPU workloads
+# land there exclusively. Longhorn must tolerate that taint: the node is a
+# storage node (iscsi-tools label + /var/mnt/longhorn disk) and without the
+# toleration, manager/CSI/engine-image DaemonSets report desired=2 while
+# leftover pods on the GPU node trip KubeDaemonSetMisScheduled /
+# KubeDaemonSetRolloutStuck.
+gpuAcceleratorToleration: &gpuAcceleratorToleration
+  - key: accelerator
+    operator: Equal
+    value: amd-strix-halo
+    effect: NoSchedule
+
 defaultSettings:
   defaultDataPath: /var/mnt/longhorn
   defaultReplicaCount: 2
   nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
   systemManagedComponentsNodeSelector: extensions.talos.dev/iscsi-tools:v0.2.0
+  # Format: key=value:effect (semicolon-separated for multiple). Applies to
+  # instance-manager, engine-image, share-manager, etc. managed by Longhorn.
+  taintToleration: accelerator=amd-strix-halo:NoSchedule
 ingress:
   enabled: true
   host: longhorn.k8s.home
@@ -11,9 +26,11 @@ ingress:
 longhornDriver:
   nodeSelector:
     extensions.talos.dev/iscsi-tools: v0.2.0
+  tolerations: *gpuAcceleratorToleration
 longhornManager:
   nodeSelector:
     extensions.talos.dev/iscsi-tools: v0.2.0
+  tolerations: *gpuAcceleratorToleration
 longhornUI:
   replicas: 1
 persistence:
@@ -21,3 +38,4 @@ persistence:
   defaultClassReplicaCount: 2
   defaultFsType: ext4
   reclaimPolicy: Retain
+
