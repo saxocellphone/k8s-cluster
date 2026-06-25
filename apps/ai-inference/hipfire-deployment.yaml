@@ -124,6 +124,10 @@ spec:
         volumeMounts:
         - name: llm-models
           mountPath: /models
+        # ROCm/HIP often writes caches under /tmp regardless of HOME; image /tmp
+        # is root-owned and not writable for UID 10001.
+        - name: tmp
+          mountPath: /tmp
         - name: dri
           mountPath: /dev/dri
         - name: kfd
@@ -132,6 +136,13 @@ spec:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
           runAsUser: 10001
+          # Host render/video groups for /dev/kfd + /dev/dri on Talos GPU node.
+          # Values match typical udev on amdgpu nodes; adjust if diag still denies.
+          supplementalGroups:
+          - 44
+          - 109
+          - 110
+          - 992
           capabilities:
             drop:
             - ALL
@@ -146,9 +157,18 @@ spec:
       - name: llm-models
         persistentVolumeClaim:
           claimName: llm-models
+      - name: tmp
+        emptyDir:
+          sizeLimit: 8Gi
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
+        # Same render/video GIDs at pod level for all containers.
+        supplementalGroups:
+        - 44
+        - 109
+        - 110
+        - 992
         seccompProfile:
           type: RuntimeDefault
