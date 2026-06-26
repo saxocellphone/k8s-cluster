@@ -152,7 +152,7 @@ SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
 |---|---|
 | ai-inference | Local LLM inference (HIPFire / SGLang) with Open WebUI, ComfyUI, and a mode switcher |
 | openclaw | AI agent gateway — Telegram bot, read-only cluster diagnostics, and GitOps changes via PR |
-| opencode | OpenCode `serve` — DinD coding sandbox, OpenAPI multi-client (web/attach/SDK), CF Access |
+| opencode | OpenCode `web` — DinD coding sandbox, OpenAPI multi-client; HTTP Basic Auth (CLI-friendly) |
 | torrenting | VPN-protected media stack: qBittorrent (+ gluetun), Prowlarr, Radarr, Sonarr, Audiobookshelf |
 | database | PostgreSQL cluster (CloudNativePG) backing app workloads |
 | memos | Lightweight self-hosted note-taking |
