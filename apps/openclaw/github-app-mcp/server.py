@@ -116,6 +116,12 @@ def gh(method, path, payload=None):
 mcp = FastMCP("github-app", host="0.0.0.0", port=PORT)
 
 
+def _as_json(value) -> str:
+    """FastMCP streamable-HTTP often drops non-string tool returns into empty
+    content blocks; always return JSON text so CLI/agent callers can parse it."""
+    return json.dumps(value)
+
+
 @mcp.tool()
 def read_file(path: str, ref: str = BASE_BRANCH) -> str:
     """Read a file from the GitOps repo at `path` (repo-root relative) on branch
@@ -129,31 +135,36 @@ def read_file(path: str, ref: str = BASE_BRANCH) -> str:
 
 
 @mcp.tool()
-def list_dir(path: str = "", ref: str = BASE_BRANCH) -> list:
+def list_dir(path: str = "", ref: str = BASE_BRANCH) -> str:
     """List entries under directory `path` (repo-root relative, "" = repo root)
-    on `ref`. Returns a list of {name, path, type} to help locate the right
+    on `ref`. Returns JSON list of {name, path, type} to help locate the right
     manifest before editing."""
     body = gh("GET", f"/repos/{REPO}/contents/{path}?ref={ref}")
     if not isinstance(body, list):
         raise RuntimeError(f"{path} is a file; use read_file")
-    return [{"name": e["name"], "path": e["path"], "type": e["type"]} for e in body]
+    return _as_json(
+        [{"name": e["name"], "path": e["path"], "type": e["type"]} for e in body]
+    )
 
 
 @mcp.tool()
-def open_pr(title: str, body: str, branch: str, changes: list) -> dict:
+def open_pr(title: str, body: str, branch: str, changes: list) -> str:
     """Open a pull request that edits one or more manifests.
 
     `branch` is a NEW feature branch name (e.g. "agent/bump-memos-mem"); it is
     created from the base branch. `changes` is a list of {"path": ..., "content":
     ...} objects giving each file's FULL new text. The PR targets the base branch
     for the operator to review and merge — this tool never pushes to or merges
-    the base branch itself. Returns {number, url}.
+    the base branch itself. Returns JSON {number, url}.
     """
     base = gh("GET", f"/repos/{REPO}/git/ref/heads/{BASE_BRANCH}")
     base_sha = base["object"]["sha"]
     try:
-        gh("POST", f"/repos/{REPO}/git/refs",
-           {"ref": f"refs/heads/{branch}", "sha": base_sha})
+        gh(
+            "POST",
+            f"/repos/{REPO}/git/refs",
+            {"ref": f"refs/heads/{branch}", "sha": base_sha},
+        )
     except RuntimeError as e:
         if "Reference already exists" not in str(e):
             raise
@@ -176,30 +187,48 @@ def open_pr(title: str, body: str, branch: str, changes: list) -> dict:
             put["sha"] = sha
         gh("PUT", f"/repos/{REPO}/contents/{path}", put)
 
-    pr = gh("POST", f"/repos/{REPO}/pulls",
-            {"title": title, "head": branch, "base": BASE_BRANCH, "body": body})
-    return {"number": pr["number"], "url": pr["html_url"]}
+    pr = gh(
+        "POST",
+        f"/repos/{REPO}/pulls",
+        {"title": title, "head": branch, "base": BASE_BRANCH, "body": body},
+    )
+    return _as_json({"number": pr["number"], "url": pr["html_url"]})
 
 
 @mcp.tool()
-def list_open_prs() -> list:
-    """List open pull requests on the repo as {number, title, url, head}. Use to
-    check whether a change is already proposed before opening a duplicate."""
+def list_open_prs() -> str:
+    """List open pull requests on the repo as JSON [{number, title, url, head}].
+    Use to check whether a change is already proposed before opening a duplicate."""
     body = gh("GET", f"/repos/{REPO}/pulls?state=open&per_page=50")
-    return [{"number": p["number"], "title": p["title"],
-             "url": p["html_url"], "head": p["head"]["ref"]} for p in body]
+    return _as_json(
+        [
+            {
+                "number": p["number"],
+                "title": p["title"],
+                "url": p["html_url"],
+                "head": p["head"]["ref"],
+            }
+            for p in body
+        ]
+    )
 
 
 @mcp.tool()
-def get_pr(number: int) -> dict:
-    """Get one pull request's details plus its changed file paths."""
+def get_pr(number: int) -> str:
+    """Get one pull request's details plus its changed file paths (JSON)."""
     pr = gh("GET", f"/repos/{REPO}/pulls/{number}")
     files = gh("GET", f"/repos/{REPO}/pulls/{number}/files?per_page=100")
-    return {
-        "number": pr["number"], "title": pr["title"], "url": pr["html_url"],
-        "state": pr["state"], "mergeable": pr.get("mergeable"),
-        "body": pr.get("body"), "files": [f["filename"] for f in files],
-    }
+    return _as_json(
+        {
+            "number": pr["number"],
+            "title": pr["title"],
+            "url": pr["html_url"],
+            "state": pr["state"],
+            "mergeable": pr.get("mergeable"),
+            "body": pr.get("body"),
+            "files": [f["filename"] for f in files],
+        }
+    )
 
 
 class Auth(BaseHTTPMiddleware):
