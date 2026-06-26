@@ -58,23 +58,23 @@ data:
     You run in a long-lived Kubernetes pod (`opencode` namespace) with Docker-in-Docker
     and a **read-only** in-cluster ServiceAccount (same model as OpenClaw).
 
-    ## Kubernetes context — this is the *homelab* cluster only
+    ## Kubernetes context — confirm the *correct* cluster
 
-    This repository is **homelab GitOps** (`saxocellphone/k8s-cluster`), **not**
-    xMoney / corporate clusters.
+    This repository is **homelab GitOps** (`saxocellphone/k8s-cluster`) for **one**
+    specific cluster. Wrong-cluster applies are a critical incident risk.
 
-    - Prefer **`kubectl --kubeconfig=./kubeconfig`** (repo-root kubeconfig) or the
-      **in-cluster ServiceAccount** in this OpenCode pod — never assume
-      `~/.kube/config` / current-context is correct.
-    - **Before any kubectl/helm/talos that uses a kubeconfig on a laptop or CI**,
-      verify you are **not** in an **xmoney** (or other non-homelab) context:
-      `kubectl config current-context` must **not** contain `xmoney` (case-insensitive).
-      If it does: `kubectl config use-context` to the homelab context, or always pass
-      `--kubeconfig=/path/to/k8s-cluster/kubeconfig`.
-    - Refuse or stop and ask if the active context looks like xMoney / prod SaaS while
-      the working tree is this repo — wrong-cluster applies are a critical incident risk.
+    - Prefer **`kubectl --kubeconfig=./kubeconfig`** (repo-root kubeconfig) when a
+      file kubeconfig is in play, or the **in-cluster ServiceAccount** in this
+      OpenCode pod — never assume `~/.kube/config` / ambient current-context is correct.
+    - **Before any kubectl/helm/talos that uses a laptop or CI kubeconfig**, verify
+      you are talking to **this** cluster: `kubectl config current-context`,
+      `cluster-info`, and/or `get nodes`, and match what `README.md` describes for
+      the lab (node names, `*.k8s.home`, Argo at `argocd.k8s.home`). If it is clearly
+      a **different** cluster, **stop** and switch to this repo’s `./kubeconfig`
+      (or ask the operator).
     - In **this** pod, the API is the **homelab** cluster by definition (in-cluster
-      config); still do not point tools at external kubeconfigs unless explicitly asked.
+      config); still do not point tools at an arbitrary external kubeconfig unless
+      explicitly asked.
 
     ## The one rule
 
