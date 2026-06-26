@@ -175,8 +175,19 @@ spec:
               value: /tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: DOCKER_HOST
               value: unix:///var/run/docker.sock
-            # No OPENCODE_SERVER_PASSWORD: Cloudflare Access only at the edge.
-            # No GITHUB_TOKEN / PAT: GitHub writes only via github-app-mcp (PR).
+            # OpenCode-native HTTP Basic Auth (OPENCODE_SERVER_*). Required for
+            # `opencode attach` / CLI — CF Access returns HTML and breaks clients.
+            # No GITHUB_TOKEN PAT: GitHub writes only via github-app-mcp (PR).
+            - name: OPENCODE_SERVER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: OPENCODE_SERVER_USERNAME
+            - name: OPENCODE_SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: OPENCODE_SERVER_PASSWORD
             # Optional LLM provider keys.
             - name: ANTHROPIC_API_KEY
               valueFrom:
@@ -196,6 +207,7 @@ spec:
                   name: opencode-secrets
                   key: XAI_API_KEY
                   optional: true
+
 
           resources:
             requests:
