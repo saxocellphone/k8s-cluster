@@ -130,7 +130,7 @@ spec:
           limits:
             cpu: 250m
             memory: 256Mi
-      - name: install-kubectl
+      - name: install-tools
         image: alpine:3.22
         command: ["sh", "-ceu"]
         args:
@@ -138,6 +138,10 @@ spec:
           apk add --no-cache curl ca-certificates
           curl -fsSL -o /tools/kubectl "https://dl.k8s.io/release/v1.34.2/bin/linux/amd64/kubectl"
           chmod 0755 /tools/kubectl
+          # OpenClaw 2026.3 rejects config keys `mcp` / `mcpServers`, so the
+          # agent cannot attach github-app-mcp in-process. Ship a PATH CLI that
+          # calls the sidecar over HTTP instead (see gitops-cli.py / SOUL.md).
+          install -m 0755 /gitops-src/gitops /tools/gitops
         securityContext:
           allowPrivilegeEscalation: false
           runAsUser: 0
@@ -146,6 +150,9 @@ spec:
         volumeMounts:
         - name: kubectl-tools
           mountPath: /tools
+        - name: gitops-cli
+          mountPath: /gitops-src
+          readOnly: true
         imagePullPolicy: Always
         resources:
           requests:
@@ -282,7 +289,8 @@ spec:
             }
           }
           // Strip legacy keys persisted on the PVC from older gateways. 2026.3.1
-          // rejects timeoutSeconds, stuckSessionAbortMs, and root-level mcp.
+          // rejects timeoutSeconds, stuckSessionAbortMs, and root-level mcp /
+          // mcpServers (no in-process MCP client — use /tools/gitops instead).
           if (c.diagnostics) delete c.diagnostics.stuckSessionAbortMs;
           if (c.models && c.models.providers && c.models.providers.local) {
             delete c.models.providers.local.timeoutSeconds;
@@ -291,6 +299,7 @@ spec:
             delete c.models.providers.xai.timeoutSeconds;
           }
           delete c.mcp;
+          delete c.mcpServers;
           // Cron webhook auth: the morning job delivers via --webhook to the
           // in-cluster notion-writer. OpenClaw sends `Authorization: Bearer
           // <cron.webhookToken>`; set it from the WEBHOOK_TOKEN secret so the
@@ -300,7 +309,7 @@ spec:
             c.cron.webhookToken = process.env.WEBHOOK_TOKEN;
           }
           fs.writeFileSync(p, JSON.stringify(c, null, 2));
-          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, xai.models=grok-4.3, cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset"));
+          console.log("Patched config: gateway, browser(attachOnly, cdpUrl), sandbox(allowHostControl), telegram.streaming(normalized), agents.defaults.model=xai/grok-4.3, xai.models=grok-4.3, cron.webhookToken=" + (process.env.WEBHOOK_TOKEN ? "set" : "unset") + ", mcp stripped (use gitops CLI)");
         env:
         - name: WEBHOOK_TOKEN
           valueFrom:
@@ -398,6 +407,10 @@ spec:
           claimName: openclaw-data
       - name: kubectl-tools
         emptyDir: {}
+      - name: gitops-cli
+        configMap:
+          name: openclaw-gitops-cli
+          defaultMode: 0755
       # Operator persona/guardrails (SOUL.md) generated from
       # cluster-operator-soul.md; copied into the workspace by seed-workspace.
       - name: workspace-seed
