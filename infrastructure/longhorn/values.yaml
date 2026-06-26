@@ -4,6 +4,14 @@
 # toleration, manager/CSI/engine-image DaemonSets report desired=2 while
 # leftover pods on the GPU node trip KubeDaemonSetMisScheduled /
 # KubeDaemonSetRolloutStuck.
+#
+# Stability note: co-locating Longhorn instance-managers with ROCm on Strix Halo
+# increases IO+memory pressure and correlates with node wedges (ping OK, apid
+# dead). Prefer cordoning Longhorn *scheduling* on talos-gpu-01 in the Longhorn
+# UI (Node → Allow Scheduling = false) once replicas are healthy on the Proxmox
+# workers — keep DaemonSet tolerations so existing engine pods can drain cleanly.
+# Do not remove the toleration until that node has no Longhorn volumes.
+
 gpuAcceleratorToleration: &gpuAcceleratorToleration
   - key: accelerator
     operator: Equal

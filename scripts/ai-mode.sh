@@ -20,12 +20,23 @@ Modes:
   off      Stop AI backends and the GPU gaming workload if it exists.
   status   Show current GPU workload state.
 
-This script time-shares the single AMD GPU on talos-gpu-01. The Argo CD
-Application ignores Deployment replica drift for the AI workloads, so manual
-mode changes are not reverted by self-heal. Set GAMING_NAMESPACE and
-GAMING_DEPLOYMENT to override the future gaming workload target.
+This script time-shares the single AMD GPU on talos-gpu-01. Prefer the
+mode-switcher UI/API (http://ai.k8s.home) which drains workloads, cooldowns,
+and refuses switches while talos-gpu-01 is NotReady.
+
+The Argo CD Application ignores Deployment replica drift for the AI workloads,
+so manual mode changes are not reverted by self-heal. Set GAMING_NAMESPACE and
+GAMING_DEPLOYMENT to override the gaming workload target.
 EOF
 }
+
+gpu_node_ready() {
+  local ready
+  ready="$(kubectl --kubeconfig="$KUBECONFIG_FILE" get node talos-gpu-01 \
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
+  [[ "$ready" == "True" ]]
+}
+
 
 kubectl_ai() {
   kubectl --kubeconfig="$KUBECONFIG_FILE" -n "$AI_NAMESPACE" "$@"
@@ -95,31 +106,54 @@ set_gaming_replicas_if_present() {
 
 require_kubectl
 
+require_gpu_node_for_start() {
+  if ! gpu_node_ready; then
+    echo "ERROR: talos-gpu-01 is not Ready — refusing to start a GPU workload." >&2
+    echo "If ping works but talosctl hangs, power-cycle the Corsair; use mode 'off' only." >&2
+    exit 1
+  fi
+}
+
 case "${1:-}" in
   llm)
-    echo "Switching to LLM mode..."
+    require_gpu_node_for_start
+    echo "Switching to LLM mode (prefer mode-switcher for drain+cooldown)..."
     set_gaming_replicas_if_present 0
+    set_ai_mode 0 0 0
+    echo "Waiting briefly for pods to terminate..."
+    sleep 15
     set_ai_mode 1 0 0
     show_status
     ;;
   hipfire)
-    echo "Switching to HIPFire LLM mode..."
+    require_gpu_node_for_start
+    echo "Switching to HIPFire LLM mode (prefer mode-switcher for drain+cooldown)..."
     set_gaming_replicas_if_present 0
+    set_ai_mode 0 0 0
+    echo "Waiting briefly for pods to terminate..."
+    sleep 15
     set_ai_mode 0 1 0
+
     show_status
     ;;
   image|comfyui)
+    require_gpu_node_for_start
     echo "Switching to image mode..."
     set_gaming_replicas_if_present 0
+    set_ai_mode 0 0 0
+    sleep 15
     set_ai_mode 0 0 1
     show_status
     ;;
   gaming)
+    require_gpu_node_for_start
     echo "Switching to gaming mode..."
     set_ai_mode 0 0 0
+    sleep 15
     set_gaming_replicas_if_present 1
     show_status
     ;;
+
   off)
     echo "Stopping GPU workloads..."
     set_ai_mode 0 0 0

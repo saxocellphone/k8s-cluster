@@ -32,6 +32,30 @@ roleRef:
   kind: Role
   name: mode-switcher
 ---
+# Read GPU node Ready/taints so we refuse mode scale-up while talos-gpu-01 is wedged.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mode-switcher-node-read
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    resourceNames: ["talos-gpu-01"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mode-switcher-node-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mode-switcher-node-read
+subjects:
+  - kind: ServiceAccount
+    name: mode-switcher
+    namespace: ai-inference
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

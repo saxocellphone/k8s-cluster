@@ -102,14 +102,17 @@ spec:
           containerPort: 11435
           protocol: TCP
         resources:
+          # Cap under talos-gpu-01 physical RAM (~32Gi unified with iGPU) so OOM
+          # prefers this container over a host-level hang (see GpuNodeNotReady alert).
           requests:
             cpu: "4"
             memory: 8Gi
             amd.com/gpu: 1
           limits:
             cpu: "24"
-            memory: 64Gi
+            memory: 28Gi
             amd.com/gpu: 1
+
         startupProbe:
           httpGet:
             path: /health
