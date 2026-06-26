@@ -10,7 +10,9 @@ metadata:
     checkov.io/skip2: CKV_K8S_40=ROCm inference images run as low UIDs.
     checkov.io/skip3: CKV_K8S_43=Custom GPU image is tag-pinned.
 spec:
-  replicas: 0
+  # Default AI mode for the lab (OpenCode points here). Mode-switcher may scale
+  # this to 0 when switching to llm/comfy/wolf — that is intentional exclusivity.
+  replicas: 1
   strategy:
     type: Recreate
   selector:

@@ -4,21 +4,33 @@ metadata:
   name: opencode-config
   namespace: opencode
 data:
-  # Non-secret base; init container injects X-MCP-Token from secret into mcp.headers.
-  # PR-only GitHub path: remote MCP → github-app-mcp.openclaw (GitHub App, not PAT).
+  # Non-secret base; init injects X-MCP-Token. Default model = in-cluster HIPFire.
   opencode.json.tmpl: |
     {
       "$schema": "https://opencode.ai/config.json",
+      "model": "hipfire/qwen3.6:27b",
       "provider": {
+        "hipfire": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "HIPFire (cluster)",
+          "options": {
+            "baseURL": "http://hipfire.ai-inference.svc.cluster.local:11435/v1"
+          },
+          "models": {
+            "qwen3.6:27b": {
+              "name": "qwen3.6:27b (HIPFire)"
+            }
+          }
+        },
         "cluster-llm": {
           "npm": "@ai-sdk/openai-compatible",
-          "name": "Cluster LLM",
+          "name": "SGLang LLM (cluster)",
           "options": {
             "baseURL": "http://llm.ai-inference.svc.cluster.local:8080/v1"
           },
           "models": {
             "local-default": {
-              "name": "local-default"
+              "name": "local-default (SGLang)"
             }
           }
         }
@@ -36,6 +48,12 @@ data:
     }
   AGENTS.md: |
     # OpenCode cluster sandbox (observe live / change by PR)
+
+    Default model is **HIPFire** on the cluster (`hipfire` provider →
+    `http://hipfire.ai-inference.svc.cluster.local:11435/v1`, model `qwen3.6:27b`).
+    SGLang (`cluster-llm`) is optional via `/models` when that deployment is scaled up.
+    Cloud providers may appear if API keys are set in the pod env — prefer HIPFire unless
+    the GPU node is down.
 
     You run in a long-lived Kubernetes pod (`opencode` namespace) with Docker-in-Docker
     and a **read-only** in-cluster ServiceAccount (same model as OpenClaw).
