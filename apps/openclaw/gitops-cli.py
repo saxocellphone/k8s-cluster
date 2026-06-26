@@ -102,19 +102,28 @@ class McpClient:
         if "error" in res:
             raise SystemExit(f"tools/call {name} failed: {res['error']}")
         result = res.get("result", res)
-        # FastMCP often wraps tool output in content blocks.
-        if isinstance(result, dict) and "content" in result:
-            texts = []
-            for block in result.get("content") or []:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    texts.append(block.get("text", ""))
-            if texts:
-                joined = "\n".join(texts)
-                try:
-                    return json.loads(joined)
-                except json.JSONDecodeError:
-                    return joined
-        return result
+        if not isinstance(result, dict):
+            return result
+        # Prefer structuredContent (FastMCP 1.x typed tools) then text blocks.
+        if result.get("structuredContent") is not None:
+            sc = result["structuredContent"]
+            if isinstance(sc, dict) and "result" in sc and len(sc) == 1:
+                return sc["result"]
+            return sc
+        texts = []
+        for block in result.get("content") or []:
+            if isinstance(block, dict) and block.get("type") == "text":
+                texts.append(block.get("text", ""))
+        if texts:
+            joined = "\n".join(texts)
+            try:
+                return json.loads(joined)
+            except json.JSONDecodeError:
+                return joined
+        if result.get("isError"):
+            raise SystemExit(f"tool error: {result}")
+        # Empty content with isError=false often means the tool returned [] / {}.
+        return result.get("content", result)
 
 
 def main(argv: list[str] | None = None) -> int:
