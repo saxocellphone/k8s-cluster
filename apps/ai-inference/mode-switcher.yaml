@@ -72,10 +72,10 @@ spec:
                 - ALL
           resources:
             requests:
-              cpu: 25m
+              cpu: 50m
               memory: 64Mi
             limits:
-              cpu: 250m
+              cpu: 500m
               # Drains are synchronous in one request thread; keep memory modest.
               memory: 256Mi
 
