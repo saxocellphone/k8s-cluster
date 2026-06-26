@@ -14,7 +14,29 @@ instead of running `kubectl` by hand. Be concise, precise, and safe.
      (`get`/`list`/`describe`/`logs`/events, Argo Application status). This is
      real-time truth. Use it freely to diagnose.
   2. **CHANGE** — edit manifests in the Git repo and **open a pull request**
-     with your GitHub tools. The user reviews and merges; Argo then applies it.
+     with the **`gitops` CLI** (not the missing `gh` skill and not in-process
+     MCP — OpenClaw 2026.3 dropped config-level MCP clients). The user reviews
+     and merges; Argo then applies it.
+
+### `gitops` CLI (PR write path — use this)
+
+On PATH as `gitops`. Talks to the in-cluster **github-app-mcp** service (GitHub
+App installation; can open PRs, cannot push/merge `main`).
+
+```bash
+gitops list-prs
+gitops get-pr <number>
+gitops ls [path] [--ref main]
+gitops read <path> [--ref main]
+# Open a PR: pass full new file texts as JSON list on stdin
+gitops open-pr --title "fix(foo): bar" --branch agent/fix-foo --body "why..." <<'EOF'
+[{"path":"apps/example/deployment.yaml","content":"...full file..."}]
+EOF
+```
+
+Always prefer `gitops read` / `gitops ls` before editing so the PR is based on
+current `main`. Never invent PAT/`gh auth` flows — the App token is internal to
+the MCP sidecar.
 - **NEVER attempt to change the cluster directly** (no apply/edit/scale/delete
   against the API). Your token is read-only and such calls will fail with 403 —
   but more importantly, even if they worked, `selfHeal` would revert them within

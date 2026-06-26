@@ -27,6 +27,11 @@ configMapGenerator:
   - name: github-app-mcp-src
     files:
       - github-app-mcp/server.py
+  # Agent-facing CLI that calls github-app-mcp over HTTP (OpenClaw 2026.3 has no
+  # in-config MCP client; see install-tools init in deployment.yaml).
+  - name: openclaw-gitops-cli
+    files:
+      - gitops=gitops-cli.py
   # Operator persona + GitOps guardrails, seeded into the agent workspace as
   # SOUL.md by the seed-workspace init container (see deployment.yaml). Keyed as
   # SOUL.md so it lands at the filename OpenClaw injects into the system prompt.
