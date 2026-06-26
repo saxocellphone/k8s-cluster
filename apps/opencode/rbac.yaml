@@ -1,0 +1,50 @@
+# Read-only cluster access for the OpenCode sandbox (OpenClaw pattern).
+#
+# Hard guardrail: SA cannot mutate the live API (selfHeal would revert anyway).
+# Durable changes = GitHub PR via github-app-mcp (openclaw Service), not PAT push.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opencode
+  namespace: opencode
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opencode-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: opencode
+    namespace: opencode
+---
+# Reuse OpenClaw's Argo read ClusterRole (same verbs/resources).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opencode-argocd-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openclaw-argocd-read
+subjects:
+  - kind: ServiceAccount
+    name: opencode
+    namespace: opencode
+---
+# Reuse OpenClaw's ops CRD read role (Longhorn, CNPG, cert-manager, …).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opencode-ops-crd-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openclaw-ops-crd-read
+subjects:
+  - kind: ServiceAccount
+    name: opencode
+    namespace: opencode

@@ -34,13 +34,14 @@ spec:
       labels:
         app: opencode
     spec:
+      # Read-only SA (view + Argo/ops CRDs). PR writes go via github-app-mcp only.
+      serviceAccountName: opencode
       # Longhorn RWO — schedule where iscsi-tools extension is present (Talos workers).
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
       terminationGracePeriodSeconds: 60
       initContainers:
-        # Seed git/gh/docker CLI into an emptyDir so the slim OpenCode image can
-        # use the DinD sidecar and talk to GitHub without a private image build.
+        # Seed git/kubectl/docker CLI (no PAT — kubectl uses in-cluster SA).
         - name: seed-tools
           image: alpine:3.21
           imagePullPolicy: IfNotPresent
@@ -51,16 +52,21 @@ spec:
               apk add --no-cache curl tar gzip git ca-certificates
               mkdir -p /tools/bin
               cp /usr/bin/git /tools/bin/git
-              # GitHub CLI
-              GH_VER=2.67.0
-              curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.tar.gz" \
-                | tar -xz -C /tmp
-              mv "/tmp/gh_${GH_VER}_linux_amd64/bin/gh" /tools/bin/gh
+              # kubectl (in-cluster token from SA — read-only RBAC)
+              KVER=v1.34.1
+              curl -fsSL "https://dl.k8s.io/release/${KVER}/bin/linux/amd64/kubectl" \
+                -o /tools/bin/kubectl
+              chmod +x /tools/bin/kubectl
               # Docker CLI only (daemon is the dind sidecar)
               DOCKER_VER=27.5.1
               curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VER}.tgz" \
                 | tar -xz -C /tmp
               mv /tmp/docker/docker /tools/bin/docker
+              # Optional gh for public/read-only UX; no GITHUB_TOKEN in pod for push.
+              GH_VER=2.67.0
+              curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.tar.gz" \
+                | tar -xz -C /tmp
+              mv "/tmp/gh_${GH_VER}_linux_amd64/bin/gh" /tools/bin/gh
               chmod -R a+rX /tools
           volumeMounts:
             - name: tools
@@ -72,26 +78,40 @@ spec:
           args:
             - |
               set -eux
-              # Persist HOME on the workspace PVC so auth.json / sessions survive restarts.
               mkdir -p /workspace/repos \
                 /workspace/.home/.config/opencode \
                 /workspace/.home/.local/share/opencode
-              if [ -f /seed/opencode.json ]; then
-                # Refresh non-secret provider wiring each start (keys stay in env/secret).
-                cp /seed/opencode.json /workspace/.home/.config/opencode/opencode.json
-              fi
-              if [ -f /seed/AGENTS.md ] && [ ! -f /workspace/AGENTS.md ]; then
+              # Always refresh AGENTS.md guardrails from ConfigMap.
+              if [ -f /seed/AGENTS.md ]; then
                 cp /seed/AGENTS.md /workspace/AGENTS.md
+              fi
+              # Inject MCP shared token into opencode.json (PR-only GitHub App path).
+              if [ -f /seed/opencode.json.tmpl ]; then
+                TOKEN="${GITHUB_MCP_TOKEN:-}"
+                sed "s|__GITHUB_MCP_TOKEN__|${TOKEN}|g" /seed/opencode.json.tmpl \
+                  > /workspace/.home/.config/opencode/opencode.json
               fi
               if [ ! -f /workspace/repos/.keep ]; then
                 touch /workspace/repos/.keep
               fi
+              # Prefer a checkout of the GitOps repo for local reads (PR still via MCP).
+              if [ ! -d /workspace/repos/k8s-cluster/.git ]; then
+                git clone --depth 1 https://github.com/saxocellphone/k8s-cluster.git \
+                  /workspace/repos/k8s-cluster || true
+              fi
+          env:
+            - name: GITHUB_MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secrets
+                  key: GITHUB_MCP_TOKEN
           volumeMounts:
             - name: workspace
               mountPath: /workspace
             - name: config-seed
               mountPath: /seed
               readOnly: true
+
       containers:
         - name: dind
           image: docker:29-dind
@@ -155,10 +175,9 @@ spec:
               value: /tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: DOCKER_HOST
               value: unix:///var/run/docker.sock
-            # No OPENCODE_SERVER_PASSWORD: auth is Cloudflare Access only (OAuth/IdP
-            # at the edge). Do not expose a LAN ingress — pod has no app-level auth.
-            # Optional provider keys — omit key from secret until set; optional: true
-            # avoids CrashLoop if you only configure one vendor.
+            # No OPENCODE_SERVER_PASSWORD: Cloudflare Access only at the edge.
+            # No GITHUB_TOKEN / PAT: GitHub writes only via github-app-mcp (PR).
+            # Optional LLM provider keys.
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -177,18 +196,7 @@ spec:
                   name: opencode-secrets
                   key: XAI_API_KEY
                   optional: true
-            - name: GITHUB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: opencode-secrets
-                  key: GITHUB_TOKEN
-                  optional: true
-            - name: GH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: opencode-secrets
-                  key: GITHUB_TOKEN
-                  optional: true
+
           resources:
             requests:
               cpu: "1"

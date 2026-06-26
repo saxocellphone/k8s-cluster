@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
+  - rbac.yaml
   - pvc-workspace.yaml
   - pvc-docker.yaml
   - deployment.yaml
@@ -10,6 +11,7 @@ resources:
   - ingress.yaml
   - networkpolicy.yaml
   - configmap-opencode-json.yaml
+
 
 generators:
   - secret-generator.yaml
