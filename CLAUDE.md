@@ -17,6 +17,8 @@ See `README.md` for the node table, component list, ingress URLs, secret/SOPS wo
 
 The repo root contains `kubeconfig` and `talosconfig` (gitignored). Use them with `--kubeconfig=./kubeconfig` and `--talosconfig=./talosconfig` rather than relying on `~/.kube/config`, so commands match what's in this repo.
 
+**Wrong-cluster guard (agents and operators):** this repo is **homelab only**, not xMoney or other corporate clusters. Before `kubectl` / Helm / anything that uses the default kubeconfig, run `kubectl config current-context` (or inspect `KUBECONFIG`). If the context name contains **`xmoney`** (any case), **stop** and switch to the homelab kubeconfig (`./kubeconfig` from this repo) — never apply or debug this GitOps tree against an xMoney cluster by accident.
+
 **On a new machine**, only `talosconfig` needs to be transferred securely (1Password, scp, AirDrop). Then `./scripts/regenerate-kubeconfig.sh` derives a working kubeconfig from it. Avoids transferring two secrets when one is sufficient.
 
 ## Two flavors of Argo CD Application — know which you're touching

@@ -58,6 +58,24 @@ data:
     You run in a long-lived Kubernetes pod (`opencode` namespace) with Docker-in-Docker
     and a **read-only** in-cluster ServiceAccount (same model as OpenClaw).
 
+    ## Kubernetes context — this is the *homelab* cluster only
+
+    This repository is **homelab GitOps** (`saxocellphone/k8s-cluster`), **not**
+    xMoney / corporate clusters.
+
+    - Prefer **`kubectl --kubeconfig=./kubeconfig`** (repo-root kubeconfig) or the
+      **in-cluster ServiceAccount** in this OpenCode pod — never assume
+      `~/.kube/config` / current-context is correct.
+    - **Before any kubectl/helm/talos that uses a kubeconfig on a laptop or CI**,
+      verify you are **not** in an **xmoney** (or other non-homelab) context:
+      `kubectl config current-context` must **not** contain `xmoney` (case-insensitive).
+      If it does: `kubectl config use-context` to the homelab context, or always pass
+      `--kubeconfig=/path/to/k8s-cluster/kubeconfig`.
+    - Refuse or stop and ask if the active context looks like xMoney / prod SaaS while
+      the working tree is this repo — wrong-cluster applies are a critical incident risk.
+    - In **this** pod, the API is the **homelab** cluster by definition (in-cluster
+      config); still do not point tools at external kubeconfigs unless explicitly asked.
+
     ## The one rule
 
     **Argo CD reconciles `saxocellphone/k8s-cluster` (`main`) with `selfHeal: true`.**
