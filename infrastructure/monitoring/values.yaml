@@ -208,6 +208,24 @@ additionalPrometheusRulesMap:
                 routed alerts (including this one) cannot be delivered. Check
                 with kubectl logs -n openclaw deploy/openclaw.
 
+          # Strix Halo Corsair: ROCm/unified-memory hangs often leave the node
+          # NotReady while ICMP still works (Talos apid TLS timeout). Power-cycle
+          # the host; AI modes stay Pending until the node recovers.
+          - alert: GpuNodeNotReady
+            expr: |
+              kube_node_status_condition{node="talos-gpu-01",condition="Ready",status="true"} == 0
+              or absent(kube_node_status_condition{node="talos-gpu-01",condition="Ready",status="true"})
+            for: 5m
+            labels:
+              severity: critical
+              namespace: ai-inference
+            annotations:
+              summary: "talos-gpu-01 (GPU) is NotReady"
+              description: |
+                Accelerator node talos-gpu-01 has been NotReady for 5m+. HIPFire/SGLang/Comfy/Wolf
+                cannot schedule. If ping 192.168.8.178 works but talosctl hangs, power-cycle the
+                Corsair AI Workstation. Prefer mode-switcher Off until the node is Ready.
+
           # Generic catch-all for any homelab workload pod stuck not-ready.
           # Excludes platform namespaces (kube-prometheus-stack already covers
           # those with KubeDeploymentReplicasMismatch / KubeStatefulSetReplicasMismatch).

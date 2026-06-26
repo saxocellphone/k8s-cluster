@@ -98,14 +98,19 @@ spec:
               containerPort: 8080
               protocol: TCP
           resources:
+            # talos-gpu-01 has ~32Gi system RAM shared with Strix Halo iGPU (unified
+            # memory). Inflated limits (e.g. 96Gi) do not protect the host and can
+            # encourage allocator blow-ups; keep limits under physical RAM so cgroup
+            # pressure prefers killing the workload over wedging kubelet/apid.
             requests:
               cpu: "4"
-              memory: 16Gi
+              memory: 12Gi
               amd.com/gpu: 1
             limits:
-              cpu: "32"
-              memory: 96Gi
+              cpu: "24"
+              memory: 28Gi
               amd.com/gpu: 1
+
           startupProbe:
             httpGet:
               path: /v1/models

@@ -37,19 +37,32 @@ spec:
               value: ai-inference
             - name: PORT
               value: "8080"
+            # Serialize GPU modes: drain → cooldown → scale-up (see mode-switcher.py).
+            - name: GPU_NODE
+              value: talos-gpu-01
+            - name: DRAIN_TIMEOUT_SEC
+              value: "300"
+            - name: COOLDOWN_SEC
+              value: "60"
+            - name: POLL_SEC
+              value: "3"
           ports:
             - name: http
               containerPort: 8080
+          # /healthz avoids blocking probes during a long drain POST on /
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
             periodSeconds: 30
+            # Mode switches can hold the process for drain+cooldown; allow headroom.
+            timeoutSeconds: 5
+            failureThreshold: 6
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
@@ -63,7 +76,9 @@ spec:
               memory: 64Mi
             limits:
               cpu: 250m
+              # Drains are synchronous in one request thread; keep memory modest.
               memory: 256Mi
+
           volumeMounts:
             - name: src
               mountPath: /app
