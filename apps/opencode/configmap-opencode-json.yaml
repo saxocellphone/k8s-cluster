@@ -4,7 +4,8 @@ metadata:
   name: opencode-config
   namespace: opencode
 data:
-  # Non-secret base; init injects X-MCP-Token. Default model = in-cluster HIPFire.
+  # Seeded on each pod start into /workspace/.home/.config/opencode/opencode.json
+  # (MCP token substituted). Sole in-cluster LLM is HIPFire — no SGLang/llm.
   opencode.json.tmpl: |
     {
       "$schema": "https://opencode.ai/config.json",
@@ -12,20 +13,13 @@ data:
       "provider": {
         "hipfire": {
           "npm": "@ai-sdk/openai-compatible",
-          "name": "HIPFire (cluster)",
+          "name": "HIPFire",
           "options": {
             "baseURL": "http://hipfire.ai-inference.svc.cluster.local:11435/v1"
           },
           "models": {
             "qwen3.6-27b.mq4": {
-              "name": "qwen3.6-27b.mq4 (HIPFire)",
-              "limit": {
-                "context": 32768,
-                "output": 4096
-              }
-            },
-            "qwen3.6:27b": {
-              "name": "qwen3.6:27b (HIPFire alias)",
+              "name": "qwen3.6-27b.mq4",
               "limit": {
                 "context": 32768,
                 "output": 4096
@@ -35,7 +29,6 @@ data:
         }
       },
       "mcp": {
-
         "github-app": {
           "type": "remote",
           "enabled": true,
@@ -49,12 +42,20 @@ data:
   AGENTS.md: |
     # OpenCode cluster sandbox (observe live / change by PR)
 
-    Default model is **HIPFire** on the cluster (`hipfire` provider →
-    `http://hipfire.ai-inference.svc.cluster.local:11435/v1`, model id from
-    `/v1/models` is typically `qwen3.6-27b.mq4`; config default is that id).
-    Cloud providers may appear if API keys are set in the pod env — prefer HIPFire unless
-    the GPU node is down.
+    ## Model
 
+    Default and only **in-cluster** provider is **HIPFire**:
+    - Provider id: `hipfire`
+    - API: `http://hipfire.ai-inference.svc.cluster.local:11435/v1`
+    - Model id: `qwen3.6-27b.mq4` (must match `GET /v1/models` on HIPFire)
+    - Full default: `hipfire/qwen3.6-27b.mq4`
+
+    Enable HIPFire with mode-switcher **hipfire** mode (`http://ai.k8s.home` or
+    `./scripts/ai-mode.sh hipfire`) when the GPU node is Ready. Do not expect an
+    in-cluster `llm` / SGLang endpoint — it was removed.
+
+    Cloud providers may appear only if API keys are set in the pod env; prefer
+    HIPFire unless the GPU node is down.
 
     You run in a long-lived Kubernetes pod (`opencode` namespace) with Docker-in-Docker
     and a **read-only** in-cluster ServiceAccount (same model as OpenClaw).
