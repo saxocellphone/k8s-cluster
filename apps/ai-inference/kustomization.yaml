@@ -21,6 +21,12 @@ configMapGenerator:
   - name: mode-switcher-src
     files:
       - server.py=mode-switcher.py
+  - name: hipfire-serve-script
+    files:
+      - hipfire-serve.sh
+    options:
+      defaultMode: 0755
 
 generatorOptions:
   disableNameSuffixHash: true
+

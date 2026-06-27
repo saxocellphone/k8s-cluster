@@ -78,14 +78,20 @@ spec:
       - name: hipfire
         image: ghcr.io/saxocellphone/hipfire-gfx1151:latest
         imagePullPolicy: Always
+        # Repo hipfire-serve.sh (MQ6 default, idle_timeout=0, pull on miss).
+        command: ["/bin/bash", "/scripts/hipfire-serve.sh"]
         # Image CMD does not cd; daemon creates $CWD/.hipfire_kernels unless
         # HIPFIRE_KERNEL_CACHE is set. Default CWD is / (not writable for 10001).
         workingDir: /models/hipfire-home
         env:
+        # HIPFire has no true FP16 serve path (engine is MQ* quant). MQ6 is the
+        # highest-quality 27B class tag available (~21GB weights; uses more UMA FB
+        # than default MQ4 ~15GB). Pull on first start if missing (see hipfire-serve.sh).
         - name: HIPFIRE_MODEL
-          value: qwen3.6:27b
+          value: qwen3.5:27b-mq6
         - name: HIPFIRE_HOME
           value: /models/hipfire-home
+
         # Keep ROCm/HIP/tmp off the read-only image rootfs and root-owned /tmp.
         - name: HOME
           value: /models/hipfire-home
@@ -117,12 +123,13 @@ spec:
             memory: 28Gi
             amd.com/gpu: 1
 
+        # First start may hipfire pull ~20GB MQ6 — allow ~2h startup.
         startupProbe:
           httpGet:
             path: /health
             port: http
           periodSeconds: 20
-          failureThreshold: 180
+          failureThreshold: 360
         readinessProbe:
           httpGet:
             path: /health
@@ -146,6 +153,9 @@ spec:
           mountPath: /dev/dri
         - name: kfd
           mountPath: /dev/kfd
+        - name: hipfire-serve-script
+          mountPath: /scripts
+          readOnly: true
         securityContext:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
@@ -167,10 +177,15 @@ spec:
       - name: tmp
         emptyDir:
           sizeLimit: 8Gi
+      - name: hipfire-serve-script
+        configMap:
+          name: hipfire-serve-script
+          defaultMode: 0755
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
+
         # Host render/video GIDs for /dev/kfd + /dev/dri (pod-level only; not valid on containers).
         supplementalGroups:
         - 44

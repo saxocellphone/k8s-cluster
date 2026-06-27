@@ -5,11 +5,11 @@ metadata:
   namespace: opencode
 data:
   # Seeded on each pod start into /workspace/.home/.config/opencode/opencode.json
-  # (MCP token substituted). Sole in-cluster LLM is HIPFire — no SGLang/llm.
+  # HIPFire MQ6 27B (best quality registry tag; not true FP16 — engine is MQ-only).
   opencode.json.tmpl: |
     {
       "$schema": "https://opencode.ai/config.json",
-      "model": "hipfire/qwen3.6-27b.mq4",
+      "model": "hipfire/qwen3.5-27b.mq6",
       "provider": {
         "hipfire": {
           "npm": "@ai-sdk/openai-compatible",
@@ -18,8 +18,15 @@ data:
             "baseURL": "http://hipfire.ai-inference.svc.cluster.local:11435/v1"
           },
           "models": {
+            "qwen3.5-27b.mq6": {
+              "name": "qwen3.5-27b.mq6",
+              "limit": {
+                "context": 32768,
+                "output": 4096
+              }
+            },
             "qwen3.6-27b.mq4": {
-              "name": "qwen3.6-27b.mq4",
+              "name": "qwen3.6-27b.mq4 (fallback if still loaded)",
               "limit": {
                 "context": 32768,
                 "output": 4096
@@ -44,15 +51,18 @@ data:
 
     ## Model
 
-    Default and only **in-cluster** provider is **HIPFire**:
+    Default in-cluster provider is **HIPFire** (AMD MQ quant engine — **not** FP16):
     - Provider id: `hipfire`
     - API: `http://hipfire.ai-inference.svc.cluster.local:11435/v1`
-    - Model id: `qwen3.6-27b.mq4` (must match `GET /v1/models` on HIPFire)
-    - Full default: `hipfire/qwen3.6-27b.mq4`
+    - Preferred model: `qwen3.5-27b.mq6` (`HIPFIRE_MODEL=qwen3.5:27b-mq6`) — highest-quality
+      **27B-class** tag HIPFire ships (~21GB weights; uses more of the ~96GiB UMA FB than MQ4).
+    - Fallback id if still on old weights: `qwen3.6-27b.mq4`
+    - Confirm live id: `GET /v1/models` on the hipfire Service.
 
-    Enable HIPFire with mode-switcher **hipfire** mode (`http://ai.k8s.home` or
-    `./scripts/ai-mode.sh hipfire`) when the GPU node is Ready. Do not expect an
-    in-cluster `llm` / SGLang endpoint — it was removed.
+    True unquantized (BF16/FP16) Qwen is **not** a HIPFire `serve`/`pull` path; use MQ6
+    (or quantize via `hipfire quantize` offline) to spend more FB quality budget.
+
+    Enable HIPFire with mode-switcher **hipfire** mode when the GPU node is Ready.
 
     Cloud providers may appear only if API keys are set in the pod env; prefer
     HIPFire unless the GPU node is down.
@@ -65,67 +75,16 @@ data:
     This repository is **homelab GitOps** (`saxocellphone/k8s-cluster`) for **one**
     specific cluster. Wrong-cluster applies are a critical incident risk.
 
-    - Prefer **`kubectl --kubeconfig=./kubeconfig`** (repo-root kubeconfig) when a
-      file kubeconfig is in play, or the **in-cluster ServiceAccount** in this
-      OpenCode pod — never assume `~/.kube/config` / ambient current-context is correct.
-    - **Before any kubectl/helm/talos that uses a laptop or CI kubeconfig**, verify
-      you are talking to **this** cluster: `kubectl config current-context`,
-      `cluster-info`, and/or `get nodes`, and match what `README.md` describes for
-      the lab (node names, `*.k8s.home`, Argo at `argocd.k8s.home`). If it is clearly
-      a **different** cluster, **stop** and switch to this repo’s `./kubeconfig`
-      (or ask the operator).
-    - In **this** pod, the API is the **homelab** cluster by definition (in-cluster
-      config); still do not point tools at an arbitrary external kubeconfig unless
-      explicitly asked.
+    - Prefer **`kubectl --kubeconfig=./kubeconfig`** when a file kubeconfig is in play,
+      or the **in-cluster ServiceAccount** in this OpenCode pod.
+    - Before kubectl/helm on a laptop/CI kubeconfig, verify context / nodes / cluster-info
+      match this lab (`README.md`). If clearly a **different** cluster, **stop**.
 
     ## The one rule
 
     **Argo CD reconciles `saxocellphone/k8s-cluster` (`main`) with `selfHeal: true`.**
 
-    You have two powers — do not confuse them:
+    1. **OBSERVE** — read-only `kubectl` (no secrets, no mutate).
+    2. **CHANGE** — GitHub App MCP → **PR** only; never push `main` / never PAT.
 
-    1. **OBSERVE** — use `kubectl` (`get` / `describe` / `logs` / events) and read Argo
-       Applications. Broad non-secret cluster read is allowed. Your token cannot
-       mutate the API (writes return 403). Never try to work around that.
-    2. **CHANGE** — durable fixes go through the **GitHub App MCP** tools
-       (`github-app` MCP server): open a **pull request** against `main` on
-       `saxocellphone/k8s-cluster`. The operator reviews and merges; Argo applies.
-
-    **Never** `kubectl apply` / `edit` / `delete` / `scale` / `exec` / port-forward,
-    never read Secrets, never push directly to `main`, never install a personal
-    GitHub PAT into this environment for pushing. There is **no** `GITHUB_TOKEN`
-    for write access on purpose.
-
-    Local edits under `/workspace` are fine for exploration; they are not live
-    until a PR is merged.
-
-    ## How a change reaches the cluster
-
-    1. Diagnose from the live cluster.
-    2. Identify manifests under `apps/`, `cluster/`, or `infrastructure/`.
-    3. Use GitHub App MCP tools to open a PR (branch off `main`, never commit to `main`).
-    4. PR description: what/why, which Argo Application owns the files, post-merge
-       verification (`kubectl get app <name> -n argocd`).
-    5. Stop after the PR is open — the user merges.
-
-    ## Repo conventions (GitOps)
-
-    - Plain apps: `argocd/apps/*` → Kustomize under `apps/` or `cluster/`.
-    - Infra Helm: edit `infrastructure/<name>/values.yaml` only — do not vendor charts.
-    - `prune: false` on workloads — deleting a file does not delete the live object.
-    - Storage: prefer `nfs-client` for config; `longhorn` for write-heavy + nodeSelector
-      `extensions.talos.dev/iscsi-tools`. No `local-storage` on Talos.
-    - Secrets: never put real secret values in a PR; use placeholders and tell the user
-      to `sops` encrypt.
-
-    ## Tools on this sandbox
-
-    - `kubectl` uses the in-cluster read-only SA automatically.
-    - `git` / `gh` may be present for **read-only** clone of public repos; do not rely on
-      them for authenticated push. Prefer GitHub App MCP for PR creation.
-    - Docker is available for builds/tests inside the sandbox only.
-
-    ## Safety
-
-    This pod is privileged (DinD). Treat it as a single-tenant workstation for the
-    operator, but **cluster and Git `main` authority** are still PR-only / read-only.
+    Prefer GitHub App MCP for PRs. Docker available for sandbox builds/tests.

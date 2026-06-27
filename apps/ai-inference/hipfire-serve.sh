@@ -15,7 +15,9 @@ export HIP_VISIBLE_DEVICES=0
 export HSA_OVERRIDE_GFX_VERSION=11.5.1
 export HSA_ENABLE_SDMA=0
 
-MODEL="${HIPFIRE_MODEL:-qwen3.6:27b}"
+# Default: MQ6 27B (best quality HIPFire ships for dense 27B). Not FP16 — HIPFire
+# serve path is MQ*/mfp* only (see `hipfire --help` / `hipfire pull` registry).
+MODEL="${HIPFIRE_MODEL:-qwen3.5:27b-mq6}"
 
 # Prefer a writable home so any CWD-relative fallbacks still succeed.
 cd "$HOME"
@@ -37,10 +39,15 @@ hipfire config set port 11435
 hipfire config set default_model "$MODEL"
 hipfire config set thinking off
 hipfire config set max_think_tokens 0
-hipfire config set max_tokens 256
+# Agent / OpenCode turns need more than 256 tokens out.
+hipfire config set max_tokens 4096
+# Keep weights in UMA FB; avoid multi-minute cold reload on every chat.
+hipfire config set idle_timeout 0
 
 if ! hipfire list | grep -F "$MODEL" >/dev/null 2>&1; then
+  echo "Pulling HIPFire model $MODEL (can take a long time)..."
   hipfire pull "$MODEL"
 fi
 
 exec hipfire serve 0.0.0.0:11435
+
