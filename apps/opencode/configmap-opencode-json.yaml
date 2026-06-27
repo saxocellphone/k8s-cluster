@@ -18,13 +18,22 @@ data:
           },
           "models": {
             "qwen3.6-27b.mq4": {
-              "name": "qwen3.6-27b.mq4 (HIPFire)"
+              "name": "qwen3.6-27b.mq4 (HIPFire)",
+              "limit": {
+                "context": 32768,
+                "output": 4096
+              }
             },
             "qwen3.6:27b": {
-              "name": "qwen3.6:27b (HIPFire alias)"
+              "name": "qwen3.6:27b (HIPFire alias)",
+              "limit": {
+                "context": 32768,
+                "output": 4096
+              }
             }
           }
         },
+
 
         "cluster-llm": {
           "npm": "@ai-sdk/openai-compatible",
