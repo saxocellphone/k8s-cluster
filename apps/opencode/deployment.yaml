@@ -1,5 +1,5 @@
-# OpenCode headless server (multi-client: web attach, TUI attach, SDK, custom HTTP/SSE).
-# Docs: https://opencode.ai/docs/server/
+# OpenCode multi-client server in a real Ubuntu dev sandbox (git+https, ssh, build-essential)
+# + DinD sidecar. Docs: https://opencode.ai/docs/server/
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,11 +17,11 @@ metadata:
     checkov.io/skip7: CKV_K8S_30=Container security context incompatible with privileged DinD.
     checkov.io/skip8: CKV_K8S_31=Seccomp cannot be RuntimeDefault on privileged DinD.
     checkov.io/skip9: CKV_K8S_37=Elevated capabilities required for DinD.
-    checkov.io/skip10: CKV_K8S_40=Root required for docker.sock + tool install paths.
+    checkov.io/skip10: CKV_K8S_40=Root required for docker.sock and apt in entrypoint.
     checkov.io/skip11: CKV_K8S_8=DinD has no HTTP probes; opencode container is probed.
     checkov.io/skip12: CKV_K8S_9=DinD has no readiness HTTP; opencode container is probed.
     checkov.io/skip13: CKV_K8S_35=API keys required as env vars by OpenCode providers.
-    checkov.io/skip14: CKV_K8S_43=Image pinned by tag+digest comment; digest updated on bump.
+    checkov.io/skip14: CKV_K8S_43=Ubuntu base is tag-pinned; OpenCode version via OPENCODE_VERSION.
 spec:
   replicas: 1
   strategy:
@@ -34,14 +34,12 @@ spec:
       labels:
         app: opencode
     spec:
-      # Read-only SA (view + Argo/ops CRDs). PR writes go via github-app-mcp only.
       serviceAccountName: opencode
-      # Longhorn RWO — schedule where iscsi-tools extension is present (Talos workers).
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
       terminationGracePeriodSeconds: 60
       initContainers:
-        # Seed git/kubectl/docker CLI (no PAT — kubectl uses in-cluster SA).
+        # Static CLIs only (kubectl, docker, gh). Full git comes from Ubuntu image + entrypoint apt.
         - name: seed-tools
           image: alpine:3.21
           imagePullPolicy: IfNotPresent
@@ -49,55 +47,63 @@ spec:
           args:
             - |
               set -eux
-              apk add --no-cache curl tar gzip git ca-certificates
+              apk add --no-cache curl tar gzip ca-certificates
               mkdir -p /tools/bin
-              cp /usr/bin/git /tools/bin/git
-              # kubectl (in-cluster token from SA — read-only RBAC)
               KVER=v1.34.1
               curl -fsSL "https://dl.k8s.io/release/${KVER}/bin/linux/amd64/kubectl" \
                 -o /tools/bin/kubectl
               chmod +x /tools/bin/kubectl
-              # Docker CLI only (daemon is the dind sidecar)
               DOCKER_VER=27.5.1
               curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VER}.tgz" \
                 | tar -xz -C /tmp
               mv /tmp/docker/docker /tools/bin/docker
-              # Optional gh for public/read-only UX; no GITHUB_TOKEN in pod for push.
               GH_VER=2.67.0
               curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.tar.gz" \
                 | tar -xz -C /tmp
               mv "/tmp/gh_${GH_VER}_linux_amd64/bin/gh" /tools/bin/gh
+              # Optional: pin OpenCode binary next to tools so entrypoint can use it offline-ish.
+              OC_VER=1.17.11
+              curl -fsSL "https://github.com/anomalyco/opencode/releases/download/v${OC_VER}/opencode-linux-x64.tar.gz" \
+                -o /tmp/oc.tgz \
+                || curl -fsSL "https://github.com/sst/opencode/releases/download/v${OC_VER}/opencode-linux-x64.tar.gz" \
+                -o /tmp/oc.tgz || true
+              if [ -f /tmp/oc.tgz ]; then
+                tar -xzf /tmp/oc.tgz -C /tmp
+                OC_BIN="$(find /tmp -type f -name opencode 2>/dev/null | head -1 || true)"
+                if [ -n "$OC_BIN" ]; then
+                  install -m 0755 "$OC_BIN" /tools/bin/opencode
+                fi
+              fi
               chmod -R a+rX /tools
           volumeMounts:
             - name: tools
               mountPath: /tools
         - name: seed-workspace
-          image: alpine:3.21
+          # Ubuntu so git clone uses full git+https (same family as main sandbox).
+          image: ubuntu:24.04
           imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-ec"]
+          command: ["/bin/bash", "-ec"]
           args:
             - |
               set -eux
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends ca-certificates git
               mkdir -p /workspace/repos \
                 /workspace/.home/.config/opencode \
                 /workspace/.home/.local/share/opencode
-              # Always refresh AGENTS.md guardrails from ConfigMap.
               if [ -f /seed/AGENTS.md ]; then
                 cp /seed/AGENTS.md /workspace/AGENTS.md
               fi
-              # Inject MCP shared token into opencode.json (PR-only GitHub App path).
               if [ -f /seed/opencode.json.tmpl ]; then
                 TOKEN="${GITHUB_MCP_TOKEN:-}"
                 sed "s|__GITHUB_MCP_TOKEN__|${TOKEN}|g" /seed/opencode.json.tmpl \
                   > /workspace/.home/.config/opencode/opencode.json
               fi
-              if [ ! -f /workspace/repos/.keep ]; then
-                touch /workspace/repos/.keep
-              fi
-              # Prefer a checkout of the GitOps repo for local reads (PR still via MCP).
+              touch /workspace/repos/.keep
               if [ ! -d /workspace/repos/k8s-cluster/.git ]; then
                 git clone --depth 1 https://github.com/saxocellphone/k8s-cluster.git \
-                  /workspace/repos/k8s-cluster || true
+                  /workspace/repos/k8s-cluster
               fi
           env:
             - name: GITHUB_MCP_TOKEN
@@ -111,7 +117,6 @@ spec:
             - name: config-seed
               mountPath: /seed
               readOnly: true
-
       containers:
         - name: dind
           image: docker:29-dind
@@ -127,7 +132,6 @@ spec:
             - --data-root=/var/lib/docker
             - --exec-root=/var/run/docker/execroot
             - --pidfile=/var/run/docker.pid
-            # Match common CNI MTU; avoids PMTU black holes for nested containers.
             - --mtu=1450
           resources:
             requests:
@@ -142,28 +146,11 @@ spec:
             - name: docker-data
               mountPath: /var/lib/docker
         - name: opencode
-          # Pinned release verified in-cluster: opencode 1.17.11
-          image: ghcr.io/anomalyco/opencode:1.17.11@sha256:c38a7cb4449f342166c43ff4a69e1b02f12ef1959bbfdd83993cdff8cea698a7
+          # Full userspace: apt git (with remote-https), ssh, build-essential via entrypoint.
+          image: ubuntu:24.04
           imagePullPolicy: IfNotPresent
           workingDir: /workspace
-          # `web` = headless server + built-in browser UI (same OpenAPI as `serve`).
-          # Custom clients / attach / SDK still use /session, /doc, SSE, etc.
-          command: ["opencode"]
-          args:
-            - web
-            - --hostname
-            - 0.0.0.0
-            - --port
-            - "4096"
-            # Browser custom clients + public web origin
-            - --cors
-            - https://opencode.victornazzaro.com
-            - --cors
-            - http://localhost:5173
-            - --cors
-            - http://127.0.0.1:5173
-
-
+          command: ["/bin/bash", "/entrypoint/entrypoint.sh"]
           ports:
             - name: http
               containerPort: 4096
@@ -175,9 +162,8 @@ spec:
               value: /tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: DOCKER_HOST
               value: unix:///var/run/docker.sock
-            # OpenCode-native HTTP Basic Auth (OPENCODE_SERVER_*). Required for
-            # `opencode attach` / CLI — CF Access returns HTML and breaks clients.
-            # No GITHUB_TOKEN PAT: GitHub writes only via github-app-mcp (PR).
+            - name: OPENCODE_VERSION
+              value: "1.17.11"
             - name: OPENCODE_SERVER_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -188,7 +174,6 @@ spec:
                 secretKeyRef:
                   name: opencode-secrets
                   key: OPENCODE_SERVER_PASSWORD
-            # Optional LLM provider keys.
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -207,8 +192,6 @@ spec:
                   name: opencode-secrets
                   key: XAI_API_KEY
                   optional: true
-
-
           resources:
             requests:
               cpu: "1"
@@ -216,12 +199,11 @@ spec:
             limits:
               cpu: "4"
               memory: 8Gi
-          # Health is unauthenticated on the pod; TCP probe is sufficient.
           startupProbe:
             tcpSocket:
               port: http
             periodSeconds: 5
-            failureThreshold: 36
+            failureThreshold: 60
           readinessProbe:
             tcpSocket:
               port: http
@@ -243,6 +225,13 @@ spec:
             - name: config-seed
               mountPath: /seed
               readOnly: true
+            - name: entrypoint
+              mountPath: /entrypoint
+              readOnly: true
+            # Persist apt marker across restarts within pod lifetime only (emptyDir ok);
+            # full package set reinstalls if marker lost — image has no packages baked in.
+            - name: sandbox-var
+              mountPath: /var/lib/opencode-sandbox
       volumes:
         - name: workspace
           persistentVolumeClaim:
@@ -254,6 +243,12 @@ spec:
           emptyDir: {}
         - name: tools
           emptyDir: {}
+        - name: sandbox-var
+          emptyDir: {}
         - name: config-seed
           configMap:
             name: opencode-config
+        - name: entrypoint
+          configMap:
+            name: opencode-entrypoint
+            defaultMode: 0755

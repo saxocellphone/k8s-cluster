@@ -12,6 +12,13 @@ resources:
   - networkpolicy.yaml
   - configmap-opencode-json.yaml
 
+configMapGenerator:
+  - name: opencode-entrypoint
+    files:
+      - entrypoint.sh
+    options:
+      disableNameSuffixHash: true
 
 generators:
   - secret-generator.yaml
+
