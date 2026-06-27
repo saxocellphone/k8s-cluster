@@ -8,7 +8,7 @@ data:
   opencode.json.tmpl: |
     {
       "$schema": "https://opencode.ai/config.json",
-      "model": "hipfire/qwen3.6:27b",
+      "model": "hipfire/qwen3.6-27b.mq4",
       "provider": {
         "hipfire": {
           "npm": "@ai-sdk/openai-compatible",
@@ -17,11 +17,15 @@ data:
             "baseURL": "http://hipfire.ai-inference.svc.cluster.local:11435/v1"
           },
           "models": {
+            "qwen3.6-27b.mq4": {
+              "name": "qwen3.6-27b.mq4 (HIPFire)"
+            },
             "qwen3.6:27b": {
-              "name": "qwen3.6:27b (HIPFire)"
+              "name": "qwen3.6:27b (HIPFire alias)"
             }
           }
         },
+
         "cluster-llm": {
           "npm": "@ai-sdk/openai-compatible",
           "name": "SGLang LLM (cluster)",
@@ -50,7 +54,9 @@ data:
     # OpenCode cluster sandbox (observe live / change by PR)
 
     Default model is **HIPFire** on the cluster (`hipfire` provider →
-    `http://hipfire.ai-inference.svc.cluster.local:11435/v1`, model `qwen3.6:27b`).
+    `http://hipfire.ai-inference.svc.cluster.local:11435/v1`, model id from
+    `/v1/models` is typically `qwen3.6-27b.mq4`; config default is that id).
+
     SGLang (`cluster-llm`) is optional via `/models` when that deployment is scaled up.
     Cloud providers may appear if API keys are set in the pod env — prefer HIPFire unless
     the GPU node is down.
