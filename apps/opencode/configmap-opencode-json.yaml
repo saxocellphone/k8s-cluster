@@ -53,7 +53,7 @@ data:
     `http://hipfire.ai-inference.svc.cluster.local:11435/v1`, model id from
     `/v1/models` is typically `qwen3.6-27b.mq4`; config default is that id).
     Cloud providers may appear if API keys are set in the pod env — prefer HIPFire unless
-    the GPU node is down. (SGLang / in-cluster `llm` deployment was removed.)
+    the GPU node is down.
 
 
     You run in a long-lived Kubernetes pod (`opencode` namespace) with Docker-in-Docker

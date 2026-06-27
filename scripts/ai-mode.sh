@@ -19,8 +19,6 @@ Modes:
   off      Stop AI backends and the GPU gaming workload if it exists.
   status   Show current GPU workload state.
 
-  llm      Legacy alias for hipfire (SGLang was removed).
-
 This script time-shares the single AMD GPU on talos-gpu-01. Prefer the
 mode-switcher UI/API (http://ai.k8s.home) which drains workloads, cooldowns,
 and refuses switches while talos-gpu-01 is NotReady.
@@ -113,7 +111,7 @@ require_gpu_node_for_start() {
 }
 
 case "${1:-}" in
-  llm|hipfire)
+  hipfire)
     require_gpu_node_for_start
     echo "Switching to HIPFire LLM mode (prefer mode-switcher for drain+cooldown)..."
     set_gaming_replicas_if_present 0

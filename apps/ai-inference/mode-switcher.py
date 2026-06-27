@@ -37,7 +37,6 @@ WORKLOADS = {
 # URL path segment → workload key (or None for off)
 MODES = {
     "hipfire": "hipfire",
-    "llm": "hipfire",  # legacy alias; SGLang removed
     "image": "comfyui",
     "gaming": "wolf",
     "off": None,
@@ -290,7 +289,7 @@ def html():
     (timeout {DRAIN_TIMEOUT}s), wait <strong>{COOLDOWN_SEC}s</strong>, then start the target.
     Refuses scale-up while the GPU node is NotReady/unreachable.
     HIPFire: <code>hipfire.k8s.home</code> · Image: <code>comfyui.k8s.home</code> ·
-    Gaming: Wolf/Moonlight. (SGLang / <code>llm</code> was removed.)
+    Gaming: Wolf/Moonlight.
   </div>
   <h2>Deployments</h2>
   <table><thead><tr><th>Namespace</th><th>Name</th><th>Deployment</th><th>Desired</th><th>Ready</th><th>Available</th><th>Updated</th></tr></thead><tbody>{deploy_rows}</tbody></table>
