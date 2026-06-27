@@ -170,12 +170,8 @@ FILE_SKIPS: dict[str, dict[str, str]] = {
         "CKV_K8S_40": "python:slim runs as a low UID.",
         "CKV_K8S_43": "python base image is tag-pinned.",
     },
-    "apps/ai-inference/llm-deployment.yaml": {
-        "CKV_K8S_22": "ROCm inference workloads require writable model and cache directories.",
-        "CKV_K8S_40": "ROCm inference images run as low UIDs.",
-        "CKV_K8S_43": "GPU inference image is tag-pinned.",
-    },
     "apps/ai-inference/hipfire-deployment.yaml": {
+
         "CKV_K8S_22": "ROCm inference workloads require writable model and cache directories.",
         "CKV_K8S_40": "ROCm inference images run as low UIDs.",
         "CKV_K8S_43": "Custom GPU image is tag-pinned.",

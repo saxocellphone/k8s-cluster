@@ -11,8 +11,9 @@ metadata:
     checkov.io/skip3: CKV_K8S_43=Custom GPU image is tag-pinned.
 spec:
   # Default AI mode for the lab (OpenCode points here). Mode-switcher may scale
-  # this to 0 when switching to llm/comfy/wolf — that is intentional exclusivity.
+  # this to 0 when switching to comfy/wolf — intentional exclusivity on the GPU node.
   replicas: 1
+
   strategy:
     type: Recreate
   selector:
@@ -32,9 +33,10 @@ spec:
         operator: Equal
         value: amd-strix-halo
         effect: NoSchedule
-      # llm-models PVC is shared with SGLang; dirs may be root-owned. HIPFire runs
+      # llm-models PVC holds models/caches; dirs may be root-owned. HIPFire runs
       # as 10001 and writes $HIPFIRE_HOME under /models/hipfire-home — without this
       # init, serve dies immediately with EACCES on config.json.
+
       initContainers:
       - name: fix-hipfire-home-perms
         image: busybox:1.36

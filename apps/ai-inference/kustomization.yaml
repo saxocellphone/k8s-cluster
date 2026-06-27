@@ -5,9 +5,8 @@ resources:
   - namespace.yaml
   - mode-switcher-rbac.yaml
   - mode-switcher.yaml
+  # Shared model/cache PVC (name kept as llm-models for existing PV binding).
   - llm-pvc.yaml
-  - llm-deployment.yaml
-  - llm-service.yaml
   - hipfire-deployment.yaml
   - hipfire-service.yaml
   - open-webui-pvc.yaml
@@ -22,10 +21,6 @@ configMapGenerator:
   - name: mode-switcher-src
     files:
       - server.py=mode-switcher.py
-  - name: strix-sglang-scripts
-    files:
-      - strix-sglang-build.sh
-      - strix-sglang-serve.sh
 
 generatorOptions:
   disableNameSuffixHash: true

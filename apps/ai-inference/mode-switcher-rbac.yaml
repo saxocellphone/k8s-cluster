@@ -12,7 +12,7 @@ metadata:
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments", "deployments/scale"]
-    resourceNames: ["llm", "hipfire", "comfyui"]
+    resourceNames: ["hipfire", "comfyui"]
     verbs: ["get", "patch", "update"]
   - apiGroups: [""]
     resources: ["pods", "services"]

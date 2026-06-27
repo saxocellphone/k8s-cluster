@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Exclusive GPU mode switcher for talos-gpu-01 (Strix Halo).
 
-Serializes transitions: scale others to 0, wait until pods are gone, optional
-cooldown, refuse switches while the GPU node is NotReady, then scale target to 1.
-Reduces ROCm/unified-memory races that wedge Talos apid/kubelet.
+Modes: hipfire (default LLM), image (ComfyUI), gaming (Wolf), off.
+Serializes transitions: scale others to 0, wait until pods are gone, cooldown,
+refuse switches while the GPU node is NotReady, then scale target to 1.
 """
 import json
 import os
@@ -18,13 +18,9 @@ AI_NAMESPACE = os.environ.get("AI_NAMESPACE", os.environ.get("NAMESPACE", "ai-in
 GAMING_NAMESPACE = os.environ.get("GAMING_NAMESPACE", "gaming")
 GAMING_DEPLOYMENT = os.environ.get("GAMING_DEPLOYMENT", "wolf")
 PORT = int(os.environ.get("PORT", "8080"))
-# How long to wait for scale-to-zero pods to disappear (seconds).
 DRAIN_TIMEOUT = int(os.environ.get("DRAIN_TIMEOUT_SEC", "300"))
-# Pause after all GPU workloads are stopped before starting the next (seconds).
 COOLDOWN_SEC = int(os.environ.get("COOLDOWN_SEC", "60"))
-# Poll interval while draining.
 POLL_SEC = float(os.environ.get("POLL_SEC", "3"))
-# Node that owns amd.com/gpu for these workloads.
 GPU_NODE = os.environ.get("GPU_NODE", "talos-gpu-01")
 
 TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -33,15 +29,15 @@ API_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
 API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
 
 WORKLOADS = {
-    "llm": {"namespace": AI_NAMESPACE, "deployment": "llm", "label_selector": "app=llm"},
     "hipfire": {"namespace": AI_NAMESPACE, "deployment": "hipfire", "label_selector": "app=hipfire"},
     "comfyui": {"namespace": AI_NAMESPACE, "deployment": "comfyui", "label_selector": "app=comfyui"},
     "wolf": {"namespace": GAMING_NAMESPACE, "deployment": GAMING_DEPLOYMENT, "label_selector": f"app={GAMING_DEPLOYMENT}"},
 }
 
+# URL path segment → workload key (or None for off)
 MODES = {
-    "llm": "llm",
     "hipfire": "hipfire",
+    "llm": "hipfire",  # legacy alias; SGLang removed
     "image": "comfyui",
     "gaming": "wolf",
     "off": None,
@@ -103,7 +99,6 @@ def pods(name):
 
 
 def gpu_node_ready():
-    """Return (ok: bool, detail: str) for the accelerator node."""
     try:
         node = request_json("GET", f"{core_base()}/nodes/{GPU_NODE}")
     except urllib.error.HTTPError as e:
@@ -150,7 +145,6 @@ def any_workload_pods(names=None):
     for name in names:
         for pod in pods(name).get("items", []):
             phase = pod.get("status", {}).get("phase", "")
-            # Count anything not fully gone (Pending/Running/Unknown/Terminating).
             if phase != "Succeeded":
                 remaining.append(
                     f"{pod.get('metadata', {}).get('namespace')}/"
@@ -194,9 +188,7 @@ def status():
 
     active = [name for name, d in deployments.items() if d["replicas"] > 0]
     mode = "off"
-    if active == ["llm"]:
-        mode = "llm"
-    elif active == ["hipfire"]:
+    if active == ["hipfire"]:
         mode = "hipfire"
     elif active == ["comfyui"]:
         mode = "image"
@@ -223,7 +215,6 @@ def set_mode(mode):
         raise ValueError(f"unknown mode: {mode}")
 
     target = MODES[mode]
-    # Never start a GPU workload if the accelerator node is unhealthy.
     if target is not None:
         ok, detail = gpu_node_ready()
         if not ok:
@@ -241,7 +232,6 @@ def set_mode(mode):
         time.sleep(COOLDOWN_SEC)
 
     if target is not None:
-        # Re-check after drain/cooldown — node may have died mid-transition.
         ok, detail = gpu_node_ready()
         if not ok:
             raise RuntimeError(
@@ -290,19 +280,17 @@ def html():
   <h1>AI Mode Switcher</h1>
   <p>Current mode: <span class="mode">{s['mode']}</span>
      · GPU node: <span class="mode {node_badge}">{gn['name']}: {gn['detail']}</span></p>
-  <form method="post" action="/mode/llm"><button class="primary" {"disabled" if not gn["ready"] else ""}>SGLang LLM mode</button></form>
   <form method="post" action="/mode/hipfire"><button class="primary" {"disabled" if not gn["ready"] else ""}>HIPFire LLM mode</button></form>
   <form method="post" action="/mode/image"><button class="primary" {"disabled" if not gn["ready"] else ""}>Image mode</button></form>
   <form method="post" action="/mode/gaming"><button class="primary" {"disabled" if not gn["ready"] else ""}>Gaming mode</button></form>
   <form method="post" action="/mode/off"><button>Off</button></form>
   <form method="get" action="/"><button>Refresh</button></form>
   <div class="warn">
-    One schedulable GPU on <code>{GPU_NODE}</code> (unified memory — avoid huge concurrent allocs).
-    Switches <strong>drain</strong> other modes (timeout {DRAIN_TIMEOUT}s), wait <strong>{COOLDOWN_SEC}s</strong>,
-    then start the target. Refuses scale-up while the GPU node is NotReady/unreachable
-    (power-cycle the Corsair if ping works but <code>talosctl</code> hangs).
-    SGLang: <code>llm.k8s.home</code> · HIPFire: <code>hipfire.k8s.home</code> ·
-    Image: <code>comfyui.k8s.home</code> · Gaming: Wolf/Moonlight.
+    One schedulable GPU on <code>{GPU_NODE}</code>. Switches <strong>drain</strong> other modes
+    (timeout {DRAIN_TIMEOUT}s), wait <strong>{COOLDOWN_SEC}s</strong>, then start the target.
+    Refuses scale-up while the GPU node is NotReady/unreachable.
+    HIPFire: <code>hipfire.k8s.home</code> · Image: <code>comfyui.k8s.home</code> ·
+    Gaming: Wolf/Moonlight. (SGLang / <code>llm</code> was removed.)
   </div>
   <h2>Deployments</h2>
   <table><thead><tr><th>Namespace</th><th>Name</th><th>Deployment</th><th>Desired</th><th>Ready</th><th>Available</th><th>Updated</th></tr></thead><tbody>{deploy_rows}</tbody></table>

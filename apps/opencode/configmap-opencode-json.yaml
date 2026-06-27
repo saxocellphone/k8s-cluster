@@ -32,23 +32,10 @@ data:
               }
             }
           }
-        },
-
-
-        "cluster-llm": {
-          "npm": "@ai-sdk/openai-compatible",
-          "name": "SGLang LLM (cluster)",
-          "options": {
-            "baseURL": "http://llm.ai-inference.svc.cluster.local:8080/v1"
-          },
-          "models": {
-            "local-default": {
-              "name": "local-default (SGLang)"
-            }
-          }
         }
       },
       "mcp": {
+
         "github-app": {
           "type": "remote",
           "enabled": true,
@@ -65,10 +52,9 @@ data:
     Default model is **HIPFire** on the cluster (`hipfire` provider →
     `http://hipfire.ai-inference.svc.cluster.local:11435/v1`, model id from
     `/v1/models` is typically `qwen3.6-27b.mq4`; config default is that id).
-
-    SGLang (`cluster-llm`) is optional via `/models` when that deployment is scaled up.
     Cloud providers may appear if API keys are set in the pod env — prefer HIPFire unless
-    the GPU node is down.
+    the GPU node is down. (SGLang / in-cluster `llm` deployment was removed.)
+
 
     You run in a long-lived Kubernetes pod (`opencode` namespace) with Docker-in-Docker
     and a **read-only** in-cluster ServiceAccount (same model as OpenClaw).

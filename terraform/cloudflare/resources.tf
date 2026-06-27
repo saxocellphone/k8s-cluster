@@ -104,24 +104,7 @@ resource "cloudflare_dns_record" "ai" {
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
 }
 
-resource "cloudflare_dns_record" "llm" {
-  comment         = "Local LLM backend"
-  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
-  data            = null
-  name            = "llm.victornazzaro.com"
-  priority        = null
-  private_routing = null
-  proxied         = true
-  settings = {
-    flatten_cname = false
-    ipv4_only     = false
-    ipv6_only     = false
-  }
-  tags    = []
-  ttl     = 1
-  type    = "CNAME"
-  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
-}
+# llm.victornazzaro.com removed with SGLang deployment
 
 resource "cloudflare_dns_record" "chat" {
   comment         = "Open WebUI chat frontend"
@@ -407,12 +390,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         path           = null
         service        = "http://mode-switcher.ai-inference.svc.cluster.local:8080"
       },
-      {
-        hostname       = "llm.victornazzaro.com"
-        origin_request = null
-        path           = null
-        service        = "http://llm.ai-inference.svc.cluster.local:8080"
-      },
+
       {
         hostname       = "chat.victornazzaro.com"
         origin_request = null
@@ -690,16 +668,7 @@ resource "cloudflare_zero_trust_access_application" "ai" {
       uri           = "ai.victornazzaro.com"
       vnet_id       = null
     },
-    {
-      cidr          = null
-      hostname      = null
-      l4_protocol   = null
-      mcp_server_id = null
-      port_range    = null
-      type          = "public"
-      uri           = "llm.victornazzaro.com"
-      vnet_id       = null
-    },
+
     {
       cidr          = null
       hostname      = null

@@ -20,16 +20,6 @@ spec:
                 name: mode-switcher
                 port:
                   number: 8080
-    - host: llm.k8s.home
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: llm
-                port:
-                  number: 8080
     - host: hipfire.k8s.home
       http:
         paths:

@@ -222,7 +222,7 @@ additionalPrometheusRulesMap:
             annotations:
               summary: "talos-gpu-01 (GPU) is NotReady"
               description: |
-                Accelerator node talos-gpu-01 has been NotReady for 5m+. HIPFire/SGLang/Comfy/Wolf
+                Accelerator node talos-gpu-01 has been NotReady for 5m+. HIPFire/Comfy/Wolf
                 cannot schedule. If ping 192.168.8.178 works but talosctl hangs, power-cycle the
                 Corsair AI Workstation. Prefer mode-switcher Off until the node is Ready.
 

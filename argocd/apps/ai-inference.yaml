@@ -15,12 +15,6 @@ spec:
   ignoreDifferences:
     - group: apps
       kind: Deployment
-      name: llm
-      namespace: ai-inference
-      jsonPointers:
-        - /spec/replicas
-    - group: apps
-      kind: Deployment
       name: hipfire
       namespace: ai-inference
       jsonPointers:
@@ -31,6 +25,7 @@ spec:
       namespace: ai-inference
       jsonPointers:
         - /spec/replicas
+
   syncPolicy:
     automated:
       prune: false
