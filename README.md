@@ -1,7 +1,5 @@
 # k8s-cluster
 
-# Test PR from Aoi 🐸
-
 GitOps repository for a homelab Kubernetes cluster managed by [Argo CD](https://argo-cd.readthedocs.io/).
 
 ## Cluster Overview
@@ -16,6 +14,8 @@ GitOps repository for a homelab Kubernetes cluster managed by [Argo CD](https://
 
 All nodes are amd64 architecture.
 
+> **Note:** This repo supports automated test PRs via the GitHub App.
+
 ## Repository Structure
 
 ```
@@ -23,6 +23,7 @@ k8s-cluster/
 ├── apps/                       # Application workloads (Kustomize)
 │   ├── ai-inference/           #   Local LLM inference + chat/image UIs
 │   ├── openclaw/               #   AI agent gateway (Telegram + GitOps cluster ops)
+│   ├── opencode/               #   OpenCode server (phone UI + multi-client API sandbox)
 │   ├── torrenting/             #   VPN-protected media stack
 │   ├── database/               #   PostgreSQL (CloudNativePG)
 │   ├── memos/                  #   Note-taking
@@ -52,17 +53,11 @@ k8s-cluster/
 │   ├── bootstrap-argocd.sh     #   Initial Argo CD installation
 │   └── backup-postgres.sh      #   PostgreSQL backup
 ├── talos/                      # Talos machine configs (reference only, not Argo-managed)
-│   ├── controlplane.yaml
-│   ├── worker.yaml
-│   ├── longhorn-worker-patch.yaml
-│   ├── longhorn-disk-patch-gcx.yaml
-│   ├── longhorn-disk-patch-pik.yaml
-│   └── longhorn-schematic.yaml
 ├── .sops.yaml                  # SOPS encryption rules
-└── key.txt                     # Age private key (NEVER committed, in .gitignore)
+└─ key.txt                     # Age private key (NEVER committed, in .gitignore)
 ```
 
-## How It Works
+## How it Works
 
 ### Argo CD App-of-Apps
 
@@ -71,7 +66,7 @@ Argo CD watches this repo and automatically syncs cluster state from Git.
 ```
 app-of-apps (argocd/app-of-apps.yaml)
 ├── argocd/apps/*            → directory apps (Kustomize): everything under apps/ and cluster/
-└── argocd/infrastructure/*  → Helm components (multi-source: upstream chart + this repo's values)
+└─ argocd/infrastructure/*  → Helm components (multi-source: upstream chart + this repo's values)
 ```
 
 See [Components](#components) for the full list.
@@ -125,10 +120,11 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using [age](h
 ### Encrypted files
 
 | File | Contents |
-|---|---|
+|---|---|---|
 | `apps/torrenting/postgres/secret.yaml` | PostgreSQL credentials |
 | `apps/torrenting/qbittorrent/secret.yaml` | ProtonVPN WireGuard config |
 | `apps/openclaw/secret.yaml` | Anthropic API key, Telegram bot token |
+| `apps/opencode/secret.yaml` | OpenCode server basic auth + optional LLM/GitHub tokens |
 | `apps/openclaw/tls-secret.yaml` | Self-signed TLS certificate |
 
 ### How it works
@@ -155,9 +151,10 @@ SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
 ### Applications (`apps/`)
 
 | App | Purpose |
-|---|---|
-| ai-inference | Local LLM inference (HIPFire / SGLang) with Open WebUI, ComfyUI, and a mode switcher |
+|---|---|---|
+| ai-inference | Local LLM (HIPFire) with Open WebUI, ComfyUI, and a mode switcher |
 | openclaw | AI agent gateway — Telegram bot, read-only cluster diagnostics, and GitOps changes via PR |
+| opencode | OpenCode `web` — DinD coding sandbox, OpenAPI multi-client; HTTP Basic Auth (CLI-friendly) |
 | torrenting | VPN-protected media stack: qBittorrent (+ gluetun), Prowlarr, Radarr, Sonarr, Audiobookshelf |
 | database | PostgreSQL cluster (CloudNativePG) backing app workloads |
 | memos | Lightweight self-hosted note-taking |
@@ -171,7 +168,7 @@ SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
 ### Infrastructure (`infrastructure/`, Helm)
 
 | Component | Purpose |
-|---|---|
+|---|---|---|
 | Argo CD | GitOps controller — reconciles the whole cluster from this repo |
 | ingress-nginx | Cluster ingress controller (`*.k8s.home`) |
 | cert-manager | Issues and renews TLS certificates |
@@ -216,7 +213,7 @@ The bootstrap script:
 The `talos/` directory contains Talos Linux machine configurations for reference. These are **not managed by Argo CD** -- Talos has its own lifecycle via `talosctl`.
 
 | File | Purpose |
-|---|---|
+|---|---|---|
 | controlplane.yaml | Control plane node config |
 | worker.yaml | Base worker node config |
 | longhorn-worker-patch.yaml | Patch to enable iSCSI + Longhorn extensions |
