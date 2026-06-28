@@ -2,6 +2,8 @@
 
 GitOps repository for a homelab Kubernetes cluster managed by [Argo CD](https://argo-cd.readthedocs.io/).
 
+> Test note added after pulling latest main.
+
 ## Cluster Overview
 
 | Node | Role | OS | Host |
