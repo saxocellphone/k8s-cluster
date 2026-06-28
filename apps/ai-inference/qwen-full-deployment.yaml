@@ -30,6 +30,10 @@ spec:
           operator: Equal
           value: amd-strix-halo
           effect: NoSchedule
+        # Large ROCm image pulls can trip DiskPressure briefly; allow schedule once image is cached.
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
       # Prefer GPU alone: do not schedule if hipfire/comfy also want the GPU (operator scales).
       containers:
         - name: qwen-full
@@ -37,8 +41,11 @@ spec:
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "/scripts/qwen-full-serve.sh"]
           env:
+            # Public HF. 32B BF16 segfaulted (exit 139) on this node — OS ~32Gi + cgroup
+            # limits fight UMA; 14B BF16 is a realistic "full precision" demo on Halo.
+            # Avoid gated Qwen2.5-27B-Instruct (401). Qwen3.5 needs newer transformers vs ROCm torch.
             - name: QWEN_FULL_MODEL
-              value: Qwen/Qwen2.5-27B-Instruct
+              value: Qwen/Qwen2.5-14B-Instruct
             - name: PORT
               value: "8000"
             - name: HSA_OVERRIDE_GFX_VERSION
@@ -47,6 +54,13 @@ spec:
               value: "0"
             - name: HIP_VISIBLE_DEVICES
               value: "0"
+            # Prefer GPU UMA for weights; tiny CPU spill only (avoid 32B-class RAM OOM/segfault).
+            - name: QWEN_MAX_GPU_MEM
+              value: "88GiB"
+            - name: QWEN_MAX_CPU_MEM
+              value: "6GiB"
+            - name: PYTORCH_HIP_ALLOC_CONF
+              value: expandable_segments:True
             - name: HF_HOME
               value: /models/huggingface
             - name: MODEL_HOME
@@ -57,12 +71,12 @@ spec:
           resources:
             requests:
               cpu: "8"
-              memory: 24Gi
+              memory: 20Gi
               amd.com/gpu: 1
             limits:
               cpu: "28"
-              # OS only sees ~32Gi; most weights should land in UMA FB via ROCm.
-              memory: 30Gi
+              # Keep under node allocatable (~31Gi) so kubelet doesn't OOM-kill during load.
+              memory: 28Gi
               amd.com/gpu: 1
           startupProbe:
             httpGet:

@@ -30,6 +30,16 @@ spec:
                 name: hipfire
                 port:
                   number: 11435
+    - host: vllm.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vllm-openai
+                port:
+                  number: 8000
     - host: chat.k8s.home
       http:
         paths:

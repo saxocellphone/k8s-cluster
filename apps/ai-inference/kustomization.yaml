@@ -10,6 +10,7 @@ resources:
   - hipfire-deployment.yaml
   - hipfire-service.yaml
   - qwen-full-deployment.yaml
+  - vllm-deployment.yaml
   - open-webui-pvc.yaml
 
   - open-webui-deployment.yaml
@@ -26,15 +27,12 @@ configMapGenerator:
   - name: hipfire-serve-script
     files:
       - hipfire-serve.sh
-    options:
-      defaultMode: 0755
   - name: qwen-full-serve-script
     files:
       - qwen-full-serve.sh
-    options:
-      defaultMode: 0755
 
 generatorOptions:
   disableNameSuffixHash: true
+  # Mode 0755 set on Deployment volume defaultMode (kubectl kustomize rejects generatorOptions.defaultMode).
 
 

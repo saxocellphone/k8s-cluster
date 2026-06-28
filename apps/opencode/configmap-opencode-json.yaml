@@ -5,12 +5,28 @@ metadata:
   namespace: opencode
 data:
   # Seeded on each pod start into /workspace/.home/.config/opencode/opencode.json
-  # HIPFire MQ6 27B (best quality registry tag; not true FP16 — engine is MQ-only).
+  # Default: vLLM BF16 Qwen3.6-27B (Service must be vllm-openai, not "vllm" — VLLM_PORT k8s clash).
   opencode.json.tmpl: |
     {
       "$schema": "https://opencode.ai/config.json",
-      "model": "qwen-full/qwen-qwen2.5-27b-instruct",
+      "model": "vllm/Qwen/Qwen3.6-27B",
       "provider": {
+        "vllm": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "vLLM BF16 (ROCm Navi/gfx1151)",
+          "options": {
+            "baseURL": "http://vllm-openai.ai-inference.svc.cluster.local:8000/v1"
+          },
+          "models": {
+            "Qwen/Qwen3.6-27B": {
+              "name": "Qwen3.6-27B BF16 (vLLM)",
+              "limit": {
+                "context": 65536,
+                "output": 8192
+              }
+            }
+          }
+        },
         "qwen-full": {
           "npm": "@ai-sdk/openai-compatible",
           "name": "Qwen BF16 (Transformers/ROCm)",
@@ -18,8 +34,8 @@ data:
             "baseURL": "http://qwen-full.ai-inference.svc.cluster.local:8000/v1"
           },
           "models": {
-            "qwen-qwen2.5-27b-instruct": {
-              "name": "Qwen2.5-27B-Instruct BF16",
+            "qwen-qwen2.5-14b-instruct": {
+              "name": "Qwen2.5-14B-Instruct BF16 (Transformers/ROCm)",
               "limit": {
                 "context": 8192,
                 "output": 2048
@@ -68,21 +84,23 @@ data:
 
     ## Model
 
-    Default in-cluster provider is **HIPFire** (AMD MQ quant engine — **not** FP16):
-    - Provider id: `hipfire`
-    - API: `http://hipfire.ai-inference.svc.cluster.local:11435/v1`
-    - Preferred model: `qwen3.5-27b.mq6` (`HIPFIRE_MODEL=qwen3.5:27b-mq6`) — highest-quality
-      **27B-class** tag HIPFire ships (~21GB weights; uses more of the ~96GiB UMA FB than MQ4).
-    - Fallback id if still on old weights: `qwen3.6-27b.mq4`
-    - Confirm live id: `GET /v1/models` on the hipfire Service.
+    Default in-cluster provider is **vLLM** (BF16, AMD gfx1151 ROCm image):
+    - Provider id: `vllm`
+    - OpenCode model: `vllm/Qwen/Qwen3.6-27B`
+    - API: `http://vllm-openai.ai-inference.svc.cluster.local:8000/v1`
+      (Service is named **`vllm-openai`** on purpose — a Service named `vllm` injects
+      `VLLM_PORT=tcp://…` and breaks the engine.)
+    - Confirm live: `GET /v1/models` on that Service (expect id `Qwen/Qwen3.6-27B`).
+    - Only one GPU owner on `talos-gpu-01`: scale **hipfire / qwen-full / comfyui to 0**
+      while `vllm` is up.
 
-    True unquantized (BF16/FP16) Qwen is **not** a HIPFire `serve`/`pull` path; use MQ6
-    (or quantize via `hipfire quantize` offline) to spend more FB quality budget.
-
-    Enable HIPFire with mode-switcher **hipfire** mode when the GPU node is Ready.
+    Fallbacks (other providers in `opencode.json`, exclusive GPU — not simultaneous):
+    - **HIPFire** (MQ quant, not BF16): `hipfire/qwen3.5-27b.mq6` or `hipfire/qwen3.6-27b.mq4`
+      at `http://hipfire.ai-inference.svc.cluster.local:11435/v1`
+    - **qwen-full** (DIY Transformers BF16): only if that Deployment is scaled up
 
     Cloud providers may appear only if API keys are set in the pod env; prefer
-    HIPFire unless the GPU node is down.
+    in-cluster vLLM when the GPU node is Ready and `vllm` is running.
 
     You run in a long-lived Kubernetes pod (`opencode` namespace) with Docker-in-Docker
     and a **read-only** in-cluster ServiceAccount (same model as OpenClaw).

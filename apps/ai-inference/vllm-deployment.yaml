@@ -1,0 +1,191 @@
+# vLLM on Strix Halo (gfx1151) — community TheRock image (kyuz0), not stock rocm/vllm.
+# Exclusive GPU: scale hipfire / qwen-full / comfyui to 0 first.
+#
+# IMPORTANT: Service must NOT be named "vllm" — k8s injects VLLM_PORT=tcp://… and
+# vLLM interprets VLLM_PORT as an integer listen/port helper (engine fails).
+# See https://docs.vllm.ai/en/stable/serving/env_vars.html
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: ai-inference
+  labels:
+    app: vllm
+  annotations:
+    checkov.io/skip1: CKV_K8S_22=HF cache and weights need a writable PVC.
+    checkov.io/skip2: CKV_K8S_40=ROCm device nodes typically need privileged/root.
+    checkov.io/skip3: CKV_K8S_43=Community image is tag-pinned (stable).
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      # Avoid automatic env from a Service named vllm* colliding with vLLM.
+      enableServiceLinks: false
+      nodeSelector:
+        accelerator: amd-strix-halo
+      tolerations:
+        - key: accelerator
+          operator: Equal
+          value: amd-strix-halo
+          effect: NoSchedule
+        - key: node.kubernetes.io/disk-pressure
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          # Official AMD gfx1151 build with vLLM 0.19.x — includes Qwen3_5 / Qwen3.6 arch.
+          # Older navi 0.16 image only knew Qwen2/Qwen3, not Qwen3_5ForConditionalGeneration.
+          image: rocm/vllm:rocm7.13.0_gfx1151_ubuntu24.04_py3.13_pytorch_2.10.0_vllm_0.19.1
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              # Strip k8s service-discovery vars that poison vLLM (VLLM_PORT=tcp://…).
+              for v in $(env | awk -F= '/^VLLM_/ {print $1}'); do unset "$v" || true; done
+              export HF_HOME="${HF_HOME:-/models/huggingface}"
+              export HUGGINGFACE_HUB_CACHE="${HUGGINGFACE_HUB_CACHE:-$HF_HOME}"
+              export VLLM_WORKER_MULTIPROC_METHOD=spawn
+              export VLLM_LOGGING_LEVEL=INFO
+              # Prefer new alloc conf name on recent PyTorch
+              export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
+              mkdir -p "$HF_HOME"
+              MODEL="${SERVE_MODEL:-Qwen/Qwen3.6-27B}"
+              DTYPE="${SERVE_DTYPE:-bfloat16}"
+              MAX_LEN="${SERVE_MAX_MODEL_LEN:-65536}"
+              GPU_UTIL="${SERVE_GPU_MEMORY_UTILIZATION:-0.90}"
+              PORT_NUM="${SERVE_PORT:-8000}"
+              # OpenCode sends tool_choice=auto — requires both flags (qwen3_xml for Qwen3.5/3.6).
+              TOOL_PARSER="${SERVE_TOOL_CALL_PARSER:-qwen3_xml}"
+              echo "Starting vLLM model=${MODEL} dtype=${DTYPE} max_len=${MAX_LEN} tool_parser=${TOOL_PARSER}"
+              EXTRA=(--enable-auto-tool-choice --tool-call-parser "${TOOL_PARSER}")
+              if command -v vllm >/dev/null 2>&1; then
+                exec vllm serve "${MODEL}" \
+                  --host 0.0.0.0 \
+                  --port "${PORT_NUM}" \
+                  --dtype "${DTYPE}" \
+                  --max-model-len "${MAX_LEN}" \
+                  --gpu-memory-utilization "${GPU_UTIL}" \
+                  --enforce-eager \
+                  --trust-remote-code \
+                  "${EXTRA[@]}"
+              fi
+              exec python3 -m vllm.entrypoints.openai.api_server \
+                --host 0.0.0.0 \
+                --port "${PORT_NUM}" \
+                --model "${MODEL}" \
+                --dtype "${DTYPE}" \
+                --max-model-len "${MAX_LEN}" \
+                --gpu-memory-utilization "${GPU_UTIL}" \
+                --enforce-eager \
+                --trust-remote-code \
+                "${EXTRA[@]}"
+          env:
+            # Do not use VLLM_* names for our config (reserved / poisoned by Service links).
+            # Qwen/Qwen3.6-27B is public on HF (architecture Qwen3_5ForConditionalGeneration).
+            - name: SERVE_MODEL
+              value: Qwen/Qwen3.6-27B
+            - name: SERVE_DTYPE
+              value: bfloat16
+            - name: SERVE_MAX_MODEL_LEN
+              value: "65536"
+            - name: SERVE_GPU_MEMORY_UTILIZATION
+              value: "0.90"
+            - name: SERVE_PORT
+              value: "8000"
+            # Alternatives: hermes, qwen3_coder (see vllm/tool_parsers/)
+            - name: SERVE_TOOL_CALL_PARSER
+              value: qwen3_xml
+            - name: HF_HOME
+              value: /models/huggingface
+            - name: HSA_OVERRIDE_GFX_VERSION
+              value: "11.5.1"
+            - name: HSA_ENABLE_SDMA
+              value: "0"
+            - name: HIP_VISIBLE_DEVICES
+              value: "0"
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            requests:
+              cpu: "8"
+              memory: 16Gi
+              amd.com/gpu: 1
+            limits:
+              cpu: "28"
+              memory: 28Gi
+              amd.com/gpu: 1
+          startupProbe:
+            httpGet:
+              path: /v1/models
+              port: http
+            periodSeconds: 30
+            failureThreshold: 240
+          readinessProbe:
+            httpGet:
+              path: /v1/models
+              port: http
+            periodSeconds: 15
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /v1/models
+              port: http
+            periodSeconds: 60
+            failureThreshold: 5
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: dri
+              mountPath: /dev/dri
+            - name: kfd
+              mountPath: /dev/kfd
+            - name: tmp
+              mountPath: /tmp
+            - name: shm
+              mountPath: /dev/shm
+          securityContext:
+            privileged: true
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: llm-models
+        - name: dri
+          hostPath:
+            path: /dev/dri
+        - name: kfd
+          hostPath:
+            path: /dev/kfd
+            type: CharDevice
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Gi
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+---
+# Name deliberately not "vllm" (see header comment).
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-openai
+  namespace: ai-inference
+  labels:
+    app: vllm
+spec:
+  selector:
+    app: vllm
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
