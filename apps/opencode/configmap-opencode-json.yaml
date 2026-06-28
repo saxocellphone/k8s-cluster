@@ -9,11 +9,27 @@ data:
   opencode.json.tmpl: |
     {
       "$schema": "https://opencode.ai/config.json",
-      "model": "hipfire/qwen3.5-27b.mq6",
+      "model": "qwen-full/qwen-qwen2.5-27b-instruct",
       "provider": {
+        "qwen-full": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Qwen BF16 (Transformers/ROCm)",
+          "options": {
+            "baseURL": "http://qwen-full.ai-inference.svc.cluster.local:8000/v1"
+          },
+          "models": {
+            "qwen-qwen2.5-27b-instruct": {
+              "name": "Qwen2.5-27B-Instruct BF16",
+              "limit": {
+                "context": 8192,
+                "output": 2048
+              }
+            }
+          }
+        },
         "hipfire": {
           "npm": "@ai-sdk/openai-compatible",
-          "name": "HIPFire",
+          "name": "HIPFire (MQ quant)",
           "options": {
             "baseURL": "http://hipfire.ai-inference.svc.cluster.local:11435/v1"
           },
@@ -26,7 +42,7 @@ data:
               }
             },
             "qwen3.6-27b.mq4": {
-              "name": "qwen3.6-27b.mq4 (fallback if still loaded)",
+              "name": "qwen3.6-27b.mq4",
               "limit": {
                 "context": 32768,
                 "output": 4096
@@ -36,6 +52,7 @@ data:
         }
       },
       "mcp": {
+
         "github-app": {
           "type": "remote",
           "enabled": true,

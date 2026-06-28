@@ -9,7 +9,9 @@ resources:
   - llm-pvc.yaml
   - hipfire-deployment.yaml
   - hipfire-service.yaml
+  - qwen-full-deployment.yaml
   - open-webui-pvc.yaml
+
   - open-webui-deployment.yaml
   - open-webui-service.yaml
   - comfyui-pvc.yaml
@@ -26,7 +28,13 @@ configMapGenerator:
       - hipfire-serve.sh
     options:
       defaultMode: 0755
+  - name: qwen-full-serve-script
+    files:
+      - qwen-full-serve.sh
+    options:
+      defaultMode: 0755
 
 generatorOptions:
   disableNameSuffixHash: true
+
 

@@ -7,5 +7,6 @@ spec:
   accessModes: ["ReadWriteOnce"]
   storageClassName: longhorn
   resources:
+    # HIPFire MQ weights + optional HF BF16 27B (~55–70Gi) + cache.
     requests:
-      storage: 220Gi
+      storage: 400Gi

@@ -1,0 +1,129 @@
+# Full BF16 Qwen via Transformers+ROCm (not HIPFire MQ*). Needs ~55–70GiB UMA FB + disk.
+# Scale hipfire to 0 first (exclusive GPU). PVC must have ~80Gi+ free (expand llm-models).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qwen-full
+  namespace: ai-inference
+  labels:
+    app: qwen-full
+  annotations:
+    checkov.io/skip1: CKV_K8S_22=Model cache and HF downloads need writable volumes.
+    checkov.io/skip2: CKV_K8S_40=ROCm/pytorch images typically run as root.
+    checkov.io/skip3: CKV_K8S_43=ROCm image is tag-pinned.
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qwen-full
+  template:
+    metadata:
+      labels:
+        app: qwen-full
+    spec:
+      nodeSelector:
+        accelerator: amd-strix-halo
+      tolerations:
+        - key: accelerator
+          operator: Equal
+          value: amd-strix-halo
+          effect: NoSchedule
+      # Prefer GPU alone: do not schedule if hipfire/comfy also want the GPU (operator scales).
+      containers:
+        - name: qwen-full
+          image: rocm/pytorch:rocm6.3.4_ubuntu24.04_py3.12_pytorch_release_2.4.0
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/scripts/qwen-full-serve.sh"]
+          env:
+            - name: QWEN_FULL_MODEL
+              value: Qwen/Qwen2.5-27B-Instruct
+            - name: PORT
+              value: "8000"
+            - name: HSA_OVERRIDE_GFX_VERSION
+              value: "11.5.1"
+            - name: HSA_ENABLE_SDMA
+              value: "0"
+            - name: HIP_VISIBLE_DEVICES
+              value: "0"
+            - name: HF_HOME
+              value: /models/huggingface
+            - name: MODEL_HOME
+              value: /models/qwen-full-home
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            requests:
+              cpu: "8"
+              memory: 24Gi
+              amd.com/gpu: 1
+            limits:
+              cpu: "28"
+              # OS only sees ~32Gi; most weights should land in UMA FB via ROCm.
+              memory: 30Gi
+              amd.com/gpu: 1
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 240
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 60
+            failureThreshold: 5
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: dri
+              mountPath: /dev/dri
+            - name: kfd
+              mountPath: /dev/kfd
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            privileged: true
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: llm-models
+        - name: scripts
+          configMap:
+            name: qwen-full-serve-script
+            defaultMode: 0755
+        - name: dri
+          hostPath:
+            path: /dev/dri
+        - name: kfd
+          hostPath:
+            path: /dev/kfd
+            type: CharDevice
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qwen-full
+  namespace: ai-inference
+spec:
+  selector:
+    app: qwen-full
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
