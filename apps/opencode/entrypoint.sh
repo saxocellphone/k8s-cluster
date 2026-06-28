@@ -61,9 +61,26 @@ command -v kubectl >/dev/null && kubectl version --client=true || true
 command -v docker >/dev/null && docker version --format '{{.Client.Version}}' || true
 
 cd /workspace
+# Headless: opencode web tries xdg-open → ENOENT noise / flaky startup in k8s.
+export BROWSER="${BROWSER:-/bin/true}"
+mkdir -p /usr/local/bin
+if [[ ! -x /usr/local/bin/xdg-open ]]; then
+  printf '%s\n' '#!/bin/sh' 'exit 0' >/usr/local/bin/xdg-open
+  chmod 0755 /usr/local/bin/xdg-open
+fi
+
+# Advertise remote URLs in logs; clients must not use pod localhost from laptops.
+echo "OpenCode remote attach (Basic auth OPENCODE_SERVER_USERNAME/PASSWORD):" >&2
+echo "  opencode attach https://opencode.victornazzaro.com -u \"\$OPENCODE_SERVER_USERNAME\" -p \"\$OPENCODE_SERVER_PASSWORD\"" >&2
+echo "  opencode attach http://opencode.k8s.home -u \"\$OPENCODE_SERVER_USERNAME\" -p \"\$OPENCODE_SERVER_PASSWORD\"" >&2
+echo "  browser: https://opencode.victornazzaro.com or http://opencode.k8s.home" >&2
+
 exec opencode web \
   --hostname 0.0.0.0 \
   --port 4096 \
   --cors https://opencode.victornazzaro.com \
+  --cors http://opencode.k8s.home \
   --cors http://localhost:5173 \
-  --cors http://127.0.0.1:5173
+  --cors http://127.0.0.1:5173 \
+  --cors http://localhost:4096 \
+  --cors http://127.0.0.1:4096

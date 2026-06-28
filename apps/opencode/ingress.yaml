@@ -1,7 +1,7 @@
-# Public hostname via CF tunnel (DNS + wildcard → ingress-nginx).
+# Public + LAN hostnames via CF tunnel / LAN DNS → ingress-nginx.
 # App auth is OpenCode HTTP Basic (OPENCODE_SERVER_PASSWORD) — works with
 # `opencode attach -u … -p …` and browsers. Cloudflare Access is NOT used on
-# this host (Access HTML breaks API clients; see PR for details).
+# these hosts (Access HTML breaks API clients).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -12,10 +12,26 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # Long-lived HTTP/WebSocket for attach / web UI
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
 spec:
   ingressClassName: nginx
   rules:
     - host: opencode.victornazzaro.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opencode
+                port:
+                  number: 4096
+    # LAN / split-DNS (same pattern as hipfire.k8s.home, chat.k8s.home)
+    - host: opencode.k8s.home
       http:
         paths:
           - path: /
