@@ -41,14 +41,15 @@ spec:
               value: "false"
             - name: ENABLE_OPENAI_API
               value: "true"
+            # Point at whatever GPU backend is up (vLLM now; hipfire when that mode is on).
             - name: OPENAI_API_BASE_URL
-              value: http://hipfire.ai-inference.svc.cluster.local:11435/v1
+              value: http://vllm-openai.ai-inference.svc.cluster.local:8000/v1
             - name: OPENAI_API_KEY
-              value: sk-local-hipfire
+              value: sk-local-vllm
             - name: ENABLE_PERSISTENT_CONFIG
               value: "false"
             - name: WEBUI_NAME
-              value: Homelab HIPFire
+              value: Homelab vLLM
             - name: SCARF_NO_ANALYTICS
               value: "true"
             - name: DO_NOT_TRACK
