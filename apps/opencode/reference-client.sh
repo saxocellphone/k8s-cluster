@@ -3,7 +3,10 @@
 # Auth: OpenCode HTTP Basic (OPENCODE_SERVER_USERNAME / OPENCODE_SERVER_PASSWORD).
 #
 # Browser: https://opencode.victornazzaro.com (basic auth prompt)
-# CLI:     opencode attach https://opencode.victornazzaro.com -u opencode -p '…'
+# CLI:     ./scripts/opencode-attach.sh
+#      or: opencode attach https://opencode.victornazzaro.com -u opencode -p '…'
+# LAN:     OPENCODE_URL=http://opencode.k8s.home ./scripts/opencode-attach.sh
+# Do NOT use http://localhost:4096 on your laptop — that only works inside the pod.
 #
 #   export OPENCODE_URL=https://opencode.victornazzaro.com
 #   export OPENCODE_USER=opencode

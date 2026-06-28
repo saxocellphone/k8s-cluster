@@ -38,12 +38,26 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # Cluster LLM
+    # Cluster LLM backends (vllm-openai :8000, qwen-full :8000, hipfire :11435, legacy :8080)
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ai-inference
       ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 11435
+    # GitHub App MCP (PR write path) in openclaw namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openclaw
+      ports:
+        - protocol: TCP
+          port: 80
         - protocol: TCP
           port: 8080
     # External HTTPS (LLM APIs, GitHub, registries, apt, etc.)
