@@ -16,7 +16,9 @@ metadata:
     checkov.io/skip2: CKV_K8S_40=ROCm device nodes typically need privileged/root.
     checkov.io/skip3: CKV_K8S_43=Community image is tag-pinned (stable).
 spec:
-  replicas: 0
+  # Default on; scale to 0 when using hipfire/comfy/qwen-full (exclusive GPU).
+  # Argo selfHeal resets kubectl scale unless this is 1 in git (or ignoreDifferences).
+  replicas: 1
   strategy:
     type: Recreate
   selector:
