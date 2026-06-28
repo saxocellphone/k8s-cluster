@@ -7,14 +7,20 @@ export HOME="${HOME:-/workspace/.home}"
 export PATH="/tools/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 
-# Idempotent package install (image is minimal Ubuntu; first start is slower).
+# Persist apt marker on the workspace PVC — emptyDir was wiped every pod restart,
+# so apt-get ran for minutes while clients saw "Unable to connect" / CORS failures.
+PKG_MARK="${HOME}/.opencode-sandbox-pkgs-ok"
 need_pkgs=0
 command -v git >/dev/null 2>&1 || need_pkgs=1
-command -v git-remote-https >/dev/null 2>&1 || need_pkgs=1
+# git-remote-https is required for https:// remotes
+if ! git remote-https >/dev/null 2>&1 && [[ ! -x "$(git --exec-path 2>/dev/null)/git-remote-https" ]]; then
+  need_pkgs=1
+fi
 command -v ssh >/dev/null 2>&1 || need_pkgs=1
 command -v curl >/dev/null 2>&1 || need_pkgs=1
-if [[ "$need_pkgs" -eq 1 ]] || [[ ! -f /var/lib/opencode-sandbox/.pkgs-ok ]]; then
+if [[ "$need_pkgs" -eq 1 ]] || [[ ! -f "$PKG_MARK" ]]; then
   apt-get update -qq
+  # Keep lean — no build-essential (slow + unnecessary for web server).
   apt-get install -y -qq --no-install-recommends \
     ca-certificates \
     curl \
@@ -22,12 +28,10 @@ if [[ "$need_pkgs" -eq 1 ]] || [[ ! -f /var/lib/opencode-sandbox/.pkgs-ok ]]; th
     openssh-client \
     less \
     jq \
-    python3 \
-    build-essential \
-    pkg-config
+    python3
   update-ca-certificates || true
-  mkdir -p /var/lib/opencode-sandbox
-  touch /var/lib/opencode-sandbox/.pkgs-ok
+  mkdir -p "$(dirname "$PKG_MARK")"
+  touch "$PKG_MARK"
 fi
 
 # OpenCode CLI (pinned). Prefer tools volume (seeded by init) then install to /usr/local/bin.
@@ -42,7 +46,6 @@ elif ! command -v opencode >/dev/null 2>&1 || ! opencode --version 2>/dev/null |
     *) asset="opencode-linux-x64.tar.gz" ;;
   esac
   tmp="$(mktemp -d)"
-  # Official install script; fallback to GitHub release tarball naming used by anomalyco/opencode.
   if curl -fsSL "https://opencode.ai/install" | bash -s -- --version "$OPENCODE_VER" 2>/dev/null; then
     :
   else
@@ -54,32 +57,34 @@ elif ! command -v opencode >/dev/null 2>&1 || ! opencode --version 2>/dev/null |
   rm -rf "$tmp"
 fi
 
-# Smoke: HTTPS git must work (was broken with lone alpine `git` binary).
 git --version
 git remote-https 2>/dev/null || test -x "$(git --exec-path)/git-remote-https"
 command -v kubectl >/dev/null && kubectl version --client=true || true
 command -v docker >/dev/null && docker version --format '{{.Client.Version}}' || true
 
 cd /workspace
-# Headless: opencode web tries xdg-open → ENOENT noise / flaky startup in k8s.
+
+# Headless: opencode web tries xdg-open (ENOENT) in k8s.
 export BROWSER="${BROWSER:-/bin/true}"
-mkdir -p /usr/local/bin
 if [[ ! -x /usr/local/bin/xdg-open ]]; then
   printf '%s\n' '#!/bin/sh' 'exit 0' >/usr/local/bin/xdg-open
   chmod 0755 /usr/local/bin/xdg-open
 fi
 
-# Advertise remote URLs in logs; clients must not use pod localhost from laptops.
-echo "OpenCode remote attach (Basic auth OPENCODE_SERVER_USERNAME/PASSWORD):" >&2
-echo "  opencode attach https://opencode.victornazzaro.com -u \"\$OPENCODE_SERVER_USERNAME\" -p \"\$OPENCODE_SERVER_PASSWORD\"" >&2
-echo "  opencode attach http://opencode.k8s.home -u \"\$OPENCODE_SERVER_USERNAME\" -p \"\$OPENCODE_SERVER_PASSWORD\"" >&2
-echo "  browser: https://opencode.victornazzaro.com or http://opencode.k8s.home" >&2
+echo "OpenCode remote (Basic auth OPENCODE_SERVER_USERNAME / OPENCODE_SERVER_PASSWORD):" >&2
+echo "  Desktop: connect to https://opencode.victornazzaro.com with username/password" >&2
+echo "  CLI:     ./scripts/opencode-attach.sh" >&2
+echo "  LAN:     http://opencode.k8s.home (DNS → ingress LB)" >&2
+echo "  Do not use localhost:4096 on your laptop." >&2
 
+# oc://renderer = OpenCode Desktop app origin (CORS for remote server)
 exec opencode web \
   --hostname 0.0.0.0 \
   --port 4096 \
   --cors https://opencode.victornazzaro.com \
   --cors http://opencode.k8s.home \
+  --cors oc://renderer \
+  --cors oc://opencode \
   --cors http://localhost:5173 \
   --cors http://127.0.0.1:5173 \
   --cors http://localhost:4096 \
