@@ -13,9 +13,12 @@ tls: ingress
 certmanager:
   version: v1.20.2
 
+# Rancher regularly climbs past 1.5–1.7Gi and was OOMKilled under a 2Gi limit
+# (3 restarts / 14d; last OOM 2026-06-29). Give it headroom for informer caches
+# and UI subscribe websockets on this ~5-node local cluster.
 resources:
   requests:
-    cpu: 250m
-    memory: 512Mi
+    cpu: 500m
+    memory: 1536Mi
   limits:
-    memory: 2Gi
+    memory: 4Gi
