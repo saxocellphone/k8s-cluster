@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pomodoro
+  namespace: pomodoro
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: pomodoro.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pomodoro
+                port:
+                  number: 80
