@@ -1,0 +1,18 @@
+# Bare-repo storage for the platform git service (smart-HTTP + receive hooks).
+# RWO by design: single git-service pod in the dev profile. The consuming
+# Deployment (added when the service exists) must carry the iscsi-tools
+# nodeSelector like every other Longhorn consumer in this cluster.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: maas-git-storage
+  namespace: maas-dev
+  labels:
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi

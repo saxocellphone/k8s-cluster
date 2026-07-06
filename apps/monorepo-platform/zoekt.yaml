@@ -1,0 +1,114 @@
+# Zoekt code-search webserver (agent orientation + search_code for the
+# monorepo platform). Serves an empty index until the platform git service
+# lands; the indexserver sidecar joins in the same pod at that point (shared
+# RWO index volume — hence strategy: Recreate).
+# Image: unified ghcr.io/sourcegraph/zoekt (defaults to zoekt-webserver on
+# /data/index, port 6070).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zoekt-index
+  namespace: maas-dev
+  labels:
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zoekt
+  namespace: maas-dev
+  labels:
+    app: zoekt
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: zoekt
+  template:
+    metadata:
+      labels:
+        app: zoekt
+      annotations:
+        reloader.stakater.com/auto: "true"
+    spec:
+      nodeSelector:
+        extensions.talos.dev/iscsi-tools: v0.2.0
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65534
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: webserver
+          image: ghcr.io/sourcegraph/zoekt:0.0.0-20260622122048-f80c7e09ab9d
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 6070
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: index
+              mountPath: /data/index
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: zoekt-index
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zoekt
+  namespace: maas-dev
+  labels:
+    app: zoekt
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: zoekt
+  ports:
+    - name: http
+      port: 6070
+      targetPort: http
+      protocol: TCP
