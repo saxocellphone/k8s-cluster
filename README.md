@@ -161,6 +161,7 @@ SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
 | gaming | Docker-in-Docker sandbox for game servers |
 | cloudflared | Cloudflare Tunnel exposing select services externally behind CF Access |
 | terraform-state | MinIO (S3-compatible) backend for Terraform state |
+| monorepo-platform | Dev substrate for the monorepo platform (`maas-dev`): dedicated CNPG Postgres, Zoekt code search, git-storage PVC, ghcr pull secret |
 | amd-gpu-device-plugin | Advertises AMD GPUs to the scheduler for the inference workloads |
 
 ### Infrastructure (`infrastructure/`, Helm)
