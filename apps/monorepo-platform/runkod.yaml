@@ -1,0 +1,189 @@
+# runkod - the Runko write-path daemon (smart-HTTP git + pre-receive
+# funnel + REST API + webhook outbox), image built by
+# saxocellphone/Runko's release-images workflow.
+#
+# One pod, two containers, strategy Recreate - forced by storage, not
+# taste: both PVCs are Longhorn RWO, and runkod's index worker
+# (zoekt-git-index on trunk advance) writes the same shard directory
+# zoekt-webserver serves, so indexer and webserver must share a node and
+# a volume. zoekt-git-index inside the runkod image is pinned to the same
+# zoekt build as the webserver image below (shard-format compatibility).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runkod
+  namespace: maas-dev
+  labels:
+    app: runkod
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: runkod
+  template:
+    metadata:
+      labels:
+        app: runkod
+      annotations:
+        reloader.stakater.com/auto: "true"
+    spec:
+      nodeSelector:
+        extensions.talos.dev/iscsi-tools: v0.2.0
+      imagePullSecrets:
+        - name: ghcr-pull
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: runkod
+          image: ghcr.io/saxocellphone/runko/runkod:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: RUNKO_REPO_DIR
+              value: /data/git/monorepo.git
+            - name: RUNKO_ADDR
+              value: 0.0.0.0:8080
+            - name: RUNKO_TRUNK
+              value: main
+            - name: RUNKO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_TOKEN
+            # CNPG auto-generated app credentials (postgres.yaml).
+            - name: RUNKO_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: maas-postgres-app
+                  key: uri
+            - name: RUNKO_SEARCH_URL
+              value: http://127.0.0.1:6070
+            - name: RUNKO_ZOEKT_INDEX_DIR
+              value: /data/zoekt-index
+            # Dev posture: nothing in the cluster reports checks yet, so a
+            # policy-less change may land (loud opt-out, docs/design.md
+            # §28.3 stage 11c). Drop this once runko-ci runs somewhere
+            # (e.g. apps/actions-runner) and posts checks back.
+            - name: RUNKO_INSECURE_ALLOW_UNPOLICED_LAND
+              value: "true"
+            # git wants a HOME; point it at the writable volume root.
+            - name: HOME
+              value: /data
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: git-storage
+              mountPath: /data/git
+            - name: zoekt-index
+              mountPath: /data/zoekt-index
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+        # Same-pod zoekt-webserver reading the shards runkod writes. The
+        # standalone zoekt Deployment this replaces must be deleted by
+        # hand (Applications here are prune: false):
+        #   kubectl -n maas-dev delete deployment zoekt; kubectl -n maas-dev delete service zoekt
+        - name: zoekt-webserver
+          image: ghcr.io/sourcegraph/zoekt:0.0.0-20260622122048-f80c7e09ab9d
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: zoekt
+              containerPort: 6070
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: zoekt
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: zoekt
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: zoekt-index
+              mountPath: /data/index
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: git-storage
+          persistentVolumeClaim:
+            claimName: maas-git-storage
+        - name: zoekt-index
+          persistentVolumeClaim:
+            claimName: zoekt-index
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: runkod
+  namespace: maas-dev
+  labels:
+    app: runkod
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: runkod
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

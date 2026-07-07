@@ -1,0 +1,76 @@
+# One host, path-routed: API + git smart-HTTP to runkod, everything else
+# to the web UI. Single-origin on purpose - when the web UI's Connect
+# backend lands, browser calls stay same-origin (no CORS). Two Ingress
+# objects because the git/API paths need streaming annotations
+# (unbuffered, unlimited body for `git push`) that must not apply to the
+# static site.
+#
+# Git remote for humans/agents:
+#   git clone http://user:<RUNKO_TOKEN>@runko.k8s.home/monorepo.git
+# CLI: runko change land --runkod-url http://runko.k8s.home --token <t>
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: runkod
+  namespace: maas-dev
+  labels:
+    app.kubernetes.io/part-of: monorepo-platform
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: runko.k8s.home
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /monorepo.git
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /readyz
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: runko-web
+  namespace: maas-dev
+  labels:
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: runko.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-web
+                port:
+                  number: 80

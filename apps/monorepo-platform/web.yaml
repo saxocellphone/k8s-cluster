@@ -1,0 +1,79 @@
+# Runko web UI (stage 13 frontend). Currently ships in DEMO MODE (in-
+# memory fixture data, labeled in its own sidebar): the Connect server
+# half doesn't exist in runkod yet, and VITE_RUNKO_URL is a build-time
+# Vite var - once the server half lands, rebuild the image with it set
+# (or same-origin routing) and this Deployment lights up unchanged.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runko-web
+  namespace: maas-dev
+  labels:
+    app: runko-web
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: runko-web
+  template:
+    metadata:
+      labels:
+        app: runko-web
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: ghcr.io/saxocellphone/runko/web:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: runko-web
+  namespace: maas-dev
+  labels:
+    app: runko-web
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: runko-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

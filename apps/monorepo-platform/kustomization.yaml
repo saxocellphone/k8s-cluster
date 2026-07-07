@@ -6,6 +6,9 @@ resources:
   - postgres.yaml
   - git-storage-pvc.yaml
   - zoekt.yaml
+  - runkod.yaml
+  - web.yaml
+  - ingress.yaml
 
 generators:
   - ghcr-pull-secret-generator.yaml
