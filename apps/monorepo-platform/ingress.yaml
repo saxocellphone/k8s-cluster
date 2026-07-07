@@ -1,12 +1,17 @@
-# One host, path-routed: API + git smart-HTTP to runkod, everything else
-# to the web UI. Single-origin on purpose - when the web UI's Connect
-# backend lands, browser calls stay same-origin (no CORS). Two Ingress
-# objects because the git/API paths need streaming annotations
-# (unbuffered, unlimited body for `git push`) that must not apply to the
-# static site.
+# Two hosts (LAN + public via CF tunnel, the opencode/memos pattern),
+# path-routed: API + git smart-HTTP to runkod, everything else to the web
+# UI. Single-origin on purpose - when the web UI's Connect backend lands,
+# browser calls stay same-origin (no CORS). Two Ingress objects because
+# the git/API paths need streaming annotations (unbuffered, unlimited
+# body for `git push`) that must not apply to the static site.
+#
+# Public host: Cloudflare Access is NOT used (API/git clients break on
+# Access HTML, same reasoning as opencode) - runkod's own deploy-token
+# auth gates every API/git path; only the demo web UI is truly anonymous.
 #
 # Git remote for humans/agents:
 #   git clone http://user:<RUNKO_TOKEN>@runko.k8s.home/monorepo.git
+#   git clone https://user:<RUNKO_TOKEN>@runko.victornazzaro.com/monorepo.git
 # CLI: runko change land --runkod-url http://runko.k8s.home --token <t>
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -53,6 +58,30 @@ spec:
                 name: runkod
                 port:
                   number: 8080
+    - host: runko.victornazzaro.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /monorepo.git
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -65,6 +94,16 @@ spec:
   ingressClassName: nginx
   rules:
     - host: runko.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-web
+                port:
+                  number: 80
+    - host: runko.victornazzaro.com
       http:
         paths:
           - path: /
