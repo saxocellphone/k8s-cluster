@@ -1,8 +1,11 @@
-# Runko web UI (stage 13 frontend). Currently ships in DEMO MODE (in-
-# memory fixture data, labeled in its own sidebar): the Connect server
-# half doesn't exist in runkod yet, and VITE_RUNKO_URL is a build-time
-# Vite var - once the server half lands, rebuild the image with it set
-# (or same-origin routing) and this Deployment lights up unchanged.
+# Runko web UI (stage 13, both halves). The image is built with
+# VITE_RUNKO_URL=/ (same-origin: ingress.yaml routes /runko.v1.* to
+# runkod, everything else here), so the UI is LIVE against runkod on
+# every host this ingress fronts; the fixture demo stays at /demo.
+# Mutating anything requires the deploy token, entered per-browser via
+# the sidebar's Set-token button (localStorage) - the public bundle
+# deliberately ships tokenless so the public host never grants anonymous
+# writes, matching ingress.yaml's auth posture.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

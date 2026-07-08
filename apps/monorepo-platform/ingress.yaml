@@ -1,7 +1,8 @@
 # Two hosts (LAN + public via CF tunnel, the opencode/memos pattern),
-# path-routed: API + git smart-HTTP to runkod, everything else to the web
-# UI. Single-origin on purpose - when the web UI's Connect backend lands,
-# browser calls stay same-origin (no CORS). Two Ingress objects because
+# path-routed: API + Connect RPC + git smart-HTTP to runkod, everything
+# else to the web UI. Single-origin on purpose - the web UI's Connect
+# calls (live since stage 13's server half) never cross origins, so no
+# CORS is involved on the deployed site. Two Ingress objects because
 # the git/API paths need streaming annotations (unbuffered, unlimited
 # body for `git push`) that must not apply to the static site.
 #
@@ -37,6 +38,20 @@ spec:
                 name: runkod
                 port:
                   number: 8080
+          # Connect RPC surface for the web UI (runkod/rpc.go, stage 13
+          # server half): every service lives under one /runko.v1.<Svc>/
+          # path prefix. ImplementationSpecific because pathType Prefix
+          # matches whole path ELEMENTS - "/runko.v1." would never match
+          # "/runko.v1.ChangeService/GetChange"; nginx treats this as a
+          # plain string-prefix location. Bearer-token gated by runkod
+          # itself, same as /api.
+          - path: /runko.v1.
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
           - path: /monorepo.git
             pathType: Prefix
             backend:
@@ -63,6 +78,13 @@ spec:
         paths:
           - path: /api
             pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: runkod
