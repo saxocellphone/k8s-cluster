@@ -39,14 +39,43 @@ spec:
                 port:
                   number: 8080
           # Connect RPC surface for the web UI (runkod/rpc.go, stage 13
-          # server half): every service lives under one /runko.v1.<Svc>/
-          # path prefix. ImplementationSpecific because pathType Prefix
-          # matches whole path ELEMENTS - "/runko.v1." would never match
-          # "/runko.v1.ChangeService/GetChange"; nginx treats this as a
-          # plain string-prefix location. Bearer-token gated by runkod
-          # itself, same as /api.
-          - path: /runko.v1.
-            pathType: ImplementationSpecific
+          # server half): one Prefix path per service - pathType Prefix
+          # matches whole path elements, so /runko.v1.ChangeService
+          # matches /runko.v1.ChangeService/GetChange exactly as needed.
+          # (A single ImplementationSpecific "/runko.v1." dot-path looked
+          # cleaner but this controller build did not route it - verified
+          # empirically: RPCs fell through to the web catch-all.)
+          # Bearer-token gated by runkod itself, same as /api.
+          - path: /runko.v1.ChangeService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.ProjectService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.WorkspaceService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.SearchService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.RepoService
+            pathType: Prefix
             backend:
               service:
                 name: runkod
@@ -83,8 +112,36 @@ spec:
                 name: runkod
                 port:
                   number: 8080
-          - path: /runko.v1.
-            pathType: ImplementationSpecific
+          - path: /runko.v1.ChangeService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.ProjectService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.WorkspaceService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.SearchService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.RepoService
+            pathType: Prefix
             backend:
               service:
                 name: runkod
