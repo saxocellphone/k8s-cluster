@@ -10,8 +10,10 @@
 # just 502s; the production UI at runko.k8s.home is unaffected.
 #
 # Also exposed through the CF tunnel as runko-dev.victornazzaro.com -
-# EXPLICIT owner decision (2026-07-08), accepting that a dev server
-# (unminified source, HMR endpoint) is publicly reachable while it runs.
+# EXPLICIT owner decision (2026-07-08), guarded by a Cloudflare Access
+# policy on that hostname (dashboard-managed, like the tunnel routes).
+# Access stays OFF the prod host (runko.victornazzaro.com): its HTML
+# challenge breaks git/API clients, and runkod has its own token auth.
 apiVersion: v1
 kind: Service
 metadata:
