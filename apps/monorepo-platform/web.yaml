@@ -21,8 +21,6 @@ spec:
       labels:
         app: runko-web
     spec:
-      imagePullSecrets:
-        - name: ghcr-pull
       automountServiceAccountToken: false
       securityContext:
         seccompProfile:

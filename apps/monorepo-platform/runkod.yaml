@@ -32,8 +32,10 @@ spec:
     spec:
       nodeSelector:
         extensions.talos.dev/iscsi-tools: v0.2.0
-      imagePullSecrets:
-        - name: ghcr-pull
+      # No imagePullSecrets: the ghcr.io/saxocellphone/runko/* packages are
+      # public. The scaffold's ghcr-pull secret is a placeholder whose
+      # malformed dockerconfigjson makes kubelet fail the pod BEFORE even
+      # attempting a pull - do not reference it unless it holds a real PAT.
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 65532
