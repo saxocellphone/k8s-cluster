@@ -102,6 +102,13 @@ spec:
                 name: runkod
                 port:
                   number: 8080
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
     - host: runko.victornazzaro.com
       http:
         paths:
@@ -155,6 +162,24 @@ spec:
                 port:
                   number: 8080
           - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          # /readyz and /metrics were missing here (2026-07-08 dogfood
+          # review): the SPA catch-all answered 200 HTML on them, so any
+          # readiness/monitoring probe through this host lied - it passed
+          # with the daemon or Postgres down.
+          - path: /readyz
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /metrics
             pathType: Exact
             backend:
               service:
