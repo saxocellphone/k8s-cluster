@@ -89,6 +89,15 @@ spec:
             # (e.g. apps/actions-runner) and posts checks back.
             - name: RUNKO_INSECURE_ALLOW_UNPOLICED_LAND
               value: "true"
+            # Self-service sign-up (§15.1): on, gated by the invite code
+            # in the runkod-signup SOPS secret.
+            - name: RUNKO_ALLOW_SIGNUP
+              value: "true"
+            - name: RUNKO_SIGNUP_CODE
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-signup
+                  key: RUNKO_SIGNUP_CODE
             # git wants a HOME; point it at the writable volume root.
             - name: HOME
               value: /data
