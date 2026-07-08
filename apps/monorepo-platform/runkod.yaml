@@ -62,6 +62,17 @@ spec:
                 secretKeyRef:
                   name: runkod-env
                   key: RUNKO_TOKEN
+            # Named principals (§15.1 interim registry): '|'-separated
+            # 'name=<n>;token=<pw>[;agent]' entries. A principal's token
+            # doubles as the Basic-auth password for the web UI sign-in
+            # (runkod/auth.go). Optional: the daemon runs without any, but
+            # then only the anonymous deploy token can sign in.
+            - name: RUNKO_PRINCIPALS
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_PRINCIPALS
+                  optional: true
             # CNPG auto-generated app credentials (postgres.yaml).
             - name: RUNKO_DATABASE_URL
               valueFrom:
