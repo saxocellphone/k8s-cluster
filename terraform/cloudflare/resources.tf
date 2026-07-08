@@ -384,7 +384,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         path           = null
         service        = "http://openclaw.openclaw.svc.cluster.local:18789"
       },
-                  {
+      {
         hostname       = "ai.victornazzaro.com"
         origin_request = null
         path           = null
@@ -807,4 +807,98 @@ resource "cloudflare_dns_record" "audiobooks" {
   ttl     = 1
   type    = "CNAME"
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
+}
+
+# ---- Runko (monorepo platform, maas-dev namespace) --------------------------
+# Both hosts ride the tunnel wildcard -> ingress-nginx (Host-based Ingress
+# rules live in apps/monorepo-platform/), so no per-host tunnel ingress
+# entries are needed - these explicit DNS records follow the opencode
+# pattern of naming every real service even where the zone wildcard would
+# cover it.
+
+resource "cloudflare_dns_record" "runko" {
+  # NO Access app on prod: the challenge breaks git/API clients; runkod
+  # enforces its own deploy-token auth. (CF caps comments at 100 chars.)
+  comment         = "Runko prod (web UI + runkod API/git); deliberately no Access"
+  content         = "${local.tunnel_id}.cfargotunnel.com"
+  data            = null
+  name            = "runko.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = local.zone_id
+}
+
+resource "cloudflare_dns_record" "runko_dev" {
+  comment         = "Runko dev (Vite HMR on carbon-node); Access-guarded"
+  content         = "${local.tunnel_id}.cfargotunnel.com"
+  data            = null
+  name            = "runko-dev.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = local.zone_id
+}
+
+# First-class reusable Access policy. The existing operator-email policies
+# are legacy app-embedded (see "Note on Access policies" in README.md) and
+# cannot be attached to a new application, so this is the first
+# account-level one; future apps can reference it too.
+resource "cloudflare_zero_trust_access_policy" "owner_email" {
+  account_id = local.account_id
+  name       = "Owner email allow-list (reusable)"
+  decision   = "allow"
+  include = [
+    {
+      email = {
+        email = "nazzav923@gmail.com"
+      }
+    },
+  ]
+}
+
+# Access gate for the dev server: a Vite dev host (unminified source, HMR
+# endpoint) must not be world-reachable even though exposing it through
+# the tunnel was an explicit owner decision (2026-07-08). Browser-only
+# traffic, so the Access HTML challenge costs nothing here - unlike the
+# prod host, which stays Access-free for git/API clients.
+resource "cloudflare_zero_trust_access_application" "runko_dev" {
+  account_id = local.account_id
+  name       = "Runko dev (Vite HMR)"
+  type       = "self_hosted"
+  domain     = "runko-dev.victornazzaro.com"
+  destinations = [
+    {
+      type = "public"
+      uri  = "runko-dev.victornazzaro.com"
+    },
+  ]
+  session_duration           = "24h"
+  app_launcher_visible       = true
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  http_only_cookie_attribute = true
+  options_preflight_bypass   = false
+  policies = [
+    {
+      id         = cloudflare_zero_trust_access_policy.owner_email.id
+      precedence = 1
+    },
+  ]
 }
