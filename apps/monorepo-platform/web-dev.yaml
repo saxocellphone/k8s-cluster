@@ -28,6 +28,10 @@ spec:
       targetPort: 5173
       protocol: TCP
 ---
+# NOTE: Argo CD's default resource.exclusions ignore EndpointSlice
+# entirely (control-plane churn), so Argo will neither create nor manage
+# this one - it was applied by hand and lives here as the record:
+#   kubectl apply -f apps/monorepo-platform/web-dev.yaml
 apiVersion: discovery.k8s.io/v1
 kind: EndpointSlice
 metadata:
