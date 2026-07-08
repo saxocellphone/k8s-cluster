@@ -8,6 +8,7 @@ resources:
   - zoekt.yaml
   - runkod.yaml
   - web.yaml
+  - web-dev.yaml
   - ingress.yaml
 
 generators:

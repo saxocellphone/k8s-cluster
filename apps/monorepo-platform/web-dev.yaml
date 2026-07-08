@@ -1,0 +1,71 @@
+# Dev loop for the Runko web UI: runko-dev.k8s.home proxies to a Vite dev
+# server running ON carbon-node (a cluster node, 192.168.8.140) via a
+# selectorless Service + hand-authored EndpointSlice. Start it from the
+# Runko checkout on that machine:
+#
+#   cd ~/Documents/Runko/web && npm run dev:lan
+#
+# Frontend edits then show up on save (HMR over the ingress websocket) -
+# no image build, no rollout. When the dev server isn't running the host
+# just 502s; the production UI at runko.k8s.home is unaffected.
+#
+# LAN-only ON PURPOSE: a dev server (unminified source, HMR, weaker
+# hardening) must never be exposed through the public tunnel - do not add
+# a victornazzaro.com host here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: runko-web-dev
+  namespace: maas-dev
+  labels:
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: 5173
+      targetPort: 5173
+      protocol: TCP
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: runko-web-dev-1
+  namespace: maas-dev
+  labels:
+    kubernetes.io/service-name: runko-web-dev
+    app.kubernetes.io/part-of: monorepo-platform
+addressType: IPv4
+ports:
+  - name: http
+    port: 5173
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 192.168.8.140 # carbon-node
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: runko-web-dev
+  namespace: maas-dev
+  labels:
+    app.kubernetes.io/part-of: monorepo-platform
+  annotations:
+    # HMR is a long-lived websocket.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: runko-dev.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-web-dev
+                port:
+                  number: 5173
