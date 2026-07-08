@@ -9,9 +9,9 @@
 # no image build, no rollout. When the dev server isn't running the host
 # just 502s; the production UI at runko.k8s.home is unaffected.
 #
-# LAN-only ON PURPOSE: a dev server (unminified source, HMR, weaker
-# hardening) must never be exposed through the public tunnel - do not add
-# a victornazzaro.com host here.
+# Also exposed through the CF tunnel as runko-dev.victornazzaro.com -
+# EXPLICIT owner decision (2026-07-08), accepting that a dev server
+# (unminified source, HMR endpoint) is publicly reachable while it runs.
 apiVersion: v1
 kind: Service
 metadata:
@@ -64,6 +64,16 @@ spec:
   ingressClassName: nginx
   rules:
     - host: runko-dev.k8s.home
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-web-dev
+                port:
+                  number: 5173
+    - host: runko-dev.victornazzaro.com
       http:
         paths:
           - path: /
