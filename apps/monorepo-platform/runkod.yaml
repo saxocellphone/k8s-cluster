@@ -73,6 +73,30 @@ spec:
                   name: runkod-env
                   key: RUNKO_PRINCIPALS
                   optional: true
+            # Outbound mirror (docs/mirror.md, M1 - 2026-07-08): all three
+            # optional; the daemon runs mirror-less until the keys exist.
+            # REMOTE/USERNAME are not secrets but live in the same SOPS
+            # file so enabling the mirror is one edit. GitHub needs only
+            # REMOTE + TOKEN (username defaults to x-access-token); GitLab
+            # sets USERNAME=oauth2, Gitea any non-empty string.
+            - name: RUNKO_MIRROR_REMOTE
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_MIRROR_REMOTE
+                  optional: true
+            - name: RUNKO_MIRROR_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_MIRROR_USERNAME
+                  optional: true
+            - name: RUNKO_MIRROR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_MIRROR_TOKEN
+                  optional: true
             # CNPG auto-generated app credentials (postgres.yaml).
             - name: RUNKO_DATABASE_URL
               valueFrom:
