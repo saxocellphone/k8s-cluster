@@ -97,6 +97,27 @@ spec:
                   name: runkod-env
                   key: RUNKO_MIRROR_TOKEN
                   optional: true
+            # Per-org outbound mirror (self-host R6): the 'runko' org's
+            # repo mirrors to GitHub. Optional like the default-org
+            # mirror trio above; the value (incl. its PAT) lives in the
+            # SOPS secret.
+            - name: RUNKO_ORG_MIRRORS
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_ORG_MIRRORS
+                  optional: true
+            # Webhook outbox -> runko-bridge (in-cluster; see
+            # runko-bridge.yaml) -> GitHub repository_dispatch, so Actions
+            # runs pre-land checks on change refs.
+            - name: RUNKO_WEBHOOK_URL
+              value: http://runko-bridge:8081/webhook
+            - name: RUNKO_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_WEBHOOK_SECRET
+                  optional: true
             # CNPG auto-generated app credentials (postgres.yaml).
             - name: RUNKO_DATABASE_URL
               valueFrom:
