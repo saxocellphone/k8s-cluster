@@ -132,8 +132,12 @@ spec:
             # policy-less change may land (loud opt-out, docs/design.md
             # §28.3 stage 11c). Drop this once runko-ci runs somewhere
             # (e.g. apps/actions-runner) and posts checks back.
-            - name: RUNKO_INSECURE_ALLOW_UNPOLICED_LAND
-              value: "true"
+            # RUNKO_INSECURE_ALLOW_UNPOLICED_LAND was removed 2026-07-09
+            # right after the self-host cutover: the runko org's manifests
+            # declare ci.checks, so real policy exists and the default-deny
+            # gate is back on (Runko docs/migration-findings.md #25). The
+            # import bootstrap for any FUTURE org import uses the operator
+            # principal's force-land instead.
             # Self-service sign-up (§15.1): on, gated by the invite code
             # in the runkod-signup SOPS secret.
             - name: RUNKO_ALLOW_SIGNUP
