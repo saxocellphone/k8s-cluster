@@ -25,6 +25,14 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
     nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # Hug-of-death brake for the public read-only surface (runkod is a
+    # single-replica pod; anonymous clone = server-side pack generation).
+    # Behind the CF tunnel nginx sees few distinct client IPs, so these
+    # act as a rough GLOBAL ceiling rather than per-visitor fairness -
+    # that is the intent: protect the pod, degrade politely (503s from
+    # nginx, not a crashed daemon). Burst = 5x rps (controller default).
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-connections: "30"
 spec:
   ingressClassName: nginx
   rules:
