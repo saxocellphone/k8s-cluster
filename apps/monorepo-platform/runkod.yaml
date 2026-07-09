@@ -122,6 +122,11 @@ spec:
                 secretKeyRef:
                   name: runkod-signup
                   key: RUNKO_SIGNUP_CODE
+            # Multi-org (§7.1): signed-in accounts may create orgs, each
+            # owning its own repo under /data/git/orgs (same PVC as the
+            # default repo), served at /o/<name>/.
+            - name: RUNKO_ALLOW_ORG_CREATE
+              value: "true"
             # git wants a HOME; point it at the writable volume root.
             - name: HOME
               value: /data

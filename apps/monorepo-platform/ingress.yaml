@@ -88,6 +88,16 @@ spec:
                 name: runkod
                 port:
                   number: 8080
+          # Multi-org (runkod/orghub.go): every org's whole surface -
+          # git smart-HTTP, REST, Connect RPC - lives under /o/<name>/,
+          # so one prefix routes it all.
+          - path: /o
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
           - path: /healthz
             pathType: Exact
             backend:
@@ -155,6 +165,14 @@ spec:
                 port:
                   number: 8080
           - path: /monorepo.git
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          # Multi-org: one prefix for every org's git/REST/RPC surface.
+          - path: /o
             pathType: Prefix
             backend:
               service:
