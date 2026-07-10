@@ -856,6 +856,54 @@ resource "cloudflare_dns_record" "runko_dev" {
   zone_id = local.zone_id
 }
 
+# Edge caching for the Runko public host (added for external-traffic
+# readiness, 2026-07-10). Cloudflare never caches HTML without an explicit
+# cache rule; this one makes the ORIGIN's Cache-Control headers the single
+# source of truth (edge_ttl "bypass_by_default" = "use cache-control header
+# if present, bypass cache if not"), so what gets cached is declared in the
+# Runko repo's web/nginx.conf, not here: landing + SPA shell 5 min, hashed
+# /assets/ a year, unhashed statics 1 h. runkod never sends a public
+# Cache-Control, so even if a dynamic path slipped the expression below it
+# would still bypass - the path exclusions (git, REST, RPC, org mounts,
+# probes) are defense in depth on top, not the only guard. Scoped to the
+# prod host only: runko-dev is Access-guarded and must stay uncached.
+#
+# NOTE: a zone gets ONE ruleset per phase - if another
+# http_request_cache_settings ruleset is ever created outside Terraform,
+# import it here rather than adding a second resource.
+resource "cloudflare_ruleset" "runko_cache" {
+  zone_id = local.zone_id
+  name    = "Cache rules"
+  kind    = "zone"
+  phase   = "http_request_cache_settings"
+  rules = [
+    {
+      ref         = "runko_public_cache"
+      description = "Runko public host: cache what the origin marks cacheable"
+      expression  = "(http.host eq \"runko.victornazzaro.com\" and not starts_with(http.request.uri.path, \"/api\") and not starts_with(http.request.uri.path, \"/o/\") and not starts_with(http.request.uri.path, \"/monorepo.git\") and not starts_with(http.request.uri.path, \"/runko.v1.\") and not starts_with(http.request.uri.path, \"/internal\") and not http.request.uri.path in {\"/healthz\" \"/readyz\" \"/metrics\"})"
+      action      = "set_cache_settings"
+      action_parameters = {
+        cache = true
+        edge_ttl = {
+          mode = "bypass_by_default"
+        }
+        browser_ttl = {
+          mode = "respect_origin"
+        }
+      }
+    },
+  ]
+}
+
+# Smart Tiered Cache: misses fan through one upper-tier PoP instead of
+# every PoP fetching from the homelab origin independently. Zone-wide, but
+# only cached content is affected - the Runko host is the only one that
+# marks anything cacheable, so other hosts see no behavior change.
+resource "cloudflare_tiered_cache" "zone" {
+  zone_id = local.zone_id
+  value   = "on"
+}
+
 # First-class reusable Access policy. The existing operator-email policies
 # are legacy app-embedded (see "Note on Access policies" in README.md) and
 # cannot be attached to a new application, so this is the first
