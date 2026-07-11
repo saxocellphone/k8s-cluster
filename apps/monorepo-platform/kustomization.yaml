@@ -8,6 +8,7 @@ resources:
   - zoekt.yaml
   - runkod.yaml
   - runko-bridge.yaml
+  - runko-watchdog.yaml
   - web.yaml
   - web-dev.yaml
   - ingress.yaml

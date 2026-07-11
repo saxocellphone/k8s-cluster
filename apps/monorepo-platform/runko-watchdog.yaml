@@ -1,0 +1,88 @@
+# runko-watchdog - the CI reconciler (Runko's watchdog/ project, §14.4.2):
+# sweeps every open Change's merge requirements each minute and closes the
+# two observed CI gaps: a check whose GitHub Actions run already finished
+# gets the run's REAL conclusion force-reported (reporter "ci-watchdog");
+# a check whose dispatch was lost (never reported at all) gets exactly one
+# rescue rerun. Ships inside the runkod image (bridge pattern); talks to
+# runkod in-cluster; its only egress is api.github.com, and only while
+# something is actually stuck - a healthy CI means zero GitHub calls.
+#
+# Auth: reuses runkod's own deploy token (secret runkod-env/RUNKO_TOKEN).
+# GitHub API is unauthenticated by default (the repo is public; run reads
+# are rate-limited 60/h/IP which only matters mid-incident) - add a
+# runko-watchdog-env secret with RUNKO_WATCHDOG_GITHUB_TOKEN (actions:read)
+# to lift that.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runko-watchdog
+  namespace: maas-dev
+  labels:
+    app: runko-watchdog
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: runko-watchdog
+  template:
+    metadata:
+      labels:
+        app: runko-watchdog
+      annotations:
+        reloader.stakater.com/auto: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: runko-watchdog
+          image: ghcr.io/saxocellphone/runko/runkod:latest
+          imagePullPolicy: Always
+          command: ["runko-watchdog"]
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: RUNKO_WATCHDOG_RUNKOD_URL
+              value: http://runkod:8080/o/runko
+            - name: RUNKO_WATCHDOG_GITHUB_REPO
+              value: saxocellphone/Runko
+            - name: RUNKO_WATCHDOG_RUNKOD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_TOKEN
+            - name: RUNKO_WATCHDOG_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runko-watchdog-env
+                  key: RUNKO_WATCHDOG_GITHUB_TOKEN
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
