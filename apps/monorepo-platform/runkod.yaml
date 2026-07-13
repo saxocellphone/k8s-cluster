@@ -57,6 +57,19 @@ spec:
               value: 0.0.0.0:8080
             - name: RUNKO_TRUNK
               value: main
+            # Canonical landing identity (Runko docs/design.md §7.5,
+            # 2026-07-13): the land engine stamps this as BOTH author and
+            # committer on every landed commit, so trunk - and the GitHub
+            # mirror that transports it verbatim - carry one uniform
+            # identity instead of whatever git config the pushing machine
+            # had (Runko / Runko Workspace / a human's varying emails).
+            # Per-author attribution stays in authored_by/landed_by. Not a
+            # secret; the daemon default is 'Runko <runko@localhost>', so
+            # this exists only to give the mirror a routable host address.
+            # No-op until the runkod image carrying the --land-identity
+            # flag is deployed (this change's own land builds it).
+            - name: RUNKO_LAND_IDENTITY
+              value: "Runko <runko@runko.victornazzaro.com>"
             - name: RUNKO_TOKEN
               valueFrom:
                 secretKeyRef:
