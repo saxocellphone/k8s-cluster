@@ -160,6 +160,12 @@ spec:
                 secretKeyRef:
                   name: runkod-signup
                   key: RUNKO_SIGNUP_CODE
+            # Invite requests (§15.1): the ASK half of the invite code -
+            # the login gate and landing page offer a public request form;
+            # runko-mailer (its own Deployment) drains the rows and emails
+            # the operator.
+            - name: RUNKO_ALLOW_INVITE_REQUESTS
+              value: "true"
             # Multi-org (§7.1): signed-in accounts may create orgs, each
             # owning its own repo under /data/git/orgs (same PVC as the
             # default repo), served at /o/<name>/.

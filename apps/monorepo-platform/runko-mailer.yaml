@@ -1,0 +1,94 @@
+# runko-mailer - the invite-request notifier (Runko's mailer/ project,
+# design.md §15.1): polls runkod's operator-only due feed each minute and
+# emails every "how do I get the invite code?" submission to the operator
+# over Gmail SMTP, with Reply-To set to the requester - replying with the
+# code IS the fulfillment. Acks sent/failed back; retry/backoff/dead-letter
+# state lives on the runkod row (the §14.4.1 outbox model), so this pod is
+# stateless and disposable. Ships inside the runkod image (bridge/watchdog
+# pattern); egress-only: no Service, no Ingress.
+#
+# Auth: reuses runkod's own deploy token (secret runkod-env/RUNKO_TOKEN) -
+# the feed endpoints are root-mounted (deployment-wide, NOT /o/<org>).
+# SMTP: needs secret runko-mailer-env with RUNKO_MAILER_SMTP_PASSWORD (a
+# Gmail app password; 2FA required on the account). The ref is NOT
+# optional - the pod stays Pending/CreateContainerConfigError until the
+# secret exists, which is the honest failure mode.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runko-mailer
+  namespace: maas-dev
+  labels:
+    app: runko-mailer
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: runko-mailer
+  template:
+    metadata:
+      labels:
+        app: runko-mailer
+      annotations:
+        reloader.stakater.com/auto: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: runko-mailer
+          image: ghcr.io/saxocellphone/runko/runkod:latest
+          imagePullPolicy: Always
+          command: ["runko-mailer"]
+          ports:
+            - name: http
+              containerPort: 8083
+              protocol: TCP
+          env:
+            # Deployment ROOT, not /o/runko: invite requests are
+            # deployment-wide (they precede accounts and orgs).
+            - name: RUNKO_MAILER_RUNKOD_URL
+              value: http://runkod:8080
+            - name: RUNKO_MAILER_RUNKOD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runkod-env
+                  key: RUNKO_TOKEN
+            - name: RUNKO_MAILER_TO
+              value: nazzav923@gmail.com
+            - name: RUNKO_MAILER_SMTP_ADDR
+              value: smtp.gmail.com:587
+            - name: RUNKO_MAILER_SMTP_USER
+              value: nazzav923@gmail.com
+            - name: RUNKO_MAILER_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: runko-mailer-env
+                  key: RUNKO_MAILER_SMTP_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532

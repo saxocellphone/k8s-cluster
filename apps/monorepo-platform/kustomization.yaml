@@ -9,6 +9,7 @@ resources:
   - runkod.yaml
   - runko-bridge.yaml
   - runko-watchdog.yaml
+  - runko-mailer.yaml
   - web.yaml
   - web-dev.yaml
   - ingress.yaml
