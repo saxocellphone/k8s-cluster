@@ -7,6 +7,9 @@ resources:
     cpu: 50m
     memory: 128Mi
   limits:
+    # Explicit null: the chart's default values set cpu: 500m, and Helm's
+    # merge can't drop a default by omission — only by nulling it.
+    cpu: null
     memory: 512Mi
 
 nodeSelector:
