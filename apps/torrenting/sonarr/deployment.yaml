@@ -70,7 +70,6 @@ spec:
             cpu: 25m
             memory: 64Mi
           limits:
-            cpu: 250m
             memory: 256Mi
       containers:
       - name: sonarr
@@ -110,7 +109,6 @@ spec:
           failureThreshold: 10
         resources:
           limits:
-            cpu: 500m
             memory: 512Mi
           requests:
             cpu: 50m

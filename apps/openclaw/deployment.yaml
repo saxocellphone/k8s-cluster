@@ -100,7 +100,6 @@ spec:
             cpu: 25m
             memory: 64Mi
           limits:
-            cpu: 250m
             memory: 256Mi
       - name: seed-workspace
         image: ghcr.io/openclaw/openclaw:2026.3.1
@@ -128,7 +127,6 @@ spec:
             cpu: 25m
             memory: 64Mi
           limits:
-            cpu: 250m
             memory: 256Mi
       - name: install-tools
         image: alpine:3.22
@@ -159,7 +157,6 @@ spec:
             cpu: 25m
             memory: 64Mi
           limits:
-            cpu: 250m
             memory: 256Mi
       - name: config-patch
         image: ghcr.io/openclaw/openclaw:2026.3.1
@@ -331,7 +328,6 @@ spec:
             cpu: 25m
             memory: 64Mi
           limits:
-            cpu: 250m
             memory: 256Mi
       containers:
       - name: openclaw
@@ -386,7 +382,6 @@ spec:
             cpu: 200m
             memory: 512Mi
           limits:
-            cpu: "2"
             memory: 2Gi
         volumeMounts:
         - name: openclaw-data

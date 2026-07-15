@@ -82,7 +82,6 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              cpu: 500m
               memory: 512Mi
           volumeMounts:
             - name: runner-home
@@ -131,7 +130,6 @@ spec:
               cpu: 500m
               memory: 1Gi
             limits:
-              cpu: "2"
               memory: 4Gi
           volumeMounts:
             - name: runner-home

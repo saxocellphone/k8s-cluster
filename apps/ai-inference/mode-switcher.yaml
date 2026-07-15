@@ -75,7 +75,6 @@ spec:
               cpu: 100m
               memory: 64Mi
             limits:
-              cpu: 500m
               # Drains are synchronous in one request thread; keep memory modest.
               memory: 256Mi
 

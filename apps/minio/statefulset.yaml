@@ -75,7 +75,6 @@ spec:
               cpu: 100m
               memory: 512Mi
             limits:
-              cpu: "2"
               memory: 2Gi
           volumeMounts:
             - name: data

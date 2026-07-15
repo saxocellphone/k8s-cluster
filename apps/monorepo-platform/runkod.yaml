@@ -195,7 +195,6 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              cpu: "1"
               memory: 1Gi
           volumeMounts:
             - name: git-storage
@@ -239,7 +238,6 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              cpu: "1"
               memory: 1Gi
           volumeMounts:
             - name: zoekt-index

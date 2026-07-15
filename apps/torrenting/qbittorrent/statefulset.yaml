@@ -79,7 +79,6 @@ spec:
             cpu: 25m
             memory: 64Mi
           limits:
-            cpu: 250m
             memory: 256Mi
       # Native sidecar (k8s >= 1.29; cluster is v1.34.1). Pins our MAM
       # session to the current Gluetun exit IP — without this, every VPN
@@ -108,7 +107,7 @@ spec:
           capabilities:
             drop: ["ALL"]
         resources:
-          limits: {cpu: 100m, memory: 64Mi}
+          limits: {memory: 64Mi}
           requests: {cpu: 10m, memory: 32Mi}
       containers:
       - name: gluetun
@@ -190,7 +189,6 @@ spec:
           subPath: config.toml
         resources:
           limits:
-            cpu: "1"
             memory: 512Mi
           requests:
             cpu: 100m
@@ -224,7 +222,6 @@ spec:
         # behind 503s.
         resources:
           limits:
-            cpu: "1"
             memory: 1Gi
           requests:
             cpu: 100m

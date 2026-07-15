@@ -49,7 +49,6 @@ spec:
               memory: 12Gi
               amd.com/gpu: 1
             limits:
-              cpu: "16"
               memory: 28Gi
               amd.com/gpu: 1
           startupProbe:

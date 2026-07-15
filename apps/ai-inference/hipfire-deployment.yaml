@@ -119,7 +119,6 @@ spec:
             memory: 8Gi
             amd.com/gpu: 1
           limits:
-            cpu: "24"
             memory: 28Gi
             amd.com/gpu: 1
 
