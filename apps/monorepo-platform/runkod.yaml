@@ -120,6 +120,18 @@ spec:
                   name: runkod-env
                   key: RUNKO_ORG_MIRRORS
                   optional: true
+            # GitHub App auth (runkogithubapp, 2026-07-17): one
+            # deployment-wide credential replaces per-org PATs. Any
+            # github.com mirror with no static token= mints installation
+            # tokens, and `runko github connect --repo <owner/name>`
+            # wires an org's mirror through org settings - no more
+            # RUNKO_ORG_MIRRORS editing per org. The id is not a secret;
+            # the private key PEM is (secret runko-github-app, mounted
+            # below).
+            - name: RUNKO_GITHUB_APP_ID
+              value: "4325881"
+            - name: RUNKO_GITHUB_APP_KEY_FILE
+              value: /secrets/github-app/github-app.pem
             # Webhook outbox -> runko-bridge (in-cluster; see
             # runko-bridge.yaml) -> GitHub repository_dispatch, so Actions
             # runs pre-land checks on change refs.
@@ -203,6 +215,9 @@ spec:
               mountPath: /data/zoekt-index
             - name: tmp
               mountPath: /tmp
+            - name: github-app
+              mountPath: /secrets/github-app
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
@@ -262,6 +277,12 @@ spec:
             claimName: zoekt-index
         - name: tmp
           emptyDir: {}
+        - name: github-app
+          secret:
+            secretName: runko-github-app
+            items:
+              - key: github-app.pem
+                path: github-app.pem
 ---
 apiVersion: v1
 kind: Service

@@ -41,6 +41,20 @@ spec:
           envFrom:
             - secretRef:
                 name: runko-bridge-env
+          # GitHub App auth (runkogithubapp, 2026-07-17): the bridge
+          # mints installation tokens per dispatch with the same App
+          # credential runkod holds. Mutually exclusive with
+          # RUNKO_BRIDGE_GITHUB_TOKEN - that key must be REMOVED from
+          # the runko-bridge-env secret (the bridge refuses both).
+          env:
+            - name: RUNKO_BRIDGE_GITHUB_APP_ID
+              value: "4325881"
+            - name: RUNKO_BRIDGE_GITHUB_APP_KEY_FILE
+              value: /secrets/github-app/github-app.pem
+          volumeMounts:
+            - name: github-app
+              mountPath: /secrets/github-app
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /healthz
@@ -66,6 +80,13 @@ spec:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 65532
+      volumes:
+        - name: github-app
+          secret:
+            secretName: runko-github-app
+            items:
+              - key: github-app.pem
+                path: github-app.pem
 ---
 apiVersion: v1
 kind: Service
