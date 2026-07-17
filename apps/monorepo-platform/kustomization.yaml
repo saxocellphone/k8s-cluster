@@ -7,7 +7,6 @@ resources:
   - git-storage-pvc.yaml
   - zoekt.yaml
   - runkod.yaml
-  - runko-bridge.yaml
   - runko-watchdog.yaml
   - runko-mailer.yaml
   - web.yaml

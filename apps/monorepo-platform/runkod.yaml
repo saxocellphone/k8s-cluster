@@ -132,17 +132,13 @@ spec:
               value: "4325881"
             - name: RUNKO_GITHUB_APP_KEY_FILE
               value: /secrets/github-app/github-app.pem
-            # Webhook outbox -> runko-bridge (in-cluster; see
-            # runko-bridge.yaml) -> GitHub repository_dispatch, so Actions
-            # runs pre-land checks on change refs.
-            - name: RUNKO_WEBHOOK_URL
-              value: http://runko-bridge:8081/webhook
-            - name: RUNKO_WEBHOOK_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: runkod-env
-                  key: RUNKO_WEBHOOK_SECRET
-                  optional: true
+            # Native Mode C dispatch (runkogithubapp, 2026-07-17): the
+            # outbox sends repository_dispatch to each org's connected
+            # GitHub repo itself, using the App above - so the runko-bridge
+            # webhook hop is retired (deployment + secret deleted). CI
+            # dispatch now rides `runko github connect`; no per-org bridge,
+            # no webhook URL/secret. (RUNKO_WEBHOOK_URL still exists for a
+            # non-App webhook consumer, if one is ever added.)
             # CNPG auto-generated app credentials (postgres.yaml).
             - name: RUNKO_DATABASE_URL
               valueFrom:
