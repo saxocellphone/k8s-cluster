@@ -12,6 +12,8 @@ resources:
   - web.yaml
   - web-dev.yaml
   - webadmin.yaml
+  - runko-deployer-secret.yaml
+  - runko-deployer.yaml
   - ingress.yaml
 
 generators:
