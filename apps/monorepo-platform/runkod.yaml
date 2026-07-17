@@ -66,6 +66,17 @@ spec:
               value: 0.0.0.0:8080
             - name: RUNKO_TRUNK
               value: main
+            # Inverted CD trigger (Runko §14.10): the outbox fans every event
+            # (incl. deploy.images_ready) to the in-cluster runko-deployer,
+            # which pins image digests into this repo's kustomization -> Argo
+            # rolls. The deployer HMAC-verifies with the SAME shared secret.
+            - name: RUNKO_WEBHOOK_URL
+              value: http://runko-deployer:8082/webhook
+            - name: RUNKO_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: runko-deployer-env
+                  key: WEBHOOK_SECRET
             # Canonical landing identity (Runko docs/design.md §7.5,
             # 2026-07-13): the land engine stamps this as BOTH author and
             # committer on every landed commit, so trunk - and the GitHub

@@ -1,0 +1,119 @@
+# runko-deployer - the inverted CD trigger's GitOps writer (Runko §14.10):
+# subscribes to runkod's deploy.images_ready webhook and pins the reported
+# image digests into this repo's apps/monorepo-platform/kustomization.yaml,
+# which Argo CD then rolls. GitHub only builds + reports the digests; Runko
+# drives the rollout. Rides the runkod image (command: runko-deployer), like
+# runko-watchdog. HMAC-verifies with the shared runko-deployer-env/WEBHOOK_SECRET.
+#
+# Starts in DRY-RUN: it clones this repo anonymously, computes the digest pin,
+# and LOGS the diff WITHOUT pushing - safe to observe end-to-end. To go LIVE:
+# add K8S_CLUSTER_TOKEN to runko-deployer-env (a fine-grained PAT with
+# Contents:write on this repo) and set RUNKO_DEPLOYER_DRY_RUN to "".
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runko-deployer
+  namespace: maas-dev
+  labels:
+    app: runko-deployer
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: runko-deployer
+  template:
+    metadata:
+      labels:
+        app: runko-deployer
+      annotations:
+        reloader.stakater.com/auto: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: runko-deployer
+          image: ghcr.io/saxocellphone/runko/runkod:latest
+          imagePullPolicy: Always
+          command: ["runko-deployer"]
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          env:
+            # HOME on the writable tmp volume: git clone/commit write config
+            # there (readOnlyRootFilesystem blocks $HOME on /).
+            - name: HOME
+              value: /tmp
+            - name: RUNKO_DEPLOYER_REPO_URL
+              value: https://github.com/saxocellphone/k8s-cluster.git
+            - name: RUNKO_DEPLOYER_BRANCH
+              value: main
+            - name: RUNKO_DEPLOYER_KUSTOMIZE_DIR
+              value: apps/monorepo-platform
+            - name: RUNKO_DEPLOYER_ORG
+              value: runko
+            # DRY-RUN: log the intended kustomization diff, do not push.
+            # Set to "" (and add the token below) to actually roll.
+            - name: RUNKO_DEPLOYER_DRY_RUN
+              value: "1"
+            - name: RUNKO_DEPLOYER_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: runko-deployer-env
+                  key: WEBHOOK_SECRET
+            - name: RUNKO_DEPLOYER_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: runko-deployer-env
+                  key: K8S_CLUSTER_TOKEN
+                  optional: true
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: runko-deployer
+  namespace: maas-dev
+  labels:
+    app: runko-deployer
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  selector:
+    app: runko-deployer
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
