@@ -51,8 +51,17 @@ spec:
               containerPort: 8080
               protocol: TCP
           env:
-            - name: RUNKO_REPO_DIR
-              value: /data/git/monorepo.git
+            # ORG-LESS since the default-org retirement (runkod/README.md
+            # 2026-07-17): no RUNKO_REPO_DIR - the root serves only the
+            # global surfaces (accounts/signup, org list/create,
+            # /api/admin/*) + ops floor, and every org (runko included)
+            # lives at /o/<name>/. The old root repo stays untouched on
+            # the PVC at /data/git/monorepo.git; the vestigial "monorepo"
+            # org row remounts as a regular (empty) org - archive it once
+            # in the admin panel. Org-less mode REQUIRES an explicit
+            # --orgs-dir (there is no repo to place it beside).
+            - name: RUNKO_ORGS_DIR
+              value: /data/git/orgs
             - name: RUNKO_ADDR
               value: 0.0.0.0:8080
             - name: RUNKO_TRUNK
@@ -151,10 +160,15 @@ spec:
                 secretKeyRef:
                   name: maas-postgres-app
                   key: uri
-            - name: RUNKO_SEARCH_URL
-              value: http://127.0.0.1:6070
-            - name: RUNKO_ZOEKT_INDEX_DIR
-              value: /data/zoekt-index
+            # Zoekt left with the default org: RUNKO_ZOEKT_INDEX_DIR
+            # indexes the root repo, which org-less mode does not have -
+            # setting it makes the daemon refuse to boot. Indexing was
+            # default-org-only, so the index tracked the vestigial
+            # monorepo repo anyway (stale for /o/runko since the
+            # 2026-07-09 cutover). Search now answers a structured
+            # not-configured; per-org indexing is the recorded follow-up
+            # (runkod/README.md 2026-07-17). The zoekt-webserver sidecar
+            # below is now idle - harmless; remove it as later cleanup.
             # Dev posture: nothing in the cluster reports checks yet, so a
             # policy-less change may land (loud opt-out, docs/design.md
             # §28.3 stage 11c). Drop this once runko-ci runs somewhere
