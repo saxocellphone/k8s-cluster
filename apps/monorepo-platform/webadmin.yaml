@@ -1,0 +1,79 @@
+# Runko deployment admin panel (webadmin/ in the monorepo) - its OWN pod
+# on purpose: the panel is the operator's window into the control plane,
+# so it must stay reachable when runko-web or runkod itself is down (its
+# header probes /healthz + /readyz and renders the outage). Static SPA
+# under /admin, built with VITE_RUNKO_URL=/ (same-origin: ingress.yaml
+# routes /api to runkod, /admin here). Operator credentials are entered
+# per-browser against GET /api/admin/whoami - the image ships tokenless,
+# same posture as web.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runko-webadmin
+  namespace: maas-dev
+  labels:
+    app: runko-webadmin
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: runko-webadmin
+  template:
+    metadata:
+      labels:
+        app: runko-webadmin
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: webadmin
+          image: ghcr.io/saxocellphone/runko/webadmin:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /admin/
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /admin/
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: runko-webadmin
+  namespace: maas-dev
+  labels:
+    app: runko-webadmin
+    app.kubernetes.io/part-of: monorepo-platform
+spec:
+  type: ClusterIP
+  selector:
+    app: runko-webadmin
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

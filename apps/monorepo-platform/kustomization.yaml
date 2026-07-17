@@ -12,6 +12,7 @@ resources:
   - runko-mailer.yaml
   - web.yaml
   - web-dev.yaml
+  - webadmin.yaml
   - ingress.yaml
 
 generators:

@@ -226,6 +226,16 @@ spec:
     - host: runko.k8s.home
       http:
         paths:
+          # The deployment admin panel is its own pod (webadmin.yaml) so
+          # it survives runko-web outages; longest-prefix wins over the
+          # catch-all. Its API calls ride the existing /api route above.
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-webadmin
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
@@ -236,6 +246,13 @@ spec:
     - host: runko.victornazzaro.com
       http:
         paths:
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-webadmin
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
