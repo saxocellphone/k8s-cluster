@@ -5,10 +5,10 @@
 # drives the rollout. Rides the runkod image (command: runko-deployer), like
 # runko-watchdog. HMAC-verifies with the shared runko-deployer-env/WEBHOOK_SECRET.
 #
-# Starts in DRY-RUN: it clones this repo anonymously, computes the digest pin,
-# and LOGS the diff WITHOUT pushing - safe to observe end-to-end. To go LIVE:
-# add K8S_CLUSTER_TOKEN to runko-deployer-env (a fine-grained PAT with
-# Contents:write on this repo) and set RUNKO_DEPLOYER_DRY_RUN to "".
+# LIVE since 2026-07-20: pushes the digest pin with K8S_CLUSTER_TOKEN from
+# runko-deployer-env (a fine-grained PAT, Contents:write on this repo). To
+# fall back to DRY-RUN (log the diff, no push): set RUNKO_DEPLOYER_DRY_RUN
+# to any non-empty value.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -55,10 +55,10 @@ spec:
               value: apps/monorepo-platform
             - name: RUNKO_DEPLOYER_ORG
               value: runko
+            # LIVE ("" = push the pin). Any non-empty value re-enables
             # DRY-RUN: log the intended kustomization diff, do not push.
-            # Set to "" (and add the token below) to actually roll.
             - name: RUNKO_DEPLOYER_DRY_RUN
-              value: "1"
+              value: ""
             - name: RUNKO_DEPLOYER_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
