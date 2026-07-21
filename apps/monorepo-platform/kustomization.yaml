@@ -20,4 +20,4 @@ images:
   - name: ghcr.io/saxocellphone/runko/runkod
     digest: sha256:cccb4c6228037964028c8ddb7a0ea219a509622c24b83d545bc2c78d3f11f4dd
   - name: ghcr.io/saxocellphone/runko/web
-    digest: sha256:82809b5aee60525d46533b595091587b23def458e07bc26c82ad95bc3a255e03
+    digest: sha256:58bcfd8ee8cbd0972d362cc411555d1a8b2055ae1e7d7339d4a7c20ae430bebc
