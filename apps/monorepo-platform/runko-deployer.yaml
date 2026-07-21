@@ -5,10 +5,11 @@
 # drives the rollout. Rides the runkod image (command: runko-deployer), like
 # runko-watchdog. HMAC-verifies with the shared runko-deployer-env/WEBHOOK_SECRET.
 #
-# LIVE since 2026-07-20: pushes the digest pin with K8S_CLUSTER_TOKEN from
-# runko-deployer-env (a fine-grained PAT, Contents:write on this repo). To
-# fall back to DRY-RUN (log the diff, no push): set RUNKO_DEPLOYER_DRY_RUN
-# to any non-empty value.
+# LIVE since 2026-07-20, GitHub App auth since 2026-07-21 (Runko I94be25b7):
+# pushes the digest pin with a short-lived runkogithubapp installation token,
+# minted per push and scoped to THIS repo alone - no standing PAT anywhere
+# (K8S_CLUSTER_TOKEN is retired). To fall back to DRY-RUN (log the diff, no
+# push): set RUNKO_DEPLOYER_DRY_RUN to any non-empty value.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -64,15 +65,20 @@ spec:
                 secretKeyRef:
                   name: runko-deployer-env
                   key: WEBHOOK_SECRET
-            - name: RUNKO_DEPLOYER_GITHUB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: runko-deployer-env
-                  key: K8S_CLUSTER_TOKEN
-                  optional: true
+            # GitHub App auth (Runko I94be25b7): mint per-push installation
+            # tokens scoped to this repo. The App id is not a secret; the
+            # key PEM is (secret runko-github-app, shared with runkod,
+            # mounted below).
+            - name: RUNKO_DEPLOYER_GITHUB_APP_ID
+              value: "4325881"
+            - name: RUNKO_DEPLOYER_GITHUB_APP_KEY_FILE
+              value: /secrets/github-app/github-app.pem
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: github-app
+              mountPath: /secrets/github-app
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /healthz
@@ -101,6 +107,12 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: github-app
+          secret:
+            secretName: runko-github-app
+            items:
+              - key: github-app.pem
+                path: github-app.pem
 ---
 apiVersion: v1
 kind: Service
