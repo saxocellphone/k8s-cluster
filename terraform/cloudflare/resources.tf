@@ -422,6 +422,28 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         path           = null
         service        = "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80"
       },
+      # ---- runkorepo.com (Runko's product domain) ---------------------------
+      # A separate zone, so the wildcard above does NOT cover it. The APEX
+      # needs its own entry regardless of any wildcard (an apex is not a
+      # subdomain). Both go to ingress-nginx; the Host rules that split
+      # runkod from the web UI live in the Runko repo's k8s manifests
+      # (k8s-cluster/apps/monorepo-platform/ingress.yaml).
+      #
+      # www.runkorepo.com is deliberately absent: its 301 to the apex is an
+      # edge redirect rule (cloudflare_ruleset.runko_www_redirect below), so
+      # that hostname never reaches the tunnel.
+      {
+        hostname       = "runkorepo.com"
+        origin_request = null
+        path           = null
+        service        = "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80"
+      },
+      {
+        hostname       = "*.runkorepo.com"
+        origin_request = null
+        path           = null
+        service        = "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80"
+      },
       {
         hostname       = null
         origin_request = null
@@ -935,6 +957,221 @@ resource "cloudflare_zero_trust_access_application" "runko_dev" {
     {
       type = "public"
       uri  = "runko-dev.victornazzaro.com"
+    },
+  ]
+  session_duration           = "24h"
+  app_launcher_visible       = true
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  http_only_cookie_attribute = true
+  options_preflight_bypass   = false
+  policies = [
+    {
+      id         = cloudflare_zero_trust_access_policy.owner_email.id
+      precedence = 1
+    },
+  ]
+}
+
+# =============================================================================
+# runkorepo.com - Runko's product domain (cutover from runko.victornazzaro.com,
+# 2026-07-21). Zone 22c98370..., delegated from GoDaddy to Cloudflare NS.
+#
+# Migration shape: the two hosts DUAL-SERVE. Every runko.victornazzaro.com
+# resource above stays live and untouched while clones, credentials and the
+# GitHub Actions RUNKO_URL secret move over; only then does the old host get
+# its 301 (and this file lose the resources that serve it).
+#
+# Cloudflare's zone onboarding scraped GoDaddy's parking DNS into this zone
+# (2x apex A -> AWS parking, _domainconnect, pay -> GoDaddy paylinks, www,
+# and a GoDaddy default _dmarc). Those were deleted out-of-band before the
+# first apply of this section - an apex CNAME cannot coexist with apex A
+# records - and everything this zone should hold is declared below.
+# =============================================================================
+
+# The apex serves the WHOLE platform (web UI + runkod REST/RPC/git), exactly
+# as runko.victornazzaro.com does - path-routed by the Ingress objects in
+# apps/monorepo-platform/ingress.yaml. Proxied CNAME at the apex is legal
+# via Cloudflare's CNAME flattening.
+#
+# NO Access app here, same reasoning as the old prod host: the challenge
+# breaks git/API clients and runkod enforces its own auth.
+resource "cloudflare_dns_record" "runkorepo" {
+  comment         = "Runko prod (web UI + runkod API/git); deliberately no Access"
+  content         = "${local.tunnel_id}.cfargotunnel.com"
+  data            = null
+  name            = "runkorepo.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = local.runko_zone_id
+}
+
+# www exists only to be redirected (runko_www_redirect below). It must still
+# be a PROXIED record: an edge redirect rule only runs on traffic that
+# reaches Cloudflare's proxy.
+resource "cloudflare_dns_record" "runkorepo_www" {
+  comment         = "301 -> apex via the dynamic-redirect ruleset; never reaches origin"
+  content         = "runkorepo.com"
+  data            = null
+  name            = "www.runkorepo.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = local.runko_zone_id
+}
+
+resource "cloudflare_dns_record" "runkorepo_dev" {
+  comment         = "Runko dev (Vite HMR on carbon-node); Access-guarded"
+  content         = "${local.tunnel_id}.cfargotunnel.com"
+  data            = null
+  name            = "dev.runkorepo.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = local.runko_zone_id
+}
+
+# Anti-spoofing for a domain that sends no mail. Runko's outbound mail
+# (runko-mailer) goes out over Gmail SMTP as nazzav923@gmail.com, NOT as
+# @runkorepo.com - so a hard-fail SPF and a reject DMARC cost nothing and
+# stop a fresh, unprotected domain from being a convenient spoof target.
+# Adding mail here later = relax both records in the same change.
+#
+# No rua= on the DMARC record on purpose: aggregate reports to an address
+# outside the domain need the receiving domain to publish an authorization
+# record, which gmail.com does not do - a rua that silently fails is worse
+# than none.
+resource "cloudflare_dns_record" "runkorepo_spf" {
+  comment         = "No mail originates from this domain"
+  content         = "\"v=spf1 -all\""
+  data            = null
+  name            = "runkorepo.com"
+  priority        = null
+  private_routing = null
+  proxied         = false
+  tags            = []
+  ttl             = 1
+  type            = "TXT"
+  zone_id         = local.runko_zone_id
+}
+
+resource "cloudflare_dns_record" "runkorepo_dmarc" {
+  comment         = "Replaces GoDaddy's default p=quarantine record"
+  content         = "\"v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s\""
+  data            = null
+  name            = "_dmarc.runkorepo.com"
+  priority        = null
+  private_routing = null
+  proxied         = false
+  tags            = []
+  ttl             = 1
+  type            = "TXT"
+  zone_id         = local.runko_zone_id
+}
+
+# Same contract as runko_cache on the old zone: the ORIGIN's Cache-Control
+# is the single source of truth (edge_ttl bypass_by_default), with the
+# dynamic paths excluded as defense in depth. Kept as a SEPARATE resource
+# because a ruleset is scoped to one zone - a zone gets one ruleset per
+# phase, so this cannot be a second rule inside runko_cache.
+resource "cloudflare_ruleset" "runkorepo_cache" {
+  zone_id = local.runko_zone_id
+  name    = "Cache rules"
+  kind    = "zone"
+  phase   = "http_request_cache_settings"
+  rules = [
+    {
+      ref         = "runkorepo_public_cache"
+      description = "Runko public host: cache what the origin marks cacheable"
+      expression  = "(http.host eq \"runkorepo.com\" and not starts_with(http.request.uri.path, \"/api\") and not starts_with(http.request.uri.path, \"/o/\") and not starts_with(http.request.uri.path, \"/monorepo.git\") and not starts_with(http.request.uri.path, \"/runko.v1.\") and not starts_with(http.request.uri.path, \"/internal\") and not http.request.uri.path in {\"/healthz\" \"/readyz\" \"/metrics\"})"
+      action      = "set_cache_settings"
+      action_parameters = {
+        cache = true
+        edge_ttl = {
+          mode = "bypass_by_default"
+        }
+        browser_ttl = {
+          mode = "respect_origin"
+        }
+      }
+    },
+  ]
+}
+
+# www -> apex, 301, path and query preserved. Edge-only: nothing about this
+# reaches the cluster, which is why no Ingress rule or tunnel entry names
+# www. This ruleset is also where the old host's eventual 301 will go -
+# on the OTHER zone, as its own resource.
+resource "cloudflare_ruleset" "runkorepo_www_redirect" {
+  zone_id = local.runko_zone_id
+  name    = "Redirect rules"
+  kind    = "zone"
+  phase   = "http_request_dynamic_redirect"
+  rules = [
+    {
+      ref         = "runkorepo_www_to_apex"
+      description = "www.runkorepo.com -> runkorepo.com"
+      expression  = "(http.host eq \"www.runkorepo.com\")"
+      action      = "redirect"
+      action_parameters = {
+        from_value = {
+          status_code = 301
+          target_url = {
+            expression = "concat(\"https://runkorepo.com\", http.request.uri.path)"
+          }
+          preserve_query_string = true
+        }
+      }
+    },
+  ]
+}
+
+# Smart Tiered Cache for the new zone (the old zone has its own; the
+# resource is per-zone). Same rationale: misses fan through one upper-tier
+# PoP instead of every PoP hitting the homelab origin.
+resource "cloudflare_tiered_cache" "runkorepo" {
+  zone_id = local.runko_zone_id
+  value   = "on"
+}
+
+# Dev-server Access gate on the new domain. Reuses the account-level
+# owner_email policy (account-scoped, so it spans zones). The old
+# runko-dev.victornazzaro.com app above stays until the dev host is
+# retired - two gates on the same origin, both owner-only.
+resource "cloudflare_zero_trust_access_application" "runkorepo_dev" {
+  account_id = local.account_id
+  name       = "Runko dev (Vite HMR, runkorepo.com)"
+  type       = "self_hosted"
+  domain     = "dev.runkorepo.com"
+  destinations = [
+    {
+      type = "public"
+      uri  = "dev.runkorepo.com"
     },
   ]
   session_duration           = "24h"

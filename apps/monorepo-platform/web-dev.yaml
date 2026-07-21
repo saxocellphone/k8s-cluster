@@ -85,3 +85,16 @@ spec:
                 name: runko-web-dev
                 port:
                   number: 5173
+    # The domain cutover's dev host (2026-07-21). Dual-serves with the
+    # victornazzaro one until that zone's Runko records are retired; both
+    # are Access-guarded, owner-only.
+    - host: dev.runkorepo.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-web-dev
+                port:
+                  number: 5173

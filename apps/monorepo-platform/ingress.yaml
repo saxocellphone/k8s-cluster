@@ -12,8 +12,12 @@
 #
 # Git remote for humans/agents:
 #   git clone http://user:<RUNKO_TOKEN>@runko.k8s.home/monorepo.git
-#   git clone https://user:<RUNKO_TOKEN>@runko.victornazzaro.com/monorepo.git
+#   git clone https://user:<RUNKO_TOKEN>@runkorepo.com/monorepo.git
 # CLI: runko change land --runkod-url http://runko.k8s.home --token <t>
+#
+# runko.victornazzaro.com serves the same two hosts' worth of rules and
+# stays live through the runkorepo.com cutover (2026-07-21); it is the
+# OLD public name, kept so existing clones and credentials never break.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -212,6 +216,91 @@ spec:
                 name: runkod
                 port:
                   number: 8080
+    # Runko's own domain (cutover 2026-07-21). Serves the identical path
+    # set to the victornazzaro host above - the two DUAL-SERVE until every
+    # clone remote, stored credential and CI secret has moved, after which
+    # the old host keeps answering git/API and 301s only its HTML.
+    # Any path added above must be added here too.
+    - host: runkorepo.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.ChangeService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.ProjectService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.WorkspaceService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.SearchService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /runko.v1.RepoService
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /monorepo.git
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /o
+            pathType: Prefix
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /readyz
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: runkod
+                port:
+                  number: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -244,6 +333,23 @@ spec:
                 port:
                   number: 80
     - host: runko.victornazzaro.com
+      http:
+        paths:
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-webadmin
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: runko-web
+                port:
+                  number: 80
+    - host: runkorepo.com
       http:
         paths:
           - path: /admin
