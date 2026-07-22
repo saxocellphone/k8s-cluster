@@ -18,7 +18,7 @@ generators:
   - ghcr-pull-secret-generator.yaml
 images:
   - name: ghcr.io/saxocellphone/runko/runkod
-    digest: sha256:b8a5aec59f2a67edd6b986b0e108b5f9ccf14d365311b602960f5f7fc2ba35fb
+    digest: sha256:e80abc93e91bd9506e03de183c511e574a42ff27f56658e64e3ac46c1f88173b
   - name: ghcr.io/saxocellphone/runko/web
     digest: sha256:c6dc5c37d34653ae25ab982c10770fb015715552066b685ad7298b2e50eb41c1
   - name: ghcr.io/saxocellphone/runko/webadmin
