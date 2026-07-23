@@ -16,6 +16,11 @@ resources:
 generators:
   - ghcr-pull-secret-generator.yaml
 images:
+  # Digest-pinned GitOps: the runko release-images workflow's `pin` job writes
+  # these digests on every land (yq), and Argo CD reconciles. runkod is shared
+  # by runkod, runko-watchdog, and runko-mailer.
+  - name: ghcr.io/saxocellphone/runko/runkod
+    digest: sha256:f73c36d9cdd3af9123bf1986cfbb5503713228b38727587d4f7abd7c8bcada89
   - name: ghcr.io/saxocellphone/runko/web
     digest: sha256:510923a820fed6ee8ec86e901368e47bf337b9beba81741584950a33fdda7e52
   - name: ghcr.io/saxocellphone/runko/webadmin
