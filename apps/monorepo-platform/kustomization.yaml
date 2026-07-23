@@ -12,13 +12,10 @@ resources:
   - web-dev.yaml
   - webadmin.yaml
   - runko-deployer-secret.yaml
-  - runko-deployer.yaml
   - ingress.yaml
 generators:
   - ghcr-pull-secret-generator.yaml
 images:
-  - name: ghcr.io/saxocellphone/runko/runkod
-    digest: sha256:diagnostic
   - name: ghcr.io/saxocellphone/runko/web
     digest: sha256:510923a820fed6ee8ec86e901368e47bf337b9beba81741584950a33fdda7e52
   - name: ghcr.io/saxocellphone/runko/webadmin
