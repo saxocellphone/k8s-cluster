@@ -19,8 +19,8 @@ images:
   # these digests on every land (yq), and Argo CD reconciles. runkod is shared
   # by runkod, runko-watchdog, and runko-mailer.
   - name: ghcr.io/saxocellphone/runko/runkod
-    digest: sha256:e9614a081e8b9e7d642c99052c340eb99d7ff6947440a70f2e99fe86446d275d
+    digest: sha256:081bb22e46e50c30c51b0850f28beb84b58469c6ca007c32b6c43dd681b14347
   - name: ghcr.io/saxocellphone/runko/web
-    digest: sha256:fbcdb295e8128047529fb48e3165b36fbc2557c1de41724a5da3009fe2002e36
+    digest: sha256:fc6801acd6cd9e2a9219c435f646a97ba21bbf8f3d7d10770054acf7ba3ef87b
   - name: ghcr.io/saxocellphone/runko/webadmin
-    digest: sha256:12f2551517a655a22e091ded8d42f75b2d3d50720794439a8b30c954fd8831f1
+    digest: sha256:bd9bf7635c8352fc389d23a96ce8332c896b9cbc500c390402069d4811d51cdb
