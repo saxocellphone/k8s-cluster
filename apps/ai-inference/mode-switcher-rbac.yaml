@@ -12,7 +12,10 @@ metadata:
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments", "deployments/scale"]
-    resourceNames: ["hipfire", "comfyui"]
+    # Must match WORKLOADS in mode-switcher.py. vllm/qwen-full added so the
+    # switcher can drain them — otherwise they hold the GPU and gaming mode
+    # never schedules.
+    resourceNames: ["hipfire", "comfyui", "vllm", "qwen-full"]
     verbs: ["get", "patch", "update"]
   - apiGroups: [""]
     resources: ["pods", "services"]

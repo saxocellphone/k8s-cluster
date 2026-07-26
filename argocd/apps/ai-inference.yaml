@@ -12,6 +12,10 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: ai-inference
+  # The mode-switcher owns /spec/replicas for every GPU workload (it scales the
+  # active mode to 1 and drains the rest to 0). selfHeal must not fight it, so
+  # replica drift is ignored for each. Keep this list in sync with WORKLOADS in
+  # apps/ai-inference/mode-switcher.py.
   ignoreDifferences:
     - group: apps
       kind: Deployment
@@ -22,6 +26,18 @@ spec:
     - group: apps
       kind: Deployment
       name: comfyui
+      namespace: ai-inference
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: Deployment
+      name: vllm
+      namespace: ai-inference
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: Deployment
+      name: qwen-full
       namespace: ai-inference
       jsonPointers:
         - /spec/replicas
