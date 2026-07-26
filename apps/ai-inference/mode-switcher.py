@@ -28,16 +28,27 @@ CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 API_HOST = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
 API_PORT = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
 
+# Every Deployment that requests the single amd.com/gpu MUST be listed here, or
+# it can silently hold the GPU and keep whichever mode you pick Pending. A
+# switch drains all WORKLOADS except the target. Keep in sync with the RBAC
+# resourceNames (mode-switcher-rbac.yaml) and the Argo ignoreDifferences on
+# /spec/replicas (argocd/apps/ai-inference.yaml) — otherwise selfHeal fights
+# the drain.
 WORKLOADS = {
+    "vllm": {"namespace": AI_NAMESPACE, "deployment": "vllm", "label_selector": "app=vllm"},
     "hipfire": {"namespace": AI_NAMESPACE, "deployment": "hipfire", "label_selector": "app=hipfire"},
     "comfyui": {"namespace": AI_NAMESPACE, "deployment": "comfyui", "label_selector": "app=comfyui"},
+    "qwen-full": {"namespace": AI_NAMESPACE, "deployment": "qwen-full", "label_selector": "app=qwen-full"},
     "wolf": {"namespace": GAMING_NAMESPACE, "deployment": GAMING_DEPLOYMENT, "label_selector": f"app={GAMING_DEPLOYMENT}"},
 }
 
-# URL path segment → workload key (or None for off)
+# URL path segment → workload key to scale up (or None for off). A WORKLOADS
+# entry with no MODE is drain-only: never a target, always scaled to 0.
 MODES = {
+    "vllm": "vllm",
     "hipfire": "hipfire",
     "image": "comfyui",
+    "qwen": "qwen-full",
     "gaming": "wolf",
     "off": None,
 }
@@ -187,10 +198,14 @@ def status():
 
     active = [name for name, d in deployments.items() if d["replicas"] > 0]
     mode = "off"
-    if active == ["hipfire"]:
+    if active == ["vllm"]:
+        mode = "vllm"
+    elif active == ["hipfire"]:
         mode = "hipfire"
     elif active == ["comfyui"]:
         mode = "image"
+    elif active == ["qwen-full"]:
+        mode = "qwen"
     elif active == ["wolf"]:
         mode = "gaming"
     elif active:
@@ -279,16 +294,18 @@ def html():
   <h1>AI Mode Switcher</h1>
   <p>Current mode: <span class="mode">{s['mode']}</span>
      · GPU node: <span class="mode {node_badge}">{gn['name']}: {gn['detail']}</span></p>
+  <form method="post" action="/mode/vllm"><button class="primary" {"disabled" if not gn["ready"] else ""}>vLLM mode</button></form>
   <form method="post" action="/mode/hipfire"><button class="primary" {"disabled" if not gn["ready"] else ""}>HIPFire LLM mode</button></form>
   <form method="post" action="/mode/image"><button class="primary" {"disabled" if not gn["ready"] else ""}>Image mode</button></form>
+  <form method="post" action="/mode/qwen"><button class="primary" {"disabled" if not gn["ready"] else ""}>Qwen (full) mode</button></form>
   <form method="post" action="/mode/gaming"><button class="primary" {"disabled" if not gn["ready"] else ""}>Gaming mode</button></form>
   <form method="post" action="/mode/off"><button>Off</button></form>
   <form method="get" action="/"><button>Refresh</button></form>
   <div class="warn">
-    One schedulable GPU on <code>{GPU_NODE}</code>. Switches <strong>drain</strong> other modes
-    (timeout {DRAIN_TIMEOUT}s), wait <strong>{COOLDOWN_SEC}s</strong>, then start the target.
+    One schedulable GPU on <code>{GPU_NODE}</code>. Switches <strong>drain</strong> every other
+    GPU workload (timeout {DRAIN_TIMEOUT}s), wait <strong>{COOLDOWN_SEC}s</strong>, then start the target.
     Refuses scale-up while the GPU node is NotReady/unreachable.
-    HIPFire: <code>hipfire.k8s.home</code> · Image: <code>comfyui.k8s.home</code> ·
+    vLLM / HIPFire / Qwen are LLM backends · Image: <code>comfyui.k8s.home</code> ·
     Gaming: Wolf/Moonlight.
   </div>
   <h2>Deployments</h2>
