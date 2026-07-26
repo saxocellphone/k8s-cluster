@@ -43,6 +43,37 @@ spec:
           value: amd-strix-halo
           effect: NoSchedule
       terminationGracePeriodSeconds: 60
+      # Wolf's supervisord (program:wolf) logs to /dev/fd/1. The pod bind-mounts
+      # the host /dev over the container's /dev, which shadows the image's
+      # standard /dev/fd -> /proc/self/fd symlink, so supervisord aborts with
+      # "The directory named as part of the path /dev/fd/1 does not exist".
+      # Recreate the canonical fd symlinks on the shared /dev before Wolf starts.
+      # /proc/self/fd resolves per-accessing-process, so it is correct for the
+      # wolf process too; the links live on devtmpfs and vanish on node reboot.
+      initContainers:
+        - name: dev-fd-symlinks
+          image: busybox:1.38
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              ln -sfn /proc/self/fd /dev/fd
+              ln -sfn /proc/self/fd/0 /dev/stdin
+              ln -sfn /proc/self/fd/1 /dev/stdout
+              ln -sfn /proc/self/fd/2 /dev/stderr
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              memory: 16Mi
+          volumeMounts:
+            - name: dev
+              mountPath: /dev
       containers:
         - name: dind
           image: docker:29-dind
