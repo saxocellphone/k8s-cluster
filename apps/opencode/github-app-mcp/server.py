@@ -1,4 +1,4 @@
-"""GitHub-App-backed MCP server (Streamable HTTP) for the OpenClaw cluster agent.
+"""GitHub-App-backed MCP server (Streamable HTTP) for the OpenCode sandbox.
 
 Why this exists
 ---------------
@@ -10,11 +10,9 @@ admin privileges, and (paired with a "restrict push to main" ruleset) it
 physically cannot push to or merge `main` — it can only open PRs the operator
 merges.
 
-App installation tokens live for ~1h. OpenClaw spawns MCP servers once and keeps
-them alive for the gateway's lifetime, so a token captured at startup would go
-stale. This service sidesteps that entirely: it runs as its own Streamable-HTTP
-MCP server (OpenClaw connects by URL) and mints/refreshes the installation token
-*internally, per call*. The agent never holds a token.
+App installation tokens live for ~1h. This service runs as its own
+Streamable-HTTP MCP server (OpenCode connects by URL) and mints/refreshes the
+installation token *internally, per call*. The agent never holds a token.
 
 Tool surface is intentionally tiny — the local model serves only an 8k context
 window, so a handful of purpose-built GitOps tools beats a generic 40-tool
@@ -90,7 +88,7 @@ def _api(method, path, token=None, bearer=None, payload=None):
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Accept", "application/vnd.github+json")
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
-    req.add_header("User-Agent", "openclaw-github-app-mcp")
+    req.add_header("User-Agent", "opencode-github-app-mcp")
     if bearer:
         req.add_header("Authorization", f"Bearer {bearer}")
     elif token:

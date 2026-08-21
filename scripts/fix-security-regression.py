@@ -14,7 +14,6 @@ REVERT_IMAGES = {
     "ghcr.io/flaresolverr/flaresolverr:v3.3.25.0": "ghcr.io/flaresolverr/flaresolverr:latest",
     "ghcr.io/advplyr/audiobookshelf:2.25.1": "ghcr.io/advplyr/audiobookshelf:latest",
     "mirotalk/c2c:1.0.16": "mirotalk/c2c:latest",
-    "ghcr.io/openclaw/openclaw:2026.2.0": "ghcr.io/openclaw/openclaw:latest",
     "ghcr.io/saxocellphone/hipfire-gfx1151:2026.02.0": "ghcr.io/saxocellphone/hipfire-gfx1151:latest",
     "linuxserver/sonarr:4.0.16": "linuxserver/sonarr:latest",
     "linuxserver/radarr:5.22.4": "linuxserver/radarr:latest",

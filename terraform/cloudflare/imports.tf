@@ -20,10 +20,6 @@ import {
   id = "45bbfa2da6b4eac2713d440e0f4e5f8d/a1e932c601062227f88421c85eec835d"
 }
 import {
-  to = cloudflare_dns_record.openclaw
-  id = "45bbfa2da6b4eac2713d440e0f4e5f8d/cf65ccee5d593c1ea3c162dd6225f130"
-}
-import {
   to = cloudflare_dns_record.paste
   id = "45bbfa2da6b4eac2713d440e0f4e5f8d/6ae048e319c3017e39bc6ef36d6db700"
 }
@@ -53,10 +49,6 @@ import {
 }
 
 # ---- Access applications ---------------------------------------------------
-import {
-  to = cloudflare_zero_trust_access_application.openclaw
-  id = "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/c6948052-8a41-4c2d-830e-427b3b6cc4b4"
-}
 import {
   to = cloudflare_zero_trust_access_application.homelab
   id = "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/5e463ac3-82aa-48d6-ae27-bdd8dc8c3e92"

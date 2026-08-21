@@ -1,7 +1,7 @@
-# Read-only cluster access for the OpenCode sandbox (OpenClaw pattern).
+# Read-only cluster access for the OpenCode sandbox.
 #
 # Hard guardrail: SA cannot mutate the live API (selfHeal would revert anyway).
-# Durable changes = GitHub PR via github-app-mcp (openclaw Service), not PAT push.
+# Durable changes = GitHub PR via github-app-mcp, not PAT push.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -21,7 +21,17 @@ subjects:
     name: opencode
     namespace: opencode
 ---
-# Reuse OpenClaw's Argo read ClusterRole (same verbs/resources).
+# `view` does not cover Argo CD CRDs. Grant read on Applications/ApplicationSets
+# so the sandbox can answer "is anything OutOfSync / Degraded and why?".
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opencode-argocd-read
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -29,13 +39,109 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: openclaw-argocd-read
+  name: opencode-argocd-read
 subjects:
   - kind: ServiceAccount
     name: opencode
     namespace: opencode
 ---
-# Reuse OpenClaw's ops CRD read role (Longhorn, CNPG, cert-manager, …).
+# Extra read-only access for operational CRDs that the built-in `view` role does
+# not reliably cover (Longhorn, CNPG, cert-manager, Prometheus Operator, MetalLB,
+# Rancher/Fleet). No Secrets, no mutation verbs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opencode-ops-crd-read
+rules:
+  - apiGroups: ["longhorn.io"]
+    resources:
+      - backingimagedatasources
+      - backingimagemanagers
+      - backingimages
+      - backupbackingimages
+      - backups
+      - backupschedules
+      - backuptargets
+      - engineimages
+      - engines
+      - instancemanagers
+      - nodes
+      - orphans
+      - recurringjobs
+      - replicas
+      - settings
+      - sharemanagers
+      - snapshots
+      - supportbundles
+      - systembackups
+      - systemrestores
+      - volumes
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources:
+      - backups
+      - clusters
+      - poolers
+      - scheduledbackups
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["cert-manager.io"]
+    resources:
+      - certificates
+      - certificaterequests
+      - clusterissuers
+      - issuers
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["acme.cert-manager.io"]
+    resources:
+      - challenges
+      - orders
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["monitoring.coreos.com"]
+    resources:
+      - alertmanagerconfigs
+      - alertmanagers
+      - podmonitors
+      - probes
+      - prometheusagents
+      - prometheuses
+      - prometheusrules
+      - scrapeconfigs
+      - servicemonitors
+      - thanosrulers
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["metallb.io"]
+    resources:
+      - bgpadvertisements
+      - bgppeers
+      - bfdprofiles
+      - communities
+      - ipaddresspools
+      - l2advertisements
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["provisioning.cattle.io"]
+    resources:
+      - clusters
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["fleet.cattle.io"]
+    resources:
+      - bundles
+      - bundledeployments
+      - clustergroups
+      - clusters
+      - gitrepos
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["catalog.cattle.io"]
+    resources:
+      - apps
+      - clusterrepos
+      - operations
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["terraform.core.oam.dev"]
+    resources:
+      - configurations
+      - providers
+    verbs: ["get", "list", "watch"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -43,7 +149,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: openclaw-ops-crd-read
+  name: opencode-ops-crd-read
 subjects:
   - kind: ServiceAccount
     name: opencode

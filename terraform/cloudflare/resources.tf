@@ -144,48 +144,6 @@ resource "cloudflare_dns_record" "comfyui" {
   zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
 }
 
-# Notion-writer webhook receiver (created by Terraform, not imported).
-resource "cloudflare_dns_record" "writer" {
-  comment         = "openclaw cron --webhook target (notion-writer)"
-  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
-  data            = null
-  name            = "writer.victornazzaro.com"
-  priority        = null
-  private_routing = null
-  proxied         = true
-  settings = {
-    flatten_cname = false
-    ipv4_only     = false
-    ipv6_only     = false
-  }
-  tags    = []
-  ttl     = 1
-  type    = "CNAME"
-  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
-}
-
-# __generated__ by Terraform from "45bbfa2da6b4eac2713d440e0f4e5f8d/cf65ccee5d593c1ea3c162dd6225f130"
-resource "cloudflare_dns_record" "openclaw" {
-  comment         = null
-  content         = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100.cfargotunnel.com"
-  data            = null
-  name            = "openclaw.victornazzaro.com"
-  priority        = null
-  private_routing = null
-  proxied         = true
-  settings = {
-    flatten_cname = false
-    ipv4_only     = false
-    ipv6_only     = false
-  }
-  tags    = []
-  ttl     = 1
-  type    = "CNAME"
-  zone_id = "45bbfa2da6b4eac2713d440e0f4e5f8d"
-}
-
-
-
 # Zone-apex wildcard for dynamic first-level public hosts.
 # Specific DNS records (sonarr, memos, …) take precedence over this
 # wildcard. Required for CF Universal SSL (only covers one label under apex).
@@ -379,12 +337,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         service = "http://rancher.cattle-system.svc.cluster.local:80"
       },
       {
-        hostname       = "openclaw.victornazzaro.com"
-        origin_request = null
-        path           = null
-        service        = "http://openclaw.openclaw.svc.cluster.local:18789"
-      },
-      {
         hostname       = "ai.victornazzaro.com"
         origin_request = null
         path           = null
@@ -402,17 +354,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         origin_request = null
         path           = null
         service        = "http://comfyui.ai-inference.svc.cluster.local:8188"
-      },
-      {
-        # Public ingress for the deterministic Notion writer. OpenClaw's cron
-        # --webhook refuses to POST to private/cluster IPs (SSRF guard), so the
-        # writer is reached via this public hostname instead. Protected by the
-        # WEBHOOK_TOKEN bearer the writer enforces (no CF Access app, since the
-        # caller is OpenClaw's server-side POST, not a browser login).
-        hostname       = "writer.victornazzaro.com"
-        origin_request = null
-        path           = null
-        service        = "http://notion-writer.openclaw.svc.cluster.local:80"
       },
       {
         # Catch-all for unlisted first-level subdomains. Named routes above win.
@@ -457,8 +398,6 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
   tunnel_id = "1e1fd0a8-4d55-4eb1-ba74-2e6829b36100"
 }
 
-# __generated__ by Terraform from "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/c6948052-8a41-4c2d-830e-427b3b6cc4b4"
-
 # OpenCode server (multi-client coding harness). Public host uses tunnel wildcard
 # → ingress-nginx; Access app gates browsers before OpenCode basic auth.
 resource "cloudflare_dns_record" "opencode" {
@@ -484,70 +423,6 @@ resource "cloudflare_dns_record" "opencode" {
 # gets JSON, not CF Access HTML. DNS record opencode.victornazzaro.com remains.
 # Destroy leftover Access app in CF UI or: terraform destroy -target=...
 # if state still tracks it — apply after removing from state if needed.
-
-resource "cloudflare_zero_trust_access_application" "openclaw" {
-  account_id                   = "e34e1aabbaa8c7a5ca6a7a229dea2ae7"
-  allow_authenticate_via_warp  = null
-  allow_iframe                 = null
-  allowed_idps                 = null
-  app_launcher_logo_url        = null
-  app_launcher_visible         = true
-  auto_redirect_to_identity    = false
-  bg_color                     = null
-  cors_headers                 = null
-  custom_deny_message          = null
-  custom_deny_url              = null
-  custom_non_identity_deny_url = null
-  custom_pages                 = null
-  destinations = [
-    {
-      cidr          = null
-      hostname      = null
-      l4_protocol   = null
-      mcp_server_id = null
-      port_range    = null
-      type          = "public"
-      uri           = "openclaw.victornazzaro.com"
-      vnet_id       = null
-    },
-  ]
-  domain                     = "openclaw.victornazzaro.com"
-  enable_binding_cookie      = false
-  footer_links               = null
-  header_bg_color            = null
-  http_only_cookie_attribute = true
-  landing_page_design        = null
-  logo_url                   = null
-  mfa_config                 = null
-  name                       = "OpenClaw"
-  oauth_configuration        = null
-  options_preflight_bypass   = false
-  path_cookie_attribute      = null
-  policies = [
-    {
-      connection_rules = null
-      decision         = null
-      exclude          = null
-      id               = "0febeabd-8492-480f-96ae-55ea5dad764c"
-      include          = null
-      mfa_config       = null
-      name             = null
-      precedence       = 1
-      require          = null
-    },
-  ]
-  read_service_tokens_from_header = null
-  saas_app                        = null
-  same_site_cookie_attribute      = null
-  scim_config                     = null
-  service_auth_401_redirect       = null
-  session_duration                = "24h"
-  skip_interstitial               = null
-  tags                            = null
-  target_criteria                 = null
-  type                            = "self_hosted"
-  zone_id                         = null
-}
 
 # __generated__ by Terraform from "accounts/e34e1aabbaa8c7a5ca6a7a229dea2ae7/5e463ac3-82aa-48d6-ae27-bdd8dc8c3e92"
 resource "cloudflare_zero_trust_access_application" "homelab" {

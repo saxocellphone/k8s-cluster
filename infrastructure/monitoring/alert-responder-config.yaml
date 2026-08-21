@@ -9,15 +9,6 @@ data:
     alert-responder: receives Alertmanager v2 webhooks, attempts safe
     remediation per a static playbook, and notifies the user via Telegram.
 
-    Notification path priority:
-      1. Via OpenClaw (kubernetes pods/exec into openclaw pod, run
-         `openclaw agent --channel telegram --deliver`). Costs an LLM turn
-         (Grok 4.3) but produces a richer summary and is "the same bot
-         talking to me" UX-wise.
-      2. Direct Telegram bot API fallback when OpenClaw is unreachable
-         OR when the alert is OpenclawDown itself (can't ask a dead
-         service to deliver its own death notice).
-
     Remediation is intentionally narrow: only `restart_pod` for now, only
     on alerts in the static PLAYBOOKS dict. Everything else is notify-only.
     """
@@ -29,10 +20,7 @@ data:
     from urllib import request as urlreq, error as urlerr
 
     from kubernetes import client, config
-    from kubernetes.stream import stream
 
-    OPENCLAW_NS = "openclaw"
-    OPENCLAW_LABEL = "app=openclaw"
     BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
     CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
@@ -87,8 +75,7 @@ data:
         return fn(alert)
 
 
-    def send_telegram_direct(text):
-        """Last-resort path: bypass OpenClaw, hit api.telegram.org directly."""
+    def send_telegram(text):
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = json.dumps({
             "chat_id": CHAT_ID,
@@ -103,101 +90,11 @@ data:
             with urlreq.urlopen(req, timeout=10) as r:
                 return r.status == 200
         except urlerr.URLError as e:
-            log.error("direct telegram send failed: %s", e)
+            log.error("telegram send failed: %s", e)
             return False
 
 
-    def send_via_openclaw(prompt):
-        """Run `openclaw agent` inside the openclaw pod via pods/exec.
-
-        Returns (ok, info). On success info is a short tail of stdout. On
-        failure info contains a short error description for logging.
-        """
-        try:
-            pods = v1.list_namespaced_pod(
-                OPENCLAW_NS, label_selector=OPENCLAW_LABEL
-            )
-        except Exception as e:
-            return False, f"openclaw pod list failed: {e}"
-        pod = next(
-            (p for p in pods.items
-             if p.status.phase == "Running"
-             and all(c.ready for c in (p.status.container_statuses or []))),
-            None,
-        )
-        if not pod:
-            return False, "no Ready openclaw pod found"
-        # Use --to <chatId> rather than --session-id; the latter requires
-        # the session to have a fully-resolved deliveryContext at CLI parse
-        # time which depends on the channel having paired the chat. --to
-        # is the explicit, stateless form: agent runs in an ephemeral
-        # session keyed by the chat id, and the agent uses its `message`
-        # tool to deliver to that telegram chat.
-        #
-        # IMPORTANT: --deliver is intentionally OMITTED. With --deliver, the
-        # agent's *text reply* is also auto-sent to the channel, which
-        # produces a duplicate because the prompt makes the agent call its
-        # `message` tool (delivering the alert) AND emit a text reply
-        # (delivered again by --deliver). Without --deliver, only the
-        # message-tool send reaches Telegram; the text reply lands in the
-        # session log and goes nowhere. The prompt below is explicit so
-        # the agent reliably picks the tool path.
-        cmd = [
-            "openclaw", "agent",
-            "--to", CHAT_ID,
-            "--channel", "telegram",
-            # grok-4.3 has thinking baked in and rejects any tunable level
-            # other than "off" (the model controls its own reasoning depth).
-            "--thinking", "off",
-            "--message", prompt,
-        ]
-        try:
-            resp = stream(
-                v1.connect_get_namespaced_pod_exec,
-                pod.metadata.name, OPENCLAW_NS,
-                container="openclaw",
-                command=cmd,
-                stderr=True, stdin=False, stdout=True, tty=False,
-                _request_timeout=120,
-            )
-        except Exception as e:
-            return False, f"exec failed: {type(e).__name__}: {e}"
-        # The exec stream returns merged stdout+stderr and DOES NOT raise on
-        # non-zero exits. The openclaw CLI prints its errors as plain text
-        # (e.g. "GatewayClientRequestError: ..."). Treat any line starting
-        # with a *Error:* token as a failure.
-        text = resp or ""
-        for marker in ("GatewayClientRequestError", "command terminated",
-                       "Error:", "Usage:"):
-            if marker in text:
-                return False, f"openclaw CLI error: {text.strip()[-200:]}"
-        return True, text[-200:]
-
-
-    def alert_to_openclaw_prompt(alert, remediation):
-        labels = alert["labels"]
-        ann = alert.get("annotations", {})
-        # Keep only meaningful labels in the prompt -- strip noise.
-        skip = {"alertname", "prometheus", "prometheus_replica", "endpoint",
-                "container", "service", "job"}
-        keep = {k: v for k, v in labels.items() if k not in skip}
-        return (
-            "An infrastructure alert just fired in the homelab cluster. "
-            "Use the `message` tool exactly once to deliver a summary to me on "
-            "Telegram (chat 8046271128). Plain text, max 6 lines, no markdown "
-            "headers, no follow-up question, factual + terse. After the tool "
-            "call returns, do not produce any further text reply.\n\n"
-            f"Alert: {labels['alertname']}\n"
-            f"Severity: {labels.get('severity', '?')}\n"
-            f"Status: {alert.get('status', 'firing')}\n"
-            f"Summary: {ann.get('summary', '(none)')}\n"
-            f"Description: {ann.get('description', '(none)')[:400]}\n"
-            f"Labels: {json.dumps(keep)}\n"
-            f"Auto-remediation result: {remediation}"
-        )
-
-
-    def alert_to_fallback_html(alert, remediation, note=""):
+    def alert_to_html(alert, remediation, note=""):
         labels = alert["labels"]
         ann = alert.get("annotations", {})
         sev = labels.get("severity", "?").upper()
@@ -217,31 +114,14 @@ data:
         status = alert.get("status", "firing")
 
         if status == "resolved":
-            send_telegram_direct(f"<b>RESOLVED:</b> {name}")
-            return
-
-        # Bootstrapping problem: if openclaw is the failing service, we cannot
-        # ask it to deliver the death-notice. Skip to fallback path directly.
-        if name == "OpenclawDown":
-            send_telegram_direct(alert_to_fallback_html(
-                alert, "skipped (alert is about openclaw itself)",
-                note="Sent directly: OpenClaw cannot notify of its own outage.",
-            ))
+            send_telegram(f"<b>RESOLVED:</b> {name}")
             return
 
         remediation = attempt_remediation(alert)
         log.info("alert=%s status=%s remediation=%r", name, status, remediation)
 
-        ok, info = send_via_openclaw(alert_to_openclaw_prompt(alert, remediation))
-        if ok:
-            log.info("delivered via openclaw (info=%s)", info[:120])
-        else:
-            log.warning("openclaw delivery failed (%s); falling back", info)
-            sent = send_telegram_direct(alert_to_fallback_html(
-                alert, remediation,
-                note=f"OpenClaw delivery failed ({info[:80]}); sent directly.",
-            ))
-            log.info("direct telegram fallback %s", "succeeded" if sent else "FAILED")
+        sent = send_telegram(alert_to_html(alert, remediation))
+        log.info("telegram %s", "succeeded" if sent else "FAILED")
 
 
     class Handler(BaseHTTPRequestHandler):

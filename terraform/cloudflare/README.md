@@ -15,8 +15,8 @@ relies on: which hostnames route where, the DNS records, and who can log in.
 | Resource | Name(s) |
 |---|---|
 | `cloudflare_zero_trust_tunnel_cloudflared_config` | `homelab` (all ingress rules) |
-| `cloudflare_dns_record` | `ai`, `audiobooks`, `c2c`, `chat`, `comfyui`, `llm`, `openclaw`, `paste`, `qbit`, `radarr`, `rancher`, `runko`, `runko_dev`, `sonarr`, `ssh`, `writer` (orange-clouded CNAMEs → tunnel) |
-| `cloudflare_zero_trust_access_application` | `ai`, `openclaw`, `homelab`, `runko_dev`, `ssh_bastion` |
+| `cloudflare_dns_record` | `ai`, `audiobooks`, `c2c`, `chat`, `comfyui`, `paste`, `qbit`, `radarr`, `rancher`, `runko`, `runko_dev`, `sonarr`, `ssh` (orange-clouded CNAMEs → tunnel) |
+| `cloudflare_zero_trust_access_application` | `ai`, `homelab`, `runko_dev`, `ssh_bastion` |
 | `cloudflare_zero_trust_access_policy` | `owner_email` (first-class reusable; new apps should reference this, not the legacy embedded ones) |
 | `cloudflare_zero_trust_access_service_token` | `nzb360` |
 | `cloudflare_ruleset` | `runko_cache` (zone cache rules — Runko public host edge caching; the origin's Cache-Control is the source of truth, see the resource comment) |

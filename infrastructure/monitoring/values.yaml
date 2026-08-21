@@ -11,9 +11,8 @@ grafana:
       watchMethod: LIST
 
 # Route all alerts to the alert-responder webhook in this namespace.
-# The responder attempts safe per-alertname remediation, then crafts a
-# Telegram message via OpenClaw (with direct-Telegram fallback when
-# OpenClaw is unreachable).
+# The responder attempts safe per-alertname remediation, then notifies
+# via the Telegram bot API.
 alertmanager:
   config:
     route:
@@ -190,24 +189,6 @@ additionalPrometheusRulesMap:
                 If qBittorrent itself is still running, traffic may leak the
                 host IP. Either restart the pod or stop qBittorrent.
 
-          # OpenClaw is the ops/notification path -- if it's down we lose
-          # both Telegram remediation reports AND the bot interface.
-          - alert: OpenclawDown
-            expr: |
-              kube_pod_status_ready{namespace="openclaw",condition="true"} * on(pod, namespace)
-              kube_pod_labels{label_app="openclaw"} == 0
-              or absent(kube_pod_status_ready{namespace="openclaw"})
-            for: 5m
-            labels:
-              severity: critical
-              namespace: openclaw
-            annotations:
-              summary: "OpenClaw gateway pod not ready"
-              description: |
-                The openclaw deployment has no ready pod for 5m+. Telegram-
-                routed alerts (including this one) cannot be delivered. Check
-                with kubectl logs -n openclaw deploy/openclaw.
-
           # Strix Halo Corsair: ROCm/unified-memory hangs often leave the node
           # NotReady while ICMP still works (Talos apid TLS timeout). Power-cycle
           # the host; AI modes stay Pending until the node recovers.
@@ -246,7 +227,7 @@ additionalPrometheusRulesMap:
             expr: |
               (
                 kube_pod_status_ready{
-                  namespace=~"torrenting|openclaw",
+                  namespace="torrenting",
                   condition="true"
                 } == 0
               )
@@ -274,7 +255,7 @@ additionalPrometheusRulesMap:
           - alert: HomelabContainerOOMKilled
             expr: |
               kube_pod_container_status_last_terminated_reason{
-                namespace=~"torrenting|openclaw|monitoring",
+                namespace=~"torrenting|monitoring",
                 reason="OOMKilled"
               } * on(namespace, pod, container)
               kube_pod_container_status_last_terminated_exitcode != 0 == 1

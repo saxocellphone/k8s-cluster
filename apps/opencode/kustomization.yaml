@@ -11,11 +11,17 @@ resources:
   - ingress.yaml
   - networkpolicy.yaml
   - configmap-opencode-json.yaml
+  - github-app-mcp.yaml
 
 configMapGenerator:
   - name: opencode-entrypoint
     files:
       - entrypoint.sh
+    options:
+      disableNameSuffixHash: true
+  - name: github-app-mcp-src
+    files:
+      - github-app-mcp/server.py
     options:
       disableNameSuffixHash: true
 

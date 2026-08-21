@@ -44,7 +44,7 @@ Look in `argocd/`:
 
 ```bash
 # Edit an encrypted secret in place
-SOPS_AGE_KEY_FILE=./key.txt sops apps/openclaw/secret.yaml
+SOPS_AGE_KEY_FILE=./key.txt sops apps/opencode/secret.yaml
 
 # Encrypt a brand-new secret file (filename must match *secret*.yaml)
 SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml

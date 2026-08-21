@@ -1,12 +1,11 @@
-# GitHub-App MCP sidecar: the agent's only write path to the cluster (opens PRs
-# the operator merges). Authenticates as a GitHub App and refreshes installation
-# tokens internally, so OpenClaw just connects over Streamable HTTP by URL (see
-# the c.mcp.servers.github block in deployment.yaml). Mirrors notion-writer.
+# GitHub-App MCP: OpenCode's only write path to the cluster (opens PRs the
+# operator merges). Authenticates as a GitHub App and refreshes installation
+# tokens internally; OpenCode connects over Streamable HTTP by URL.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: github-app-mcp
-  namespace: openclaw
+  namespace: opencode
   labels:
     app: github-app-mcp
   annotations:
@@ -35,13 +34,13 @@ spec:
       containers:
         - name: github-app-mcp
           image: python:3.12-slim
-        # Deps installed into a writable tmpfs at start (rootfs stays read-only),
-        # matching the repo's "no build pipeline" convention. Pin in a follow-up
-        # if you want fully reproducible startups.
+          # Deps installed into a writable emptyDir at start (rootfs stays
+          # read-only). mcp is pinned to 1.x: 2.0 removed mcp.server.fastmcp.
           command: ["sh", "-c"]
           args:
             - |
-              pip install --no-cache-dir --target=/deps mcp pyjwt cryptography \
+              pip install --no-cache-dir --target=/deps \
+                'mcp==1.12.4' pyjwt cryptography \
                 && PYTHONPATH=/deps exec python /app/server.py
           env:
             - name: GITHUB_APP_ID
@@ -51,12 +50,12 @@ spec:
             - name: GITHUB_APP_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: openclaw-secrets
+                  name: opencode-secrets
                   key: GITHUB_APP_PRIVATE_KEY
             - name: MCP_SHARED_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: openclaw-secrets
+                  name: opencode-secrets
                   key: GITHUB_MCP_TOKEN
             - name: GITHUB_REPO
               value: "saxocellphone/k8s-cluster"
@@ -118,7 +117,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: github-app-mcp
-  namespace: openclaw
+  namespace: opencode
 spec:
   selector:
     app: github-app-mcp

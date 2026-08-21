@@ -20,7 +20,6 @@ All nodes are amd64 architecture.
 k8s-cluster/
 ├── apps/                       # Application workloads (Kustomize)
 │   ├── ai-inference/           #   Local LLM inference + chat/image UIs
-│   ├── openclaw/               #   AI agent gateway (Telegram + GitOps cluster ops)
 │   ├── opencode/               #   OpenCode server (phone UI + multi-client API sandbox)
 │   ├── torrenting/             #   VPN-protected media stack
 │   ├── database/               #   PostgreSQL (CloudNativePG)
@@ -33,7 +32,7 @@ k8s-cluster/
 │   └── amd-gpu-device-plugin/  #   AMD GPU scheduling
 ├── argocd/                     # Argo CD Application definitions
 │   ├── app-of-apps.yaml        #   Root Application
-│   ├── apps/                   #   App Applications (torrenting, openclaw, cluster-resources)
+│   ├── apps/                   #   App Applications (torrenting, opencode, cluster-resources)
 │   └── infrastructure/         #   Infrastructure Applications (Helm-based)
 ├── cluster/                    # Cluster-wide resources (Kustomize)
 │   ├── persistent-volumes.yaml #   NFS PVs and PVCs
@@ -69,7 +68,7 @@ app-of-apps (argocd/app-of-apps.yaml)
 
 See [Components](#components) for the full list.
 
-**Plain-manifest apps** (torrenting, openclaw, cluster-resources) use Kustomize with `kustomization.yaml` files that enumerate all resources.
+**Plain-manifest apps** (torrenting, opencode, cluster-resources) use Kustomize with `kustomization.yaml` files that enumerate all resources.
 
 **Infrastructure apps** use Helm charts with values stored in `infrastructure/<name>/values.yaml`. Argo CD uses multi-source Applications to reference both the upstream Helm chart and the values file from this repo.
 
@@ -121,9 +120,7 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using [age](h
 |---|---|
 | `apps/torrenting/postgres/secret.yaml` | PostgreSQL credentials |
 | `apps/torrenting/qbittorrent/secret.yaml` | ProtonVPN WireGuard config |
-| `apps/openclaw/secret.yaml` | Anthropic API key, Telegram bot token |
-| `apps/opencode/secret.yaml` | OpenCode server basic auth + optional LLM/GitHub tokens |
-| `apps/openclaw/tls-secret.yaml` | Self-signed TLS certificate |
+| `apps/opencode/secret.yaml` | OpenCode server basic auth, GitHub App key, optional LLM tokens |
 
 ### How it works
 
@@ -136,7 +133,7 @@ Secrets are encrypted with [SOPS](https://github.com/getsops/sops) using [age](h
 
 ```bash
 # Decrypt and edit in-place (requires key.txt)
-SOPS_AGE_KEY_FILE=./key.txt sops apps/openclaw/secret.yaml
+SOPS_AGE_KEY_FILE=./key.txt sops apps/opencode/secret.yaml
 
 # Encrypt a new secret file
 SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
@@ -151,7 +148,6 @@ SOPS_AGE_KEY_FILE=./key.txt sops -e -i path/to/new-secret.yaml
 | App | Purpose |
 |---|---|
 | ai-inference | Local LLM (HIPFire) with Open WebUI, ComfyUI, and a mode switcher |
-| openclaw | AI agent gateway — Telegram bot, read-only cluster diagnostics, and GitOps changes via PR |
 | opencode | OpenCode `web` — DinD coding sandbox, OpenAPI multi-client; HTTP Basic Auth (CLI-friendly) |
 | torrenting | VPN-protected media stack: qBittorrent (+ gluetun), Prowlarr, Radarr, Sonarr, Audiobookshelf |
 | database | PostgreSQL cluster (CloudNativePG) backing app workloads |

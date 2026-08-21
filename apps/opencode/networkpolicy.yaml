@@ -50,16 +50,6 @@ spec:
           port: 8080
         - protocol: TCP
           port: 11435
-    # GitHub App MCP (PR write path) in openclaw namespace
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: openclaw
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 8080
     # External HTTPS (LLM APIs, GitHub, registries, apt, etc.)
     - to:
         - ipBlock:

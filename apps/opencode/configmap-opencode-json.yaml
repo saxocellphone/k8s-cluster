@@ -72,7 +72,7 @@ data:
         "github-app": {
           "type": "remote",
           "enabled": true,
-          "url": "http://github-app-mcp.openclaw.svc.cluster.local/mcp",
+          "url": "http://github-app-mcp.opencode.svc.cluster.local/mcp",
           "headers": {
             "X-MCP-Token": "__GITHUB_MCP_TOKEN__"
           }
@@ -103,7 +103,7 @@ data:
     in-cluster vLLM when the GPU node is Ready and `vllm` is running.
 
     You run in a long-lived Kubernetes pod (`opencode` namespace) with Docker-in-Docker
-    and a **read-only** in-cluster ServiceAccount (same model as OpenClaw).
+    and a **read-only** in-cluster ServiceAccount.
 
     ## Kubernetes context — confirm the *correct* cluster
 

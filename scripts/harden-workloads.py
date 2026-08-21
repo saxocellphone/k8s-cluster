@@ -18,7 +18,6 @@ IMAGE_PINS: dict[str, str] = {
     "qmcgaw/gluetun": "qmcgaw/gluetun:v3.40.0",
     "rclone/rclone:latest": "rclone/rclone:1.69.0",
     "nicolaka/netshoot:latest": "nicolaka/netshoot:v0.13",
-    "ghcr.io/openclaw/openclaw:latest": "ghcr.io/openclaw/openclaw:2026.3.1",
 }
 
 # Per-file Checkov skip annotations (resource-level, justified).
@@ -138,34 +137,9 @@ FILE_SKIPS: dict[str, dict[str, str]] = {
         "CKV_K8S_40": "mirotalk image runs as a low UID.",
         "CKV_K8S_43": "Image is tag-pinned; digest pinning tracked separately.",
     },
-    "apps/openclaw/deployment.yaml": {
-        "CKV_K8S_8": "Long-running gateway has startup ordering handled by init containers.",
-        "CKV_K8S_9": "Gateway readiness is enforced by startup ordering across init containers.",
-        "CKV_K8S_12": "Init containers have ephemeral resource needs; main container is sized separately.",
-        "CKV_K8S_20": "Permission-fix init containers require root for chown on PVC.",
-        "CKV_K8S_22": "OpenClaw gateway and init containers require writable home and tool paths.",
-        "CKV_K8S_23": "Init containers run as root to fix PVC ownership.",
-        "CKV_K8S_28": "npx-spawned MCP subprocesses inherit default pod capabilities.",
-        "CKV_K8S_35": "API keys and tokens are required as env vars by OpenClaw.",
-        "CKV_K8S_37": "install-kubectl init container retains default capability set for curl/unzip.",
-        "CKV_K8S_38": "Service account token is required for in-cluster Kubernetes MCP access.",
-        "CKV_K8S_40": "OpenClaw image runs as UID 1000 per upstream.",
-        "CKV_K8S_43": "Image is tag-pinned; digest pinning tracked separately.",
-    },
-    "apps/openclaw/chromium-browser.yaml": {
-        "CKV_K8S_22": "Chromium requires writable cache and shared memory directories.",
-        "CKV_K8S_40": "headless-shell image runs as a low UID.",
-        "CKV_K8S_43": "Image uses stable channel tag.",
-    },
-    "apps/openclaw/github-app-mcp.yaml": {
+    "apps/opencode/github-app-mcp.yaml": {
         "CKV_K8S_35": "GitHub App private key and MCP token are required as env vars.",
         "CKV_K8S_22": "pip install writes to /deps at container start.",
-        "CKV_K8S_38": "No Kubernetes API access; service account token not needed.",
-        "CKV_K8S_40": "python:slim runs as a low UID.",
-        "CKV_K8S_43": "python base image is tag-pinned.",
-    },
-    "apps/openclaw/notion-writer.yaml": {
-        "CKV_K8S_35": "Notion and Telegram tokens are required as env vars.",
         "CKV_K8S_38": "No Kubernetes API access; service account token not needed.",
         "CKV_K8S_40": "python:slim runs as a low UID.",
         "CKV_K8S_43": "python base image is tag-pinned.",
