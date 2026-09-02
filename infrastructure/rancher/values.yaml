@@ -18,7 +18,8 @@ certmanager:
 # and UI subscribe websockets on this ~5-node local cluster.
 resources:
   requests:
-    cpu: 500m
+    # Idle is ~25m; 500m was packing PVE workers for no benefit.
+    cpu: 100m
     memory: 1536Mi
   limits:
     memory: 4Gi

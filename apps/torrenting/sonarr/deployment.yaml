@@ -112,7 +112,7 @@ spec:
             memory: 512Mi
           requests:
             cpu: 50m
-            memory: 128Mi
+            memory: 256Mi
         imagePullPolicy: Always
       volumes:
       - name: sonarr-config

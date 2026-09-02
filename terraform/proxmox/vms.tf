@@ -75,8 +75,11 @@ resource "proxmox_virtual_environment_vm" "k8s_control_plane" {
     sockets = 1
     type    = "x86-64-v2-AES"
   }
+  # kube-apiserver alone sits at ~2.1Gi; 4096 MiB left the guest at 95%
+  # allocatable. Steal 2Gi from the sibling worker on this host (same 15.4Gi
+  # physical RAM, no overcommit): 6144 + worker 8192 = 14336 MiB.
   memory {
-    dedicated = 4096
+    dedicated = 6144
   }
   network_device {
     bridge      = "vmbr0"
@@ -119,15 +122,12 @@ resource "proxmox_virtual_environment_vm" "k8s_worker_gcx" {
     sockets = 1
     type    = "host"
   }
-  # The EQ14 host has only ~15.4 GiB physical RAM. The previous 16384 MiB,
-  # plus 4096 MiB for the control-plane VM on the same host, over-committed
-  # the box by ~33% and only "fit" because the host silently ballooned this
-  # guest down (runtime was ~10.7 GiB, never the configured 16). Set to a
-  # value that actually fits: 10240 + cp's 4096 = 14336 MiB, leaving ~1.4 GiB
-  # for the hypervisor. Longhorn instance-manager (~5.8 GiB) still leaves
-  # ~4.4 GiB for prometheus/postgres/the rest — honest, no overcommit.
+  # EQ14 host ~15.4 GiB physical. 8192 + CP 6144 = 14336 MiB, ~1.4 GiB left
+  # for the hypervisor (no overcommit). Worker actual is ~5Gi / ~4.3Gi
+  # requested, so 8Gi still has headroom; the 2Gi moved to the CP because
+  # apiserver was saturating the old 4Gi guest.
   memory {
-    dedicated = 10240
+    dedicated = 8192
   }
   network_device {
     bridge      = "vmbr0"
