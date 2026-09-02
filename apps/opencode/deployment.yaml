@@ -23,7 +23,8 @@ metadata:
     checkov.io/skip13: CKV_K8S_35=API keys required as env vars by OpenCode providers.
     checkov.io/skip14: CKV_K8S_43=Ubuntu base is tag-pinned; OpenCode version via OPENCODE_VERSION.
 spec:
-  replicas: 1
+  # 0: Longhorn workers lack 1250m free CPU; GPU node is tainted.
+  replicas: 0
   strategy:
     type: Recreate
   selector:

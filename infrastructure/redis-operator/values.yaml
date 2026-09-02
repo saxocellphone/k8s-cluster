@@ -1,6 +1,13 @@
 redisOperator:
   imagePullPolicy: IfNotPresent
   watchNamespace: redis
+  # Chart injects FEATURE_GATES=AvoidCommandLinePassword=false,... but the
+  # v0.25.0 binary rejects that gate and crash-loops. CLI flag overrides it.
+  extraArgs:
+    - "--feature-gates=GenerateConfigInInitContainer=false"
+
+featureGates:
+  GenerateConfigInInitContainer: false
 
 resources:
   requests:
