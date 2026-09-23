@@ -15,3 +15,6 @@ resources:
 generators:
   - grafana-secret-generator.yaml
   - alert-responder-secret-generator.yaml
+  # TODO(victor): uncomment after grokbot-webhook-secret.yaml is SOPS-encrypted.
+  # See grokbot-webhook.example.yaml. Do not point KSOPS at a plaintext file.
+  # - grokbot-webhook-secret-generator.yaml

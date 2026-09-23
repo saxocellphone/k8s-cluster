@@ -10,16 +10,36 @@ grafana:
       initDatasources: true
       watchMethod: LIST
 
-# Route all alerts to the alert-responder webhook in this namespace.
-# The responder attempts safe per-alertname remediation, then notifies
-# via the Telegram bot API.
+# Routing:
+# - Watchdog and InfoInhibitor stay on the null receiver (pipeline canaries).
+# - Every other alert is dual-received: alert-responder (safe pod restart
+#   only; Telegram is off) and the Ryan / Grok Bot webhook.
+# Separate receivers, with continue: true on the responder route, so a
+# grokbot HTTP failure retries only that receiver. Two webhook_configs on
+# one receiver would retry the whole fanout and could delete the same pod
+# again while the webhook token is missing or api2.cursor.sh errors.
+#
+# Bearer token: Secret/grokbot-webhook key `token` in namespace monitoring,
+# mounted at /etc/alertmanager/secrets/grokbot-webhook/token. Do not put the
+# token in this file.
+# TODO(victor): key.txt is not available in automation, so this Secret is
+# not SOPS-encrypted yet. Before this syncs, copy
+# infrastructure/monitoring/grokbot-webhook.example.yaml to
+# grokbot-webhook-secret.yaml, set stringData.token to the raw webhook
+# bearer token (no "Bearer " prefix, no trailing newline), then:
+#   SOPS_AGE_KEY_FILE=./key.txt sops -e -i infrastructure/monitoring/grokbot-webhook-secret.yaml
+# Uncomment grokbot-webhook-secret-generator.yaml in
+# infrastructure/monitoring/kustomization.yaml.
+# A missing Secret keeps Alertmanager pods from starting (volume mount).
 alertmanager:
+  alertmanagerSpec:
+    secrets:
+      - grokbot-webhook
   config:
     route:
       receiver: alert-responder
       # Group by alertname so a burst of related fires becomes one webhook
-      # delivery, but route every group to the responder. No child routes
-      # for now -- one receiver handles everything.
+      # delivery. Child routes inherit these timings.
       group_by: ["alertname", "namespace"]
       group_wait: 30s
       group_interval: 5m
@@ -35,6 +55,10 @@ alertmanager:
         - matchers:
             - alertname = "InfoInhibitor"
           receiver: "null"
+        # Remaining alerts: remediate, then also POST to Ryan.
+        - receiver: alert-responder
+          continue: true
+        - receiver: grokbot
     receivers:
       - name: "null"
       - name: alert-responder
@@ -42,6 +66,15 @@ alertmanager:
           - url: http://alert-responder.monitoring.svc:8080/webhook
             send_resolved: true
             max_alerts: 0  # 0 means unlimited per request
+      - name: grokbot
+        webhook_configs:
+          - url: https://api2.cursor.sh/automations/webhook/3375e892-009e-54ac-83f4-19aa319426eb
+            send_resolved: true
+            max_alerts: 0
+            http_config:
+              authorization:
+                type: Bearer
+                credentials_file: /etc/alertmanager/secrets/grokbot-webhook/token
     inhibit_rules:
       - source_matchers:
           - severity = "critical"
