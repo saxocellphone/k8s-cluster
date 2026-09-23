@@ -1,0 +1,90 @@
+# Read-only cluster identity for grokbot. Its only write path is Git: it opens
+# and merges its own PRs as the `aoiapp` GitHub App (bypass actor on the
+# protect-main ruleset, pull_request mode). Everything here is get/list/watch,
+# and `view` excludes Secrets.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grokbot
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grokbot
+  namespace: grokbot
+---
+# Long-lived token for use from outside the cluster; see
+# scripts/grokbot-kubeconfig.sh. Delete and re-sync this object to rotate it.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grokbot-token
+  namespace: grokbot
+  annotations:
+    kubernetes.io/service-account.name: grokbot
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: grokbot-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: grokbot
+    namespace: grokbot
+---
+# `view` covers neither Argo CD nor most operator CRDs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: grokbot-read
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      - longhorn.io
+      - postgresql.cnpg.io
+      - cert-manager.io
+      - acme.cert-manager.io
+      - monitoring.coreos.com
+      - metallb.io
+      - terraform.core.oam.dev
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Explicit: fleet.cattle.io `contents` can embed rendered Secrets.
+  - apiGroups: ["provisioning.cattle.io"]
+    resources: ["clusters"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["fleet.cattle.io"]
+    resources: ["bundles", "bundledeployments", "clustergroups", "clusters", "gitrepos"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["catalog.cattle.io"]
+    resources: ["apps", "clusterrepos", "operations"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes", "persistentvolumes", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses", "volumeattachments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: grokbot-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: grokbot-read
+subjects:
+  - kind: ServiceAccount
+    name: grokbot
+    namespace: grokbot
