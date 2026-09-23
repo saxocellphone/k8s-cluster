@@ -19,18 +19,16 @@ grafana:
 # one receiver would retry the whole fanout and could delete the same pod
 # again while the webhook token is missing or api2.cursor.sh errors.
 #
-# Bearer token: Secret/grokbot-webhook key `token` in namespace monitoring,
-# mounted at /etc/alertmanager/secrets/grokbot-webhook/token. Do not put the
-# token in this file.
-# TODO(victor): key.txt is not available in automation, so this Secret is
-# not SOPS-encrypted yet. Before this syncs, copy
-# infrastructure/monitoring/grokbot-webhook.example.yaml to
-# grokbot-webhook-secret.yaml, set stringData.token to the raw webhook
-# bearer token (no "Bearer " prefix, no trailing newline), then:
-#   SOPS_AGE_KEY_FILE=./key.txt sops -e -i infrastructure/monitoring/grokbot-webhook-secret.yaml
-# Uncomment grokbot-webhook-secret-generator.yaml in
-# infrastructure/monitoring/kustomization.yaml.
-# A missing Secret keeps Alertmanager pods from starting (volume mount).
+# Bearer token: Secret/grokbot-webhook key `token` (SOPS / KSOPS).
+# Alertmanager http_config has no secretKeyRef; the operator mounts that
+# Secret and authorization.credentials_file reads the same key:
+#   secretKeyRef:
+#     name: grokbot-webhook
+#     key: token
+# TODO(victor): grokbot-webhook-secret.yaml is an encrypted stub, not the
+# real bearer token. Replace stringData.token before merge:
+#   SOPS_AGE_KEY_FILE=./key.txt sops infrastructure/monitoring/grokbot-webhook-secret.yaml
+# Raw token only (no "Bearer " prefix, no trailing newline).
 alertmanager:
   alertmanagerSpec:
     secrets:
@@ -74,6 +72,7 @@ alertmanager:
             http_config:
               authorization:
                 type: Bearer
+                # secretKeyRef: { name: grokbot-webhook, key: token }
                 credentials_file: /etc/alertmanager/secrets/grokbot-webhook/token
     inhibit_rules:
       - source_matchers:
