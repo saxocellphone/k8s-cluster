@@ -895,7 +895,41 @@ resource "cloudflare_zero_trust_access_application" "grafana" {
       id         = cloudflare_zero_trust_access_policy.owner_email.id
       precedence = 1
     },
+    {
+      id         = cloudflare_zero_trust_access_policy.grokbot_service.id
+      precedence = 2
+    },
   ]
+}
+
+# grokbot has no mailbox for the email OTP, so it authenticates with
+# CF-Access-Client-Id / CF-Access-Client-Secret headers instead. Read the
+# credentials with `terraform output -json grokbot_access_token`.
+resource "cloudflare_zero_trust_access_service_token" "grokbot" {
+  account_id = local.account_id
+  name       = "grokbot"
+  duration   = "8760h"
+}
+
+resource "cloudflare_zero_trust_access_policy" "grokbot_service" {
+  account_id = local.account_id
+  name       = "grokbot service token"
+  decision   = "non_identity"
+  include = [
+    {
+      service_token = {
+        token_id = cloudflare_zero_trust_access_service_token.grokbot.id
+      }
+    },
+  ]
+}
+
+output "grokbot_access_token" {
+  value = {
+    client_id     = cloudflare_zero_trust_access_service_token.grokbot.client_id
+    client_secret = cloudflare_zero_trust_access_service_token.grokbot.client_secret
+  }
+  sensitive = true
 }
 
 # =============================================================================
