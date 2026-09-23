@@ -356,6 +356,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         service        = "http://comfyui.ai-inference.svc.cluster.local:8188"
       },
       {
+        hostname       = "grafana.victornazzaro.com"
+        origin_request = null
+        path           = null
+        service        = "http://kube-prometheus-stack-grafana.monitoring.svc.cluster.local:80"
+      },
+      {
         # Catch-all for unlisted first-level subdomains. Named routes above win.
         # Must hit ingress-nginx so Host-based Ingress rules are honored.
         hostname       = "*.victornazzaro.com"
@@ -832,6 +838,50 @@ resource "cloudflare_zero_trust_access_application" "runko_dev" {
     {
       type = "public"
       uri  = "runko-dev.victornazzaro.com"
+    },
+  ]
+  session_duration           = "24h"
+  app_launcher_visible       = true
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  http_only_cookie_attribute = true
+  options_preflight_bypass   = false
+  policies = [
+    {
+      id         = cloudflare_zero_trust_access_policy.owner_email.id
+      precedence = 1
+    },
+  ]
+}
+
+resource "cloudflare_dns_record" "grafana" {
+  comment         = "Grafana (kube-prometheus-stack); Access-guarded"
+  content         = "${local.tunnel_id}.cfargotunnel.com"
+  data            = null
+  name            = "grafana.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = local.zone_id
+}
+
+resource "cloudflare_zero_trust_access_application" "grafana" {
+  account_id = local.account_id
+  name       = "Grafana"
+  type       = "self_hosted"
+  domain     = "grafana.victornazzaro.com"
+  destinations = [
+    {
+      type = "public"
+      uri  = "grafana.victornazzaro.com"
     },
   ]
   session_duration           = "24h"
