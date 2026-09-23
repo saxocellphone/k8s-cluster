@@ -15,3 +15,4 @@ resources:
 generators:
   - grafana-secret-generator.yaml
   - alert-responder-secret-generator.yaml
+  - grokbot-webhook-secret-generator.yaml

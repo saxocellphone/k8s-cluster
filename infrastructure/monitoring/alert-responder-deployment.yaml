@@ -8,7 +8,7 @@ metadata:
   annotations:
     checkov.io/skip1: CKV_K8S_15=python:slim is pulled IfNotPresent after first install.
     checkov.io/skip2: CKV_K8S_22=pip install writes to /tmp at container start.
-    checkov.io/skip3: CKV_K8S_35=Telegram credentials are required as env vars.
+    checkov.io/skip3: CKV_K8S_35=Telegram credentials stay mounted so TELEGRAM_ENABLED can be flipped back on. Sends are off.
     checkov.io/skip4: CKV_K8S_38=Service account token is required for pod restart operations.
     checkov.io/skip5: CKV_K8S_40=python:slim runs as UID 1000.
     checkov.io/skip6: CKV_K8S_43=python base image is tag-pinned.
@@ -56,6 +56,11 @@ spec:
               value: "1"
             - name: HOME
               value: /tmp
+            # Sends are a no-op while this is false. Tokens stay mounted so
+            # flipping the flag back to "true" restores Telegram without a
+            # secret change. Pod restart remediation does not use these.
+            - name: TELEGRAM_ENABLED
+              value: "false"
             - name: TELEGRAM_BOT_TOKEN
               valueFrom:
                 secretKeyRef:

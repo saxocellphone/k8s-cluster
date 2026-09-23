@@ -6,11 +6,15 @@ metadata:
 data:
   responder.py: |
     """
-    alert-responder: receives Alertmanager v2 webhooks, attempts safe
-    remediation per a static playbook, and notifies the user via Telegram.
+    alert-responder: receives Alertmanager v2 webhooks and attempts safe
+    remediation per a static playbook.
 
     Remediation is intentionally narrow: only `restart_pod` for now, only
-    on alerts in the static PLAYBOOKS dict. Everything else is notify-only.
+    on alerts in the static PLAYBOOKS dict. Everything else is left alone.
+
+    Telegram notification is optional and off unless TELEGRAM_ENABLED is
+    true. This cluster posts the Alertmanager payload to the Ryan / Grok
+    Bot webhook from Alertmanager itself, so the responder does not send.
     """
     import json
     import logging
@@ -21,8 +25,13 @@ data:
 
     from kubernetes import client, config
 
-    BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-    CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+    def _env_flag(name, default="false"):
+        return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+    # Default off. Deployment sets TELEGRAM_ENABLED=false explicitly.
+    TELEGRAM_ENABLED = _env_flag("TELEGRAM_ENABLED", "false")
+    BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
     config.load_incluster_config()
     v1 = client.CoreV1Api()
@@ -76,6 +85,13 @@ data:
 
 
     def send_telegram(text):
+        """Send a Telegram message. No-op unless TELEGRAM_ENABLED is true."""
+        if not TELEGRAM_ENABLED:
+            log.info("telegram disabled; skipping notification")
+            return
+        if not BOT_TOKEN or not CHAT_ID:
+            log.error("telegram enabled but TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is empty")
+            return
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         payload = json.dumps({
             "chat_id": CHAT_ID,
@@ -88,10 +104,11 @@ data:
         )
         try:
             with urlreq.urlopen(req, timeout=10) as r:
-                return r.status == 200
+                ok = r.status == 200
         except urlerr.URLError as e:
             log.error("telegram send failed: %s", e)
-            return False
+            return
+        log.info("telegram %s", "succeeded" if ok else "FAILED")
 
 
     def alert_to_html(alert, remediation, note=""):
@@ -119,9 +136,7 @@ data:
 
         remediation = attempt_remediation(alert)
         log.info("alert=%s status=%s remediation=%r", name, status, remediation)
-
-        sent = send_telegram(alert_to_html(alert, remediation))
-        log.info("telegram %s", "succeeded" if sent else "FAILED")
+        send_telegram(alert_to_html(alert, remediation))
 
 
     class Handler(BaseHTTPRequestHandler):
@@ -160,7 +175,7 @@ data:
             level=logging.INFO, stream=sys.stdout,
             format="%(asctime)s %(levelname)s %(name)s %(message)s",
         )
-        log.info("alert-responder starting on :8080")
+        log.info("alert-responder starting on :8080 (telegram_enabled=%s)", TELEGRAM_ENABLED)
         HTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
 
 
