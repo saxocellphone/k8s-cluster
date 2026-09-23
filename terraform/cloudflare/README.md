@@ -15,9 +15,9 @@ relies on: which hostnames route where, the DNS records, and who can log in.
 | Resource | Name(s) |
 |---|---|
 | `cloudflare_zero_trust_tunnel_cloudflared_config` | `homelab` (all ingress rules) |
-| `cloudflare_dns_record` | `ai`, `audiobooks`, `c2c`, `chat`, `comfyui`, `grafana`, `paste`, `qbit`, `radarr`, `rancher`, `runko`, `runko_dev`, `sonarr`, `ssh` (orange-clouded CNAMEs → tunnel) |
-| `cloudflare_zero_trust_access_application` | `ai`, `grafana`, `homelab`, `runko_dev`, `ssh_bastion` |
-| `cloudflare_zero_trust_access_policy` | `owner_email` (first-class reusable; new apps should reference this, not the legacy embedded ones), `grokbot_service` (service-token auth on `grafana`) |
+| `cloudflare_dns_record` | `ai`, `audiobooks`, `c2c`, `chat`, `comfyui`, `grafana`, `k8s`, `paste`, `qbit`, `radarr`, `rancher`, `runko`, `runko_dev`, `sonarr`, `ssh` (orange-clouded CNAMEs → tunnel) |
+| `cloudflare_zero_trust_access_application` | `ai`, `grafana`, `homelab`, `k8s` (API server over TCP; use `cloudflared access tcp`), `runko_dev`, `ssh_bastion` |
+| `cloudflare_zero_trust_access_policy` | `owner_email` (first-class reusable; new apps should reference this, not the legacy embedded ones), `grokbot_service` (service-token auth on `grafana` and `k8s`) |
 | `cloudflare_zero_trust_access_service_token` | `nzb360`, `grokbot` (1-year; credentials via `terraform output -json grokbot_access_token`) |
 | `cloudflare_ruleset` | `runko_cache` (zone cache rules — Runko public host edge caching; the origin's Cache-Control is the source of truth, see the resource comment) |
 | `cloudflare_tiered_cache` | `zone` (Smart Tiered Cache, zone-wide) |

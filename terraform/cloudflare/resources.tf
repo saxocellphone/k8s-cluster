@@ -362,6 +362,13 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "homelab" {
         service        = "http://kube-prometheus-stack-grafana.monitoring.svc.cluster.local:80"
       },
       {
+        # Raw TCP to the API server; clients connect via `cloudflared access tcp`.
+        hostname       = "k8s.victornazzaro.com"
+        origin_request = null
+        path           = null
+        service        = "tcp://kubernetes.default.svc.cluster.local:443"
+      },
+      {
         # Catch-all for unlisted first-level subdomains. Named routes above win.
         # Must hit ingress-nginx so Host-based Ingress rules are honored.
         hostname       = "*.victornazzaro.com"
@@ -920,6 +927,56 @@ resource "cloudflare_zero_trust_access_policy" "grokbot_service" {
       service_token = {
         token_id = cloudflare_zero_trust_access_service_token.grokbot.id
       }
+    },
+  ]
+}
+
+# Kubernetes API over the tunnel. TLS is end-to-end to the API server; Access
+# only gates who may open the TCP stream, and RBAC still applies behind it.
+resource "cloudflare_dns_record" "k8s" {
+  comment         = "Kubernetes API (TCP via cloudflared access); Access-guarded"
+  content         = "${local.tunnel_id}.cfargotunnel.com"
+  data            = null
+  name            = "k8s.victornazzaro.com"
+  priority        = null
+  private_routing = null
+  proxied         = true
+  settings = {
+    flatten_cname = false
+    ipv4_only     = false
+    ipv6_only     = false
+  }
+  tags    = []
+  ttl     = 1
+  type    = "CNAME"
+  zone_id = local.zone_id
+}
+
+resource "cloudflare_zero_trust_access_application" "k8s" {
+  account_id = local.account_id
+  name       = "Kubernetes API"
+  type       = "self_hosted"
+  domain     = "k8s.victornazzaro.com"
+  destinations = [
+    {
+      type = "public"
+      uri  = "k8s.victornazzaro.com"
+    },
+  ]
+  session_duration           = "24h"
+  app_launcher_visible       = false
+  auto_redirect_to_identity  = false
+  enable_binding_cookie      = false
+  http_only_cookie_attribute = true
+  options_preflight_bypass   = false
+  policies = [
+    {
+      id         = cloudflare_zero_trust_access_policy.owner_email.id
+      precedence = 1
+    },
+    {
+      id         = cloudflare_zero_trust_access_policy.grokbot_service.id
+      precedence = 2
     },
   ]
 }
